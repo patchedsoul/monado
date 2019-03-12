@@ -109,3 +109,23 @@ if(BUILD_DRIVER_V4L2)
 	add_library(drv_v4l2 OBJECT ${V4L2_SOURCE_FILES})
 	set_property(TARGET drv_v4l2 PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
+
+if (BUILD_WITH_LIBSURVIVE)
+	set(SURVIVE_SOURCE_FILES
+		survive/survive_device.c
+		survive/survive_device.h
+		survive/survive_interface.h
+		survive/survive_prober.c
+		)
+
+	# Use OBJECT to not create a archive, since it just gets in the way.
+	add_library(drv_survive OBJECT ${SURVIVE_SOURCE_FILES})
+	set_property(TARGET drv_survive PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+	target_include_directories(drv_survive SYSTEM
+		PRIVATE
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include/libsurvive
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/redist
+		)
+endif()
