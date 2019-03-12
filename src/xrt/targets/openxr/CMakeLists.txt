@@ -72,9 +72,14 @@ add_library(${RUNTIME_TARGET} SHARED
 	$<TARGET_OBJECTS:st_oxr>
 	)
 
+if (TARGET drv_survive)
+	SET(LIBSURVIVE_LIBRARIES survive)
+endif()
+
 target_link_libraries(${RUNTIME_TARGET}
 	${OPENHMD_LIBRARIES}
 	${Vulkan_LIBRARIES}
+	${LIBSURVIVE_LIBRARIES}
 	${XCB_LIBRARIES}
 	)
 
@@ -84,6 +89,11 @@ if(TARGET drv_hdk)
 	target_sources(${RUNTIME_TARGET} PRIVATE $<TARGET_OBJECTS:drv_hdk>)
 	target_link_libraries(${RUNTIME_TARGET} ${HIDAPI_LIBRARIES})
 	target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_HDK)
+endif()
+
+if (TARGET drv_survive)
+	target_sources(${RUNTIME_TARGET} PRIVATE $<TARGET_OBJECTS:drv_survive>)
+	target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_SURVIVE)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

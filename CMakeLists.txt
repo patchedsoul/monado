@@ -36,6 +36,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     pkg_check_modules(XCB xcb xcb-randr)
 endif()
 
+option(BUILD_WITH_LIBSURVIVE "Enable libsurvive driver" ON)
 cmake_dependent_option(BUILD_WITH_OPENHMD "Enable OpenHMD driver" ON "OPENHMD_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_WAYLAND "Enable Wayland support" ON "WAYLAND_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_XLIB "Enable xlib support" ON "X11_FOUND" OFF)

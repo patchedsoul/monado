@@ -18,6 +18,10 @@
 #include "hdk/hdk_interface.h"
 #endif
 
+#ifdef XRT_HAVE_SURVIVE
+#include "survive/survive_interface.h"
+#endif
+
 
 typedef struct xrt_prober *(*prober_creator)();
 
@@ -26,6 +30,10 @@ static const prober_creator DRIVERS[] = {
 #ifdef XRT_HAVE_HDK
     // Returns NULL if none found, so OK to go first.
     hdk_create_prober,
+#endif
+
+#ifdef XRT_HAVE_SURVIVE
+    survive_create_prober,
 #endif
 
 #ifdef XRT_HAVE_OHMD
