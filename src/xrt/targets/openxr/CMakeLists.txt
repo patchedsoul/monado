@@ -61,6 +61,11 @@ if(DRIVER_OBJECTS)
 		)
 endif()
 
+if (BUILD_DRIVER_SURVIVE)
+	target_sources(${RUNTIME_TARGET} PRIVATE $<TARGET_OBJECTS:drv_survive>)
+	target_link_libraries(${RUNTIME_TARGET} PRIVATE survive)
+endif()
+
 if(DRIVER_LIBRARIES)
 	target_link_libraries(${RUNTIME_TARGET} PRIVATE
 		${DRIVER_LIBRARIES}

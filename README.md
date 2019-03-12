@@ -1,5 +1,5 @@
 
-# Monado - XR Runtime (XRT)
+# Monado - XR Runtime (XRT) - experimental libsurvive branch
 
 > * Promotional homepage: <https://monado.dev>
 > * Maintained at <https://gitlab.freedesktop.org/monado/monado>
@@ -14,6 +14,28 @@ of the OpenXR API made by Khronos.
 The project currently is being developed for GNU/Linux
 and aims to support other operating systems in the near future.
 "Monado" has no specific meaning and is just a name.
+
+# About the libsurvive Branch
+
+This branch contains libsurvive as a submodule in src/xrt/external/libsurvive.
+Libsurvive is compiled as a shared library and the runtime links to libsurvive.
+A device prober using the libsurvive simple api is implemented in src/xrt/drivers/survive.
+
+When starting an OpenXR application, libsurvive will run calibration and save configuration
+and calibration data in the current working directory.
+
+Make sure the HMD can see both basestations and is not moved during calibration.
+
+To remove libsurvive's calibration data delete the following files/directories:
+
+    rm -r config.json HMD_config.json calinfo
+
+Though working and usable, support for the libsurvive driver is **experimental**.
+
+For example it contains many hardcoded values from OpenHMD's configuration for the Vive 1 and
+does not behave well yet when no Vive is connected.
+
+libsurvive may only build when the `-DUSE_OPENCV=OFF` cmake option is used.
 
 ## Monado source tree
 

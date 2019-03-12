@@ -11,7 +11,6 @@
 
 #include "oxr_objects.h"
 
-
 struct binding_template
 {
 	enum oxr_sub_action_path sub_path;
@@ -59,6 +58,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_TRIGGER_VALUE,
                 XRT_INPUT_HYDRA_TRIGGER_VALUE,
+                XRT_INPUT_INDEX_TRIGGER_VALUE,
                 (enum xrt_input_name)0,
             },
     },
@@ -74,6 +74,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_MOVE_CLICK,
                 XRT_INPUT_HYDRA_MIDDLE_CLICK,
+                XRT_INPUT_INDEX_B_CLICK,
                 (enum xrt_input_name)0,
             },
     },
@@ -89,6 +90,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_BODY_CENTER_POSE,
                 XRT_INPUT_HYDRA_POSE,
+                XRT_INPUT_INDEX_GRIP_POSE,
                 (enum xrt_input_name)0,
             },
     },
@@ -104,6 +106,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_BALL_TIP_POSE,
                 XRT_INPUT_HYDRA_POSE,
+                XRT_INPUT_INDEX_AIM_POSE,
                 (enum xrt_input_name)0,
             },
     },
@@ -132,6 +135,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_TRIGGER_VALUE,
                 XRT_INPUT_HYDRA_TRIGGER_VALUE,
+                XRT_INPUT_INDEX_TRIGGER_VALUE,
                 (enum xrt_input_name)0,
             },
     },
@@ -147,6 +151,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_MOVE_CLICK,
                 XRT_INPUT_HYDRA_MIDDLE_CLICK,
+                XRT_INPUT_INDEX_B_CLICK,
                 (enum xrt_input_name)0,
             },
     },
@@ -162,6 +167,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_BODY_CENTER_POSE,
                 XRT_INPUT_HYDRA_POSE,
+                XRT_INPUT_INDEX_GRIP_POSE,
                 (enum xrt_input_name)0,
             },
     },
@@ -177,6 +183,7 @@ static struct binding_template khr_simple_controller_bindings[10] = {
             {
                 XRT_INPUT_PSMV_BALL_TIP_POSE,
                 XRT_INPUT_HYDRA_POSE,
+                XRT_INPUT_INDEX_AIM_POSE,
                 (enum xrt_input_name)0,
             },
     },
@@ -767,7 +774,126 @@ static struct binding_template mnd_ball_on_stick_controller_bindings[26] = {
     },
 };
 
-static struct profile_template profiles[3] = {
+
+#define MAKE_INPUT(COMPONENT, SUFFIX, INPUT)                                   \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_LEFT,                                  \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/left/input/" #COMPONENT "/" #SUFFIX,               \
+                "/user/hand/left/input/" #COMPONENT,                           \
+                NULL,                                                          \
+            },                                                                 \
+        .inputs =                                                              \
+            {                                                                  \
+                INPUT,                                                         \
+                (enum xrt_input_name)0,                                        \
+            },                                                                 \
+    },                                                                         \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_RIGHT,                                 \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/right/input/" #COMPONENT "/" #SUFFIX,              \
+                "/user/hand/right/input/" #COMPONENT,                          \
+                NULL,                                                          \
+            },                                                                 \
+        .inputs =                                                              \
+            {                                                                  \
+                INPUT,                                                         \
+                (enum xrt_input_name)0,                                        \
+            },                                                                 \
+    },
+
+#define MAKE_INPUT_NO_DOWNGRADE(COMPONENT, SUFFIX, INPUT)                      \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_LEFT,                                  \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/left/input/" #COMPONENT #SUFFIX,                   \
+                NULL,                                                          \
+            },                                                                 \
+        .inputs =                                                              \
+            {                                                                  \
+                INPUT,                                                         \
+                (enum xrt_input_name)0,                                        \
+            },                                                                 \
+    },                                                                         \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_RIGHT,                                 \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/right/input/" #COMPONENT #SUFFIX,                  \
+                NULL,                                                          \
+            },                                                                 \
+        .inputs =                                                              \
+            {                                                                  \
+                INPUT,                                                         \
+                (enum xrt_input_name)0,                                        \
+            },                                                                 \
+    },
+
+#define MAKE_OUTPUT(COMPONENT, SUFFIX, OUTPUT)                                 \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_LEFT,                                  \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/left/output/" #COMPONENT "/" #SUFFIX,              \
+                "/user/hand/left/output/" #COMPONENT,                          \
+                NULL,                                                          \
+            },                                                                 \
+        .outputs =                                                             \
+            {                                                                  \
+                OUTPUT,                                                        \
+                (enum xrt_output_name)0,                                       \
+            },                                                                 \
+    },                                                                         \
+    {                                                                          \
+        .sub_path = OXR_SUB_ACTION_PATH_RIGHT,                                 \
+        .paths =                                                               \
+            {                                                                  \
+                "/user/hand/right/output/" #COMPONENT "/" #SUFFIX,             \
+                "/user/hand/right/output/" #COMPONENT,                         \
+                NULL,                                                          \
+            },                                                                 \
+        .outputs =                                                             \
+            {                                                                  \
+                OUTPUT,                                                        \
+                (enum xrt_output_name)0,                                       \
+            },                                                                 \
+    },
+
+static struct binding_template valve_index_controller_bindings[48] = {
+	MAKE_INPUT_NO_DOWNGRADE(thumbstick, , XRT_INPUT_INDEX_THUMBSTICK_XY)
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, , XRT_INPUT_INDEX_TRACKPAD_XY)
+
+	MAKE_INPUT(system, click, XRT_INPUT_INDEX_SYSTEM_CLICK)
+	MAKE_INPUT(system, touch, XRT_INPUT_INDEX_SYSTEM_TOUCH)
+	MAKE_INPUT(a, click, XRT_INPUT_INDEX_A_CLICK)
+	MAKE_INPUT(a, touch, XRT_INPUT_INDEX_A_TOUCH)
+	MAKE_INPUT(b, click, XRT_INPUT_INDEX_B_CLICK)
+	MAKE_INPUT(b, touch, XRT_INPUT_INDEX_B_TOUCH)
+	MAKE_INPUT(squeeze, value, XRT_INPUT_INDEX_SQUEEZE_VALUE)
+	MAKE_INPUT(squeeze, force, XRT_INPUT_INDEX_SQUEEZE_VALUE)
+	MAKE_INPUT(trigger, click, XRT_INPUT_INDEX_TRIGGER_CLICK)
+	MAKE_INPUT(trigger, value, XRT_INPUT_INDEX_TRIGGER_VALUE)
+	MAKE_INPUT(trigger, touch, XRT_INPUT_INDEX_TRIGGER_TOUCH)
+	MAKE_INPUT_NO_DOWNGRADE(thumbstick, /x, XRT_INPUT_INDEX_THUMBSTICK_X)
+	MAKE_INPUT_NO_DOWNGRADE(thumbstick, /y, XRT_INPUT_INDEX_THUMBSTICK_Y)
+	MAKE_INPUT(thumbstick, click, XRT_INPUT_INDEX_THUMBSTICK_CLICK)
+	MAKE_INPUT(thumbstick, touch, XRT_INPUT_INDEX_THUMBSTICK_TOUCH)
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, /x, XRT_INPUT_INDEX_TRACKPAD_X)
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, /y, XRT_INPUT_INDEX_TRACKPAD_Y)
+	MAKE_INPUT(trackpad, force, XRT_INPUT_INDEX_TRACKPAD_FORCE)
+	MAKE_INPUT(trackpad, touch, XRT_INPUT_INDEX_TRACKPAD_TOUCH)
+	MAKE_INPUT(grip, pose, XRT_INPUT_INDEX_GRIP_POSE)
+	MAKE_INPUT(aim, pose, XRT_INPUT_INDEX_AIM_POSE)
+
+	MAKE_OUTPUT(haptic, , XRT_OUTPUT_NAME_INDEX_HAPTIC)
+};
+
+
+static struct profile_template profiles[4] = {
     {
         .path = "/interaction_profiles/khr/simple_controller",
         .bindings = khr_simple_controller_bindings,
@@ -782,5 +908,10 @@ static struct profile_template profiles[3] = {
         .path = "/interaction_profiles/mnd/ball_on_stick_controller",
         .bindings = mnd_ball_on_stick_controller_bindings,
         .num_bindings = ARRAY_SIZE(mnd_ball_on_stick_controller_bindings),
+    },
+    {
+	.path = "/interaction_profiles/valve/index_controller",
+	.bindings = valve_index_controller_bindings,
+	.num_bindings = ARRAY_SIZE(valve_index_controller_bindings),
     },
 };
