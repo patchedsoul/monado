@@ -249,6 +249,12 @@ oxr_find_profile_for_device(struct oxr_logger *log,
 		interaction_profile_find(log, inst, inst->path_cache.mnd_ball_on_stick_controller, out_p);
 		// clang-format on
 		return;
+	case XRT_DEVICE_INDEX_CONTROLLER:
+		// clang-format off
+		interaction_profile_find(log, inst, inst->path_cache.khr_simple_controller, out_p);
+		interaction_profile_find(log, inst, inst->path_cache.valve_index_controller, out_p);
+		// clang-format on
+		return;
 	default: return;
 	}
 }

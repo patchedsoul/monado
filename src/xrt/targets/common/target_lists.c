@@ -18,7 +18,11 @@
 #include "hdk/hdk_interface.h"
 #endif
 
-#ifdef XRT_BUILD_DRIVER_OHMD
+#ifdef XRT_BUILD_SURVIVE
+#include "survive/survive_interface.h"
+#endif
+
+#ifdef XRT_BUILD_OHMD
 #include "ohmd/oh_interface.h"
 #endif
 
@@ -36,6 +40,10 @@
 
 #ifdef XRT_BUILD_DRIVER_HYDRA
 #include "hydra/hydra_interface.h"
+#endif
+
+#ifdef XRT_BUILD_SURVIVE
+#include "survive/survive_interface.h"
 #endif
 
 #ifdef XRT_BUILD_DRIVER_VIVE
@@ -72,6 +80,12 @@ struct xrt_prober_entry target_entry_list[] = {
 #ifdef XRT_BUILD_DRIVER_HDK
     {HDK_VID, HDK_PID, hdk_found, "OSVR HDK"},
 #endif // XRT_BUILD_DRIVER_HDK
+
+#ifdef XRT_BUILD_SURVIVE
+    {HTC_VID, VIVE_PID, survive_found, "HTC Vive"},
+    {HTC_VID, VIVE_PRO_MAINBOARD_PID, survive_found, "HTC Vive Pro"},
+    {VALVE_VID, VIVE_PRO_LHR_PID, survive_found, "Valve Index"},
+#endif
 
 #ifdef XRT_BUILD_DRIVER_VIVE
     {HTC_VID, VIVE_PID, vive_found, "HTC Vive"},

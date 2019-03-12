@@ -142,3 +142,21 @@ if(ENABLED_HEADSET_DRIVERS)
 else()
 	message(FATAL_ERROR "You must enable at least one headset driver to build Monado.")
 endif()
+
+if (BUILD_WITH_LIBSURVIVE)
+	set(SURVIVE_SOURCE_FILES
+		survive/survive_driver.c
+		survive/survive_interface.h
+		)
+
+	# Use OBJECT to not create a archive, since it just gets in the way.
+	add_library(drv_survive OBJECT ${SURVIVE_SOURCE_FILES})
+	set_property(TARGET drv_survive PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+	target_include_directories(drv_survive SYSTEM
+		PRIVATE
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include/libsurvive
+		${PROJECT_SOURCE_DIR}/src/external/libsurvive/redist
+		)
+endif()

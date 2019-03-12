@@ -43,6 +43,11 @@ if(BUILD_WITH_SDL2)
 	target_link_libraries(${RUNTIME_TARGET} PUBLIC imgui_impl_sdl)
 endif()
 
+if (BUILD_DRIVER_SURVIVE)
+	target_sources(${RUNTIME_TARGET} PRIVATE $<TARGET_OBJECTS:drv_survive>)
+	target_link_libraries(${RUNTIME_TARGET} PRIVATE survive)
+endif()
+
 if(NOT MSVC)
 	# Force the main "negotiate" symbol's inclusion
 	# and use a version script to ensure that's the only one we expose.

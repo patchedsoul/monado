@@ -1,6 +1,10 @@
 # Copyright 2019-2020, Collabora, Ltd.
 # SPDX-License-Identifier: BSL-1.0
 
+if (BUILD_WITH_LIBSURVIVE)
+	add_subdirectory(external/libsurvive)
+endif()
+
 # "Link" against this interface target if your module
 # uses the files in "external".
 add_library(xrt-external-headers INTERFACE)

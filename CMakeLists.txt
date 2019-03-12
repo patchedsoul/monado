@@ -83,11 +83,11 @@ cmake_dependent_option(BUILD_WITH_LIBUVC "Enable libuvc video driver" ON "LIBUVC
 cmake_dependent_option(BUILD_WITH_FFMPEG "Enable ffmpeg testing video driver" ON "FFMPEG_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_PSVR "Enable PSVR HMD driver" ON "HIDAPI_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_RS "Enable RealSense device driver" ON "realsense2_FOUND" OFF)
+cmake_dependent_option(BUILD_WITH_VIVE "Enable Vive driver" OFF "ZLIB_FOUND" OFF)
 option(BUILD_WITH_DUMMY "Enable dummy driver" ON)
-cmake_dependent_option(BUILD_WITH_VIVE "Enable Vive driver" ON "ZLIB_FOUND" OFF)
-cmake_dependent_option(BUILD_WITH_OPENHMD "Enable OpenHMD driver" ON "OPENHMD_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_SDL2 "Enable SDL2 based test application" ON "SDL2_FOUND" OFF)
-
+option(BUILD_WITH_LIBSURVIVE "Enable libsurvive driver" ON)
+cmake_dependent_option(BUILD_WITH_OPENHMD "Enable OpenHMD driver" OFF "OPENHMD_FOUND" OFF)
 # These all use the Monado internal hid wrapper which is assumed to be available.
 option(BUILD_WITH_HDK "Enable HDK driver" ON)
 option(BUILD_WITH_PSMV "Enable Playstation Move driver" ON)
@@ -157,6 +157,10 @@ endif()
 
 if(BUILD_WITH_NS)
 	set(BUILD_DRIVER_NS TRUE)
+endif()
+if (BUILD_WITH_LIBSURVIVE)
+	add_definitions(-DXRT_BUILD_SURVIVE)
+	set(BUILD_DRIVER_SURVIVE TRUE)
 endif()
 
 if(BUILD_WITH_PSVR)
