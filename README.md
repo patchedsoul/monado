@@ -26,7 +26,7 @@ and aims to support other operating systems in the near future.
 Dependencies include:
 
 * [CMake][] 3.10 or newer
-* [OpenHMD](https://openhmd.net) (found using pkg-config)
+* [OpenHMD](https://openhmd.net) 0.3.0-rc1 or newer (found using pkg-config)
 * Vulkan headers
 * Eigen3
 * glslang
@@ -44,7 +44,7 @@ Truly optional dependencies:
 * libhidapi (for the HDK driver)
 
 Tested distributions that are fully compatible,
-on Intel and AMD graphics:
+on Intel and AMD graphics (Vulkan):
 
 * Ubuntu 18.10 (18.04 does not work)
 * Debian 10 `buster`
@@ -58,6 +58,9 @@ package sources.
 
 See also [Status of DRM leases](https://haagch.frickel.club/#!drmlease.md)
 for more details on specific packages, versions, and commits.
+
+Due to the lack of gl extention: GL_EXT_memory_object_fd, only AMD radeonsi driver and the proprietary NVIDIA driver will work for OpenGL OpenXR clients.
+This due to a requirement of the Compositor. Support status of the extention can be found on the [mesamatrix website](https://mesamatrix.net/#Version_ExtensionsthatarenotpartofanyOpenGLorOpenGLESversion)
 
 Build process is similar to other CMake builds,
 so something like the following will build it.
