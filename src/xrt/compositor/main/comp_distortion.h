@@ -78,6 +78,13 @@ struct comp_distortion
 
 	struct
 	{
+		float meshuv_l[16][16];
+		float meshuv_r[16][16];
+	} ubo_meshuv;
+
+
+	struct
+	{
 		struct xrt_matrix_2x2 rot;
 		int viewport_id;
 		bool flip_y;
@@ -137,6 +144,11 @@ comp_distortion_update_descriptor_set(struct comp_distortion *d,
  */
 void
 comp_distortion_draw_quad(struct comp_distortion *d,
+                          VkCommandBuffer command_buffer,
+                          int eye);
+
+void
+comp_distortion_draw_mesh(struct comp_distortion *d,
                           VkCommandBuffer command_buffer,
                           int eye);
 

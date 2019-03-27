@@ -346,16 +346,22 @@ renderer_build_command_buffer(struct comp_renderer *r,
 	vk->vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 	vk->vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	comp_distortion_draw_quad(r->distortion, command_buffer, 0);
-
+	if (r->distortion->distortion_model == XRT_DISTORTION_MODEL_MESHUV){
+		comp_distortion_draw_mesh(r->distortion,command_buffer,0);
+	} else {
+		comp_distortion_draw_quad(r->distortion, command_buffer, 0);
+	}
 
 	renderer_set_viewport_scissor(scale_x, scale_y, &viewport, &scissor,
 	                              &r->c->xdev->views[1]);
 	vk->vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 	vk->vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	comp_distortion_draw_quad(r->distortion, command_buffer, 1);
-
+	if (r->distortion->distortion_model == XRT_DISTORTION_MODEL_MESHUV){
+		comp_distortion_draw_mesh(r->distortion,command_buffer,1);
+	} else {
+		comp_distortion_draw_quad(r->distortion, command_buffer, 1);
+	}
 	vk->vkCmdEndRenderPass(command_buffer);
 
 	ret = vk->vkEndCommandBuffer(command_buffer);

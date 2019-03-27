@@ -40,6 +40,7 @@ enum xrt_distortion_model
 	XRT_DISTORTION_MODEL_NONE      = 1 << 0,
 	XRT_DISTORTION_MODEL_PANOTOOLS = 1 << 1,
 	XRT_DISTORTION_MODEL_VIVE      = 1 << 2,
+    XRT_DISTORTION_MODEL_MESHUV    = 1 << 4,
 	// clang-format on
 };
 

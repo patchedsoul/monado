@@ -25,6 +25,11 @@
 #include "shaders/panotools.frag.h"
 #include "shaders/vive.frag.h"
 
+#include "shaders/meshuv.vert.h"
+#include "shaders/meshuv.frag.h"
+#include "shaders/psvr_both_uvs.h"
+
+
 #pragma GCC diagnostic pop
 
 /*
@@ -275,8 +280,14 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 	    .pDynamicStates = dynamic_states,
 	};
 
+	const uint32_t *vertex_shader_code;
+	size_t vertex_shader_size;
 	const uint32_t *fragment_shader_code;
 	size_t fragment_shader_size;
+
+	// we use the default vertex shader for most everything
+	vertex_shader_code = shaders_distortion_vert;
+	vertex_shader_size = sizeof(shaders_distortion_vert);
 
 	switch (d->distortion_model) {
 	case XRT_DISTORTION_MODEL_NONE:
@@ -291,15 +302,21 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		fragment_shader_code = shaders_vive_frag;
 		fragment_shader_size = sizeof(shaders_vive_frag);
 		break;
+	case XRT_DISTORTION_MODEL_MESHUV:
+		vertex_shader_code = shaders_meshuv_vert;
+		vertex_shader_size = sizeof(shaders_meshuv_vert);
+		fragment_shader_code = shaders_meshuv_frag;
+		fragment_shader_size = sizeof(shaders_meshuv_frag);
+		break;
 	default:
 		fragment_shader_code = shaders_panotools_frag;
 		fragment_shader_size = sizeof(shaders_panotools_frag);
 		break;
 	}
 
+
 	VkPipelineShaderStageCreateInfo shader_stages[2] = {
-	    _shader_load(d->vk, shaders_distortion_vert,
-	                 sizeof(shaders_distortion_vert),
+	    _shader_load(d->vk, vertex_shader_code,vertex_shader_size,
 	                 VK_SHADER_STAGE_VERTEX_BIT),
 	    _shader_load(d->vk, fragment_shader_code, fragment_shader_size,
 	                 VK_SHADER_STAGE_FRAGMENT_BIT),
@@ -531,6 +548,25 @@ comp_distortion_draw_quad(struct comp_distortion *d,
 	/* Draw 3 verts from which we construct the fullscreen quad in
 	 * the shader*/
 	vk->vkCmdDraw(command_buffer, 3, 1, 0, 0);
+}
+
+void
+comp_distortion_draw_mesh(struct comp_distortion *d,
+                          VkCommandBuffer command_buffer,
+                          int eye)
+{
+	struct vk_bundle *vk = d->vk;
+
+	vk->vkCmdBindDescriptorSets(
+	    command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, d->pipeline_layout,
+	    0, 1, &d->descriptor_sets[eye], 0, NULL);
+
+	vk->vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+	                      d->pipeline);
+
+	/* Draw 16 x 16 verts from which we construct the fullscreen quad in
+	 * the shader*/
+	vk->vkCmdDraw(command_buffer, 16*16, 1, 0, 0);
 }
 
 // Update fragment shader hmd warp uniform block
