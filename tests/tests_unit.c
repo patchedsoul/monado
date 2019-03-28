@@ -117,7 +117,6 @@ void teardown(void) {
 }
 
 START_TEST(headless_unit_test) {
-
   uint32_t format_count = 0;
   ck_assert(oxr_xrEnumerateSwapchainFormats(oxr.session, 0, &format_count,
                                             NULL) == XR_SUCCESS);
@@ -134,7 +133,99 @@ START_TEST(headless_unit_test) {
 }
 END_TEST
 
+START_TEST(semantic_path_unit_test) {
+  XrPath path = XR_NULL_PATH;
+
+  {
+    XrPath new_path;
+    oxr_xrStringToPath(oxr.instance, "/a/new/path", &new_path);
+    ck_assert(new_path != XR_NULL_PATH);
+
+    XrPath new_path2;
+    oxr_xrStringToPath(oxr.instance, "/a/new/path", &new_path2);
+    ck_assert(new_path == new_path2);
+  }
+
+  ck_assert_int_eq(
+      oxr_xrStringToPath(oxr.instance, "does_not_begin_with_slash", &path),
+      XR_ERROR_PATH_FORMAT_INVALID);
+  ck_assert_int_eq(
+      oxr_xrStringToPath(oxr.instance, "/contains//double_slash", &path),
+      XR_ERROR_PATH_FORMAT_INVALID);
+  ck_assert_int_eq(oxr_xrStringToPath(oxr.instance,
+                                      "/contains/./dot_separated_slashes",
+                                      &path),
+                   XR_ERROR_PATH_FORMAT_INVALID);
+  ck_assert_int_eq(oxr_xrStringToPath(oxr.instance, "/ends_with_dot/.", &path),
+                   XR_ERROR_PATH_FORMAT_INVALID);
+
+  char too_long[XR_MAX_PATH_LENGTH + 1];
+  memset(too_long, 'a', XR_MAX_PATH_LENGTH + 1);
+  too_long[0] = '/';
+  ck_assert_int_eq(oxr_xrStringToPath(oxr.instance, too_long, &path),
+                   XR_ERROR_PATH_FORMAT_INVALID);
+
+  ck_assert_int_eq(
+      oxr_xrStringToPath(oxr.instance, "/ascii/0123/-/_/foobar", &path),
+      XR_SUCCESS);
+}
+END_TEST
+
+static bool
+reference_space_supported(XrReferenceSpaceType *reference_space_types,
+                          uint32_t reference_space_count,
+                          XrReferenceSpaceType type) {
+  for (uint32_t i = 0; i < reference_space_count; i++) {
+    if (reference_space_types[i] == type)
+      return true;
+  }
+  return false;
+}
+
 START_TEST(space_unit_test) {
+
+  uint32_t reference_space_count;
+  oxr_xrEnumerateReferenceSpaces(oxr.session, 0, &reference_space_count, NULL);
+  // at least view and local space should be supported
+  ck_assert_int_ge(reference_space_count, 2);
+
+  XrReferenceSpaceType reference_space_types[reference_space_count];
+  oxr_xrEnumerateReferenceSpaces(oxr.session, reference_space_count,
+                                 &reference_space_count, reference_space_types);
+  ck_assert(reference_space_supported(reference_space_types,
+                                      reference_space_count,
+                                      XR_REFERENCE_SPACE_TYPE_VIEW));
+  ck_assert(reference_space_supported(reference_space_types,
+                                      reference_space_count,
+                                      XR_REFERENCE_SPACE_TYPE_LOCAL));
+
+  XrPosef pose = {0};
+  pose.orientation.w = 1;
+
+  XrReferenceSpaceCreateInfo local_sci = {
+      .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
+      .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL,
+      .poseInReferenceSpace = pose};
+
+  XrSpace local_space;
+  ck_assert(oxr_xrCreateReferenceSpace(oxr.session, &local_sci, &local_space) ==
+            XR_SUCCESS);
+
+  XrReferenceSpaceCreateInfo view_sci = {
+      .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
+      .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
+      .poseInReferenceSpace = pose};
+
+  XrSpace view_space;
+  ck_assert(oxr_xrCreateReferenceSpace(oxr.session, &local_sci, &view_space) ==
+            XR_SUCCESS);
+
+  ck_assert(oxr_xrDestroySpace(XR_NULL_HANDLE) == XR_ERROR_HANDLE_INVALID);
+  /// @todo
+}
+END_TEST
+
+START_TEST(space_internal_unit_test) {
   XrPosef pose = {0};
   pose.orientation.w = 1;
 
@@ -196,7 +287,9 @@ Suite *unit_test_suite(void) {
   tcase_add_checked_fixture(opengl_unit_tests, setup_opengl, teardown);
 
   tcase_add_test(headless_unit_tests, headless_unit_test);
+  tcase_add_test(headless_unit_tests, semantic_path_unit_test);
   tcase_add_test(headless_unit_tests, space_unit_test);
+  tcase_add_test(headless_unit_tests, space_internal_unit_test);
   tcase_add_test(opengl_unit_tests, opengl_unit_test);
 
   suite_add_tcase(s, headless_unit_tests);
