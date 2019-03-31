@@ -26,6 +26,7 @@
 
 
 DEBUG_GET_ONCE_BOOL_OPTION(views, "OXR_DEBUG_VIEWS", false)
+DEBUG_GET_ONCE_BOOL_OPTION(dynamic_prediction, "OXR_DYNAMIC_PREDICTION", true)
 DEBUG_GET_ONCE_NUM_OPTION(ipd, "OXR_DEBUG_IPD_MM", 63)
 DEBUG_GET_ONCE_NUM_OPTION(prediction_ms, "OXR_DEBUG_PREDICTION_MS", 11)
 
@@ -161,19 +162,28 @@ oxr_session_get_view_pose_at(struct oxr_logger *log,
 	     XRT_SPACE_RELATION_ANGULAR_VELOCITY_VALID_BIT) != 0) {
 		//! @todo Forcing a fixed amount of prediction for now since
 		//! devices don't tell us timestamps yet.
+		int64_t ns_diff = at_time - timestamp;
+		float interval;
+		if (debug_get_bool_option_dynamic_prediction()) {
+			interval =
+			    time_ns_to_s(ns_diff) + sess->static_prediction_s;
+		} else {
+			interval = sess->static_prediction_s;
+		}
+
 		struct xrt_quat predicted;
-		math_quat_integrate_velocity(
-		    &pose->orientation, &relation.angular_velocity,
-		    sess->static_prediction_s, &predicted);
+		math_quat_integrate_velocity(&pose->orientation,
+		                             &relation.angular_velocity,
+		                             interval, &predicted);
 		if (debug_get_bool_option_views()) {
 
-			fprintf(
-			    stderr,
-			    "\toriginal quat = {%f, %f, %f, %f}  predicted = "
-			    "{%f, %f, %f, %f}\n",
-			    pose->orientation.x, pose->orientation.y,
-			    pose->orientation.z, pose->orientation.w,
-			    predicted.x, predicted.y, predicted.z, predicted.w);
+			fprintf(stderr,
+			        "\toriginal quat = {%f, %f, %f, %f}   "
+			        "(time requested: %li, Interval %li nsec, with "
+			        "static interval %f s)\n",
+			        pose->orientation.x, pose->orientation.y,
+			        pose->orientation.z, pose->orientation.w,
+			        at_time, ns_diff, interval);
 		}
 		pose->orientation = predicted;
 	}
@@ -299,15 +309,10 @@ oxr_session_frame_wait(struct oxr_logger *log,
 		                 " session is not running");
 	}
 
-	// OK to update this here because xrWaitFrame must be externally
-	// synchronized by the app.
+	//! @todo this should be carefully synchronized, because there may be
+	//! more than one session per instance.
 	timepoint_ns now =
 	    time_state_get_now_and_update(sess->sys->inst->timekeeping);
-
-	// Set defaults - may be overridden by compositor.
-	frameState->predictedDisplayPeriod = sess->nominal_frame_interval_ns;
-	frameState->predictedDisplayTime =
-	    now + frameState->predictedDisplayPeriod;
 
 	struct xrt_compositor *xc = sess->compositor;
 	xc->wait_frame(xc, &frameState->predictedDisplayTime,
@@ -329,13 +334,16 @@ oxr_session_frame_begin(struct oxr_logger *log, struct oxr_session *sess)
 	XrResult ret;
 	if (sess->frame_started) {
 		ret = XR_FRAME_DISCARDED;
-		xc->discard_frame(xc);
+		if (xc != NULL) {
+			xc->discard_frame(xc);
+		}
 	} else {
 		ret = XR_SUCCESS;
 		sess->frame_started = true;
 	}
-
-	xc->begin_frame(xc);
+	if (xc != NULL) {
+		xc->begin_frame(xc);
+	}
 
 	return ret;
 }
@@ -372,6 +380,15 @@ oxr_session_frame_end(struct oxr_logger *log,
 	}
 
 	struct xrt_compositor *xc = sess->compositor;
+
+	/*
+	 * early out for headless sessions.
+	 */
+	if (xc == NULL) {
+		sess->frame_started = false;
+
+		return XR_SUCCESS;
+	}
 
 	/*
 	 * Early out for discarded frame if layer count is 0,
@@ -471,7 +488,7 @@ oxr_session_create(struct oxr_logger *log,
 		sess->create_swapchain = NULL;
 	} else
 #ifdef XR_USE_PLATFORM_XLIB
-	if (*next == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
+	    if (*next == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
 		ret = oxr_session_create_gl_xlib(
 		    log, sys, (XrGraphicsBindingOpenGLXlibKHR *)next, &sess);
 	} else
@@ -492,8 +509,6 @@ oxr_session_create(struct oxr_logger *log,
 	}
 
 	sess->ipd_meters = debug_get_num_option_ipd() / 1000.0f;
-	//! @todo hard-coding 90Hz
-	sess->nominal_frame_interval_ns = 11111111;
 	sess->static_prediction_s =
 	    debug_get_num_option_prediction_ms() / 1000.0f;
 

@@ -125,7 +125,8 @@ hdk_device_get_tracked_pose(struct xrt_device *xdev,
 		out_relation->relation_flags = XRT_SPACE_RELATION_BITMASK_NONE;
 		return;
 	}
-	//! @todo adjust for latency here
+	// Adjusting for latency - 14ms, found empirically.
+	now -= 14000000;
 	*out_timestamp = now;
 	uint8_t *buf = &(buffer[0]);
 
@@ -268,7 +269,9 @@ hdk_device_create(hid_device *dev,
 	double vCOP = 0.5;
 
 	switch (variant) {
-
+	case HDK_UNKNOWN:
+		assert(!"unknown device");
+		break;
 
 	case HDK_VARIANT_1_2:
 		// Distortion optional - this is for no distortion.
@@ -309,8 +312,13 @@ hdk_device_create(hid_device *dev,
 	}
 
 	switch (variant) {
+	case HDK_UNKNOWN:
+		assert(!"unknown device");
+		break;
+
 	case HDK_VARIANT_2: {
-		hd->base.screens[0].nominal_frame_interval_ns = time_s_to_ns(1.0f/90.0f);
+		hd->base.screens[0].nominal_frame_interval_ns =
+		    time_s_to_ns(1.0f / 90.0f);
 		constexpr int panel_w = 1080;
 		constexpr int panel_h = 1200;
 		// Padding needed horizontally per side.
@@ -365,7 +373,8 @@ hdk_device_create(hid_device *dev,
 		// fallthrough intentional
 	case HDK_VARIANT_1_2: {
 		// 1080x1920 screen, with the top at the left.
-		hd->base.screens[0].nominal_frame_interval_ns = time_s_to_ns(1.0f/60.0f);
+		hd->base.screens[0].nominal_frame_interval_ns =
+		    time_s_to_ns(1.0f / 60.0f);
 
 		constexpr int panel_w = 1080;
 		constexpr int panel_h = 1920;

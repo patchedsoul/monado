@@ -109,11 +109,17 @@ struct comp_compositor
 	//! The device we are displaying to.
 	struct xrt_device *xdev;
 
+	//! The timekeeping state object.
+	struct time_state *timekeeping;
+
 	//! The settings.
 	struct comp_settings settings;
 
 	//! Vulkan bundle of things.
 	struct vk_bundle vk;
+
+	//! Timestamp of last-rendered (immersive) frame.
+	int64_t last_frame_time_ns;
 
 	/*!
 	 * The current state we are tracking.

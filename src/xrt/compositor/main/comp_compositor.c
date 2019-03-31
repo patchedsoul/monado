@@ -14,6 +14,7 @@
 
 #include "util/u_debug.h"
 #include "util/u_misc.h"
+#include "util/u_time.h"
 
 #include "main/comp_compositor.h"
 #include "main/comp_client_interface.h"
@@ -79,6 +80,9 @@ compositor_wait_frame(struct xrt_compositor *xc,
 {
 	struct comp_compositor *c = comp_compositor(xc);
 	COMP_SPEW(c, "WAIT_FRAME");
+	*predicted_display_period = c->settings.nominal_frame_interval_ns;
+	*predicted_display_time =
+	    c->last_frame_time_ns + c->settings.nominal_frame_interval_ns;
 
 	//! @todo set *predicted_display_time
 
@@ -121,6 +125,9 @@ compositor_end_frame(struct xrt_compositor *xc,
 	} else {
 		COMP_ERROR(c, "non-stereo rendering not supported");
 	}
+
+	// Record the time of this frame.
+	c->last_frame_time_ns = time_state_get_now(c->timekeeping);
 }
 
 
@@ -251,22 +258,23 @@ create_instance(struct comp_compositor *c)
 		return ret;
 	}
 
-#ifdef XRT_ENABLE_VK_VALIDATION
-	const char *instance_layers[] = {
-	    "VK_LAYER_LUNARG_standard_validation",
-	};
-#endif
-
 	VkInstanceCreateInfo instance_info = {
 	    .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 	    .pApplicationInfo = &app_info,
 	    .enabledExtensionCount = num_extensions,
 	    .ppEnabledExtensionNames = instance_extensions,
-#ifdef XRT_ENABLE_VK_VALIDATION
-	    .enabledLayerCount = ARRAY_SIZE(instance_layers),
-	    .ppEnabledLayerNames = instance_layers,
-#endif
 	};
+
+#ifdef XRT_ENABLE_VK_VALIDATION
+	const char *instance_layers[] = {
+	    "VK_LAYER_LUNARG_standard_validation",
+	};
+
+	if (c->settings.validate_vulkan) {
+		instance_info.enabledLayerCount = ARRAY_SIZE(instance_layers);
+		instance_info.ppEnabledLayerNames = instance_layers;
+	}
+#endif
 
 	ret = c->vk.vkCreateInstance(&instance_info, NULL, &c->vk.instance);
 	if (ret != VK_SUCCESS) {
@@ -283,7 +291,8 @@ create_instance(struct comp_compositor *c)
 	}
 
 #ifdef XRT_ENABLE_VK_VALIDATION
-	vk_init_validation_callback(&c->vk);
+	if (c->settings.validate_vulkan)
+		vk_init_validation_callback(&c->vk);
 #endif
 
 	return ret;
@@ -464,7 +473,9 @@ compositor_init_renderer(struct comp_compositor *c)
 }
 
 struct xrt_compositor_fd *
-comp_compositor_create(struct xrt_device *xdev, bool flip_y)
+comp_compositor_create(struct xrt_device *xdev,
+                       struct time_state *timekeeping,
+                       bool flip_y)
 {
 	struct comp_compositor *c = U_TYPED_CALLOC(struct comp_compositor);
 
@@ -477,6 +488,7 @@ comp_compositor_create(struct xrt_device *xdev, bool flip_y)
 	c->base.base.end_frame = compositor_end_frame;
 	c->base.base.destroy = compositor_destroy;
 	c->xdev = xdev;
+	c->timekeeping = timekeeping;
 
 	COMP_DEBUG(c, "Doing init %p", (void *)c);
 
@@ -484,6 +496,7 @@ comp_compositor_create(struct xrt_device *xdev, bool flip_y)
 	comp_settings_init(&c->settings, xdev);
 
 	c->settings.flip_y = flip_y;
+	c->last_frame_time_ns = time_state_get_now(c->timekeeping);
 
 	// Need to select window backend before creating Vulkan, then
 	// swapchain will initialize the window fully and the swapchain, and
