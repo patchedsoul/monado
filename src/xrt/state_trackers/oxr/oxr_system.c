@@ -98,6 +98,10 @@ oxr_system_fill_in(struct oxr_logger *log,
 	}
 	sys->num_blend_modes = i;
 
+	//FIXME: added by pete
+	xdev->distortion.models = XRT_DISTORTION_MODEL_MESHUV;
+	xdev->distortion.preferred = XRT_DISTORTION_MODEL_MESHUV;
+
 	assert(i < ARRAY_SIZE(sys->blend_modes));
 
 	// clang-format on

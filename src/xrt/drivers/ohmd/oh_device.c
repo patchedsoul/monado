@@ -311,8 +311,9 @@ oh_device_create(ohmd_context *ctx,
 
 	// clang-format off
 	// Main display.
-	ohd->base.distortion.models = XRT_DISTORTION_MODEL_PANOTOOLS;
-	ohd->base.distortion.preferred = XRT_DISTORTION_MODEL_PANOTOOLS;
+	//FIXME: was PANOTOOLS
+	ohd->base.distortion.models = XRT_DISTORTION_MODEL_MESHUV;
+	ohd->base.distortion.preferred = XRT_DISTORTION_MODEL_MESHUV;
 	ohd->base.screens[0].w_pixels = info.display.w_pixels;
 	ohd->base.screens[0].h_pixels = info.display.h_pixels;
 	ohd->base.distortion.pano.distortion_k[0] = info.pano_distortion_k[0];

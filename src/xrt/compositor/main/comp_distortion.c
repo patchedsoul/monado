@@ -285,9 +285,18 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 	const uint32_t *fragment_shader_code;
 	size_t fragment_shader_size;
 
-	// we use the default vertex shader for most everything
+
+	/*
+	 * By default, we will generate positions and UVs for the full screen quad
+	 * from the gl_VertexIndex, and use the 'generic' distortion vertex shader
+	 */
+	VkPipelineVertexInputStateCreateInfo vertex_input_state = {
+	    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+	};
+
 	vertex_shader_code = shaders_distortion_vert;
 	vertex_shader_size = sizeof(shaders_distortion_vert);
+
 
 	switch (d->distortion_model) {
 	case XRT_DISTORTION_MODEL_NONE:
@@ -303,6 +312,9 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		fragment_shader_size = sizeof(shaders_vive_frag);
 		break;
 	case XRT_DISTORTION_MODEL_MESHUV:
+		vertex_input_state = {};
+		//    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		//};
 		vertex_shader_code = shaders_meshuv_vert;
 		vertex_shader_size = sizeof(shaders_meshuv_vert);
 		fragment_shader_code = shaders_meshuv_frag;
@@ -322,20 +334,13 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 	                 VK_SHADER_STAGE_FRAGMENT_BIT),
 	};
 
-	/*
-	 * We will generate positions and UVs for the full screen quad
-	 * from the gl_VertexIndex
-	 */
-	VkPipelineVertexInputStateCreateInfo empty_input_state = {
-	    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-	};
 
 	VkGraphicsPipelineCreateInfo pipeline_info = {
 	    .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 	    .flags = 0,
 	    .stageCount = ARRAY_SIZE(shader_stages),
 	    .pStages = shader_stages,
-	    .pVertexInputState = &empty_input_state,
+	    .pVertexInputState = &vertex_input_state,
 	    .pInputAssemblyState = &input_assembly_state,
 	    .pViewportState = &viewport_state,
 	    .pRasterizationState = &rasterization_state,
@@ -483,12 +488,12 @@ comp_distortion_init_descriptor_set_layout(struct comp_distortion *d)
 	        .descriptorCount = 1,
 	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 	    },
-	    // Binding 1 : Fragment shader uniform buffer
+	    // Binding 1 : Vertex/Fragment shader uniform buffer
 	    {
 	        .binding = 1,
 	        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 	        .descriptorCount = 1,
-	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
 	    },
 	    // binding 2: viewport index
 	    {
@@ -564,9 +569,9 @@ comp_distortion_draw_mesh(struct comp_distortion *d,
 	vk->vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
 	                      d->pipeline);
 
-	/* Draw 16 x 16 verts from which we construct the fullscreen quad in
+	/* Draw 17 x 17 verts from which we construct the fullscreen quad in
 	 * the shader*/
-	vk->vkCmdDraw(command_buffer, 16*16, 1, 0, 0);
+	vk->vkCmdDraw(command_buffer, 17*17, 1, 0, 0);
 }
 
 // Update fragment shader hmd warp uniform block
@@ -596,6 +601,13 @@ comp_distortion_update_uniform_buffer_warp(struct comp_distortion *d,
 					d->ubo_vive.coefficients[i][j][k] = c->xdev->distortion.vive.coefficients[i][j][k];
 
 		memcpy(d->ubo_handle.mapped, &d->ubo_vive, sizeof(d->ubo_vive));
+		break;
+	case XRT_DISTORTION_MODEL_MESHUV:
+		for (uint32_t i=0;i<17;i++) {
+			for (uint32_t j=0;j<34;j++) {
+				d->ubo_meshuv.meshuv[i][j] = psvr_both_uvs[i][j];
+			}
+		}
 		break;
 	case XRT_DISTORTION_MODEL_PANOTOOLS:
 	default:
@@ -745,6 +757,9 @@ comp_distortion_init_uniform_buffer(struct comp_distortion *d,
 	switch (d->distortion_model) {
 	case XRT_DISTORTION_MODEL_PANOTOOLS:
 		ubo_size = sizeof(d->ubo_pano);
+		break;
+	case XRT_DISTORTION_MODEL_MESHUV:
+		ubo_size = sizeof(d->ubo_meshuv);
 		break;
 	case XRT_DISTORTION_MODEL_VIVE: ubo_size = sizeof(d->ubo_vive); break;
 	default: ubo_size = sizeof(d->ubo_pano);

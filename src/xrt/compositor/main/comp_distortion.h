@@ -78,10 +78,14 @@ struct comp_distortion
 
 	struct
 	{
-		float meshuv_l[16][16];
-		float meshuv_r[16][16];
+		float meshuv[17][34];
 	} ubo_meshuv;
 
+	struct
+	{
+		float vertexPos[4];
+		float uv[2];
+	} vbo_meshuv;
 
 	struct
 	{
