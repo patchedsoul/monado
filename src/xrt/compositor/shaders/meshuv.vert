@@ -5,12 +5,11 @@
 
 #version 450
 
+layout(location = 0) in vec2 pos;
+layout(location = 1) in vec2 uv;
+
 layout (location = 0) out vec2 outUV;
 layout (location = 1) out int  outViewIndex;
-layout (binding = 1, std140) uniform uvUBO
-{
-    vec2[17][17] uvs;
-} ubo;
 
 layout (binding = 2, std140) uniform UBO
 {
@@ -33,13 +32,9 @@ void main()
 	};
 
 	outViewIndex = ubo_vp.viewport_id;
-    float vertInc = 1.0/17.0;
-    int vertRow = gl_VertexIndex/17;
-    int vertCol = gl_VertexIndex % 17;
-    vec2 vertPos = vec2(vertRow * vertInc, vertCol * vertInc);
-    outUV = ubo.uvs[vertRow][vertCol];
+    outUV = uv;
 
-    gl_Position = vec4(rot * (vertPos * 2.0f - 1.0f), 0.0f, 1.0f);
+    gl_Position = vec4(pos, 0.0f, 1.0f);
 
 
     if (ubo_vp.flip_y)

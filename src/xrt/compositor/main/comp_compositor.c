@@ -266,9 +266,9 @@ create_instance(struct comp_compositor *c)
 	};
 
 #ifdef XRT_ENABLE_VK_VALIDATION
-	const char *instance_layers[] = {
-	    "VK_LAYER_LUNARG_standard_validation",
-	};
+	const char *instance_layers[] = {"VK_LAYER_LUNARG_standard_validation",
+	                                 "VK_LAYER_LUNARG_core_validation",
+	                                 "VK_LAYER_RENDERDOC_Capture"};
 
 	if (c->settings.validate_vulkan) {
 		instance_info.enabledLayerCount = ARRAY_SIZE(instance_layers);

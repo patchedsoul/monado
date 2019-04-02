@@ -17,6 +17,10 @@
 extern "C" {
 #endif
 
+// our distortion meshes are 16x16 quads, 2 tris per quad.
+// we should use indexed rendering and allow arbitrary vertex counts,
+// but this will do for now
+#define DISTORTION_MESH_VERTEX_COUNT 16 * 16 * 6
 
 /*
  *
@@ -56,6 +60,8 @@ struct comp_distortion
 	struct comp_uniform_buffer ubo_handle;
 	struct comp_uniform_buffer ubo_viewport_handles[2];
 
+	struct comp_uniform_buffer vbo_handle;
+
 	enum xrt_distortion_model distortion_model;
 
 	struct
@@ -76,16 +82,11 @@ struct comp_distortion
 		float grow_for_undistort;
 	} ubo_vive;
 
+	// vec2 for pos, vec2 for uv
 	struct
 	{
-		float meshuv[17][34];
-	} ubo_meshuv;
-
-	struct
-	{
-		float vertexPos[4];
-		float uv[2];
-	} vbo_meshuv;
+		float vertexPosUV[4];
+	} vbo_meshuv_data;
 
 	struct
 	{

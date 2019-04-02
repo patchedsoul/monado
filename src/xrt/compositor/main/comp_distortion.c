@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "main/comp_settings.h"
 #include "main/comp_compositor.h"
@@ -24,6 +25,8 @@
 #include "shaders/none.frag.h"
 #include "shaders/panotools.frag.h"
 #include "shaders/vive.frag.h"
+
+#include "util/u_misc.h"
 
 #include "shaders/meshuv.vert.h"
 #include "shaders/meshuv.frag.h"
@@ -43,8 +46,8 @@ comp_distortion_update_uniform_buffer_warp(struct comp_distortion *d,
                                            struct comp_compositor *c);
 
 static void
-comp_distortion_init_uniform_buffer(struct comp_distortion *d,
-                                    struct comp_compositor *c);
+comp_distortion_init_buffers(struct comp_distortion *d,
+                             struct comp_compositor *c);
 
 XRT_MAYBE_UNUSED static void
 comp_distortion_update_descriptor_sets(struct comp_distortion *d,
@@ -184,7 +187,7 @@ comp_distortion_init(struct comp_distortion *d,
 	d->ubo_vp_data[0].flip_y = flip_y;
 	d->ubo_vp_data[1].flip_y = flip_y;
 
-	comp_distortion_init_uniform_buffer(d, c);
+	comp_distortion_init_buffers(d, c);
 	comp_distortion_update_uniform_buffer_warp(d, c);
 	comp_distortion_init_descriptor_set_layout(d);
 	comp_distortion_init_pipeline_layout(d);
@@ -287,12 +290,19 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 
 
 	/*
-	 * By default, we will generate positions and UVs for the full screen quad
-	 * from the gl_VertexIndex, and use the 'generic' distortion vertex shader
+	 * By default, we will generate positions and UVs for the full screen
+	 * quad from the gl_VertexIndex, and use the 'generic' distortion vertex
+	 * shader
 	 */
 	VkPipelineVertexInputStateCreateInfo vertex_input_state = {
 	    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+	    .pNext = NULL,
 	};
+
+	VkVertexInputBindingDescription vertex_input_binding_description;
+	VkVertexInputAttributeDescription
+	    vertex_input_attribute_descriptions[2];
+
 
 	vertex_shader_code = shaders_distortion_vert;
 	vertex_shader_size = sizeof(shaders_distortion_vert);
@@ -312,9 +322,33 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		fragment_shader_size = sizeof(shaders_vive_frag);
 		break;
 	case XRT_DISTORTION_MODEL_MESHUV:
-		vertex_input_state = {};
-		//    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		//};
+
+		vertex_input_attribute_descriptions[0].binding = 0;
+		vertex_input_attribute_descriptions[0].location = 0;
+		vertex_input_attribute_descriptions[0].format =
+		    VK_FORMAT_R32G32_SFLOAT;
+		vertex_input_attribute_descriptions[0].offset = 0;
+
+		vertex_input_attribute_descriptions[1].binding = 0;
+		vertex_input_attribute_descriptions[1].location = 1;
+		vertex_input_attribute_descriptions[1].format =
+		    VK_FORMAT_R32G32_SFLOAT;
+		vertex_input_attribute_descriptions[1].offset =
+		    sizeof(VK_FORMAT_R32G32_SFLOAT);
+
+		vertex_input_binding_description.binding = 0;
+		vertex_input_binding_description.inputRate =
+		    VK_VERTEX_INPUT_RATE_VERTEX;
+		vertex_input_binding_description.stride =
+		    sizeof(d->vbo_meshuv_data);
+
+		vertex_input_state.vertexAttributeDescriptionCount = 2;
+		vertex_input_state.pVertexAttributeDescriptions =
+		    vertex_input_attribute_descriptions;
+		vertex_input_state.vertexBindingDescriptionCount = 1;
+		vertex_input_state.pVertexBindingDescriptions =
+		    &vertex_input_binding_description;
+
 		vertex_shader_code = shaders_meshuv_vert;
 		vertex_shader_size = sizeof(shaders_meshuv_vert);
 		fragment_shader_code = shaders_meshuv_frag;
@@ -328,7 +362,7 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 
 
 	VkPipelineShaderStageCreateInfo shader_stages[2] = {
-	    _shader_load(d->vk, vertex_shader_code,vertex_shader_size,
+	    _shader_load(d->vk, vertex_shader_code, vertex_shader_size,
 	                 VK_SHADER_STAGE_VERTEX_BIT),
 	    _shader_load(d->vk, fragment_shader_code, fragment_shader_size,
 	                 VK_SHADER_STAGE_FRAGMENT_BIT),
@@ -456,6 +490,7 @@ comp_distortion_update_descriptor_set(struct comp_distortion *d,
 	    comp_distortion_get_uniform_write_descriptor_set(d, 1, eye),
 	    // Binding 2 : view uniform buffer
 	    comp_distortion_get_uniform_write_descriptor_set_vp(d, 2, eye),
+
 	};
 
 	vk->vkUpdateDescriptorSets(vk->device,
@@ -488,13 +523,12 @@ comp_distortion_init_descriptor_set_layout(struct comp_distortion *d)
 	        .descriptorCount = 1,
 	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 	    },
-	    // Binding 1 : Vertex/Fragment shader uniform buffer
-	    {
-	        .binding = 1,
-	        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-	        .descriptorCount = 1,
-	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
-	    },
+
+	    // Binding 1 : Fragment shader uniform buffer
+	    {.binding = 1,
+	     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+	     .descriptorCount = 1,
+	     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
 	    // binding 2: viewport index
 	    {
 	        .binding = 2,
@@ -562,16 +596,18 @@ comp_distortion_draw_mesh(struct comp_distortion *d,
 {
 	struct vk_bundle *vk = d->vk;
 
+
 	vk->vkCmdBindDescriptorSets(
 	    command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, d->pipeline_layout,
 	    0, 1, &d->descriptor_sets[eye], 0, NULL);
-
 	vk->vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
 	                      d->pipeline);
 
-	/* Draw 17 x 17 verts from which we construct the fullscreen quad in
-	 * the shader*/
-	vk->vkCmdDraw(command_buffer, 17*17, 1, 0, 0);
+	VkDeviceSize offsets[] = {0};
+	vk->vkCmdBindVertexBuffers(command_buffer, 0, 1,
+	                           &(d->vbo_handle.buffer), offsets);
+
+	vk->vkCmdDraw(command_buffer, DISTORTION_MESH_VERTEX_COUNT, 1, 0, 0);
 }
 
 // Update fragment shader hmd warp uniform block
@@ -602,14 +638,8 @@ comp_distortion_update_uniform_buffer_warp(struct comp_distortion *d,
 
 		memcpy(d->ubo_handle.mapped, &d->ubo_vive, sizeof(d->ubo_vive));
 		break;
-	case XRT_DISTORTION_MODEL_MESHUV:
-		for (uint32_t i=0;i<17;i++) {
-			for (uint32_t j=0;j<34;j++) {
-				d->ubo_meshuv.meshuv[i][j] = psvr_both_uvs[i][j];
-			}
-		}
-		break;
 	case XRT_DISTORTION_MODEL_PANOTOOLS:
+	case XRT_DISTORTION_MODEL_MESHUV:
 	default:
 		/*
 		 * Pano vision fragment shader
@@ -738,34 +768,54 @@ err_buffer:
 }
 
 static void
-comp_distortion_init_uniform_buffer(struct comp_distortion *d,
-                                    struct comp_compositor *c)
+comp_distortion_init_buffers(struct comp_distortion *d,
+                             struct comp_compositor *c)
 {
 	struct vk_bundle *vk = &c->vk;
 	VkMemoryPropertyFlags memory_property_flags = 0;
-	VkBufferUsageFlags usage_flags = 0;
+	VkBufferUsageFlags ubo_usage_flags = 0;
+	VkBufferUsageFlags vbo_usage_flags = 0;
+
 	VkResult ret;
 
 	// Using the same flags for all uniform buffers.
-	usage_flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	ubo_usage_flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	memory_property_flags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 	memory_property_flags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-	// distortion ubo
-	VkDeviceSize ubo_size;
+	vbo_usage_flags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+
+	// distortion ubo/vbo
+	VkDeviceSize ubo_size = 0;
+	VkDeviceSize vbo_size = 0;
 
 	switch (d->distortion_model) {
 	case XRT_DISTORTION_MODEL_PANOTOOLS:
 		ubo_size = sizeof(d->ubo_pano);
 		break;
 	case XRT_DISTORTION_MODEL_MESHUV:
-		ubo_size = sizeof(d->ubo_meshuv);
+		ubo_size = sizeof(d->ubo_pano);
+		vbo_size =
+		    sizeof(d->vbo_meshuv_data) * DISTORTION_MESH_VERTEX_COUNT;
+		ret = _create_buffer(vk, vbo_usage_flags, memory_property_flags,
+		                     &d->vbo_handle, vbo_size, &psvr_both_uvs);
+		if (ret != VK_SUCCESS) {
+			VK_DEBUG(vk, "Failed to create meshuv vbo buffer!");
+			break;
+		}
+		ret = _buffer_map(vk, &d->vbo_handle, vbo_size, 0);
+		if (ret != VK_SUCCESS) {
+			VK_DEBUG(vk, "Failed to map meshuv vbo buffer!");
+			break;
+		}
+
 		break;
 	case XRT_DISTORTION_MODEL_VIVE: ubo_size = sizeof(d->ubo_vive); break;
 	default: ubo_size = sizeof(d->ubo_pano);
 	}
 
-	ret = _create_buffer(vk, usage_flags, memory_property_flags,
+	ret = _create_buffer(vk, ubo_usage_flags, memory_property_flags,
 	                     &d->ubo_handle, ubo_size, NULL);
 	if (ret != VK_SUCCESS) {
 		VK_DEBUG(vk, "Failed to create warp ubo buffer!");
@@ -776,7 +826,7 @@ comp_distortion_init_uniform_buffer(struct comp_distortion *d,
 	}
 
 	// vp ubos
-	ret = _create_buffer(vk, usage_flags, memory_property_flags,
+	ret = _create_buffer(vk, ubo_usage_flags, memory_property_flags,
 	                     &d->ubo_viewport_handles[0],
 	                     sizeof(d->ubo_vp_data[0]), NULL);
 	if (ret != VK_SUCCESS) {
@@ -787,7 +837,7 @@ comp_distortion_init_uniform_buffer(struct comp_distortion *d,
 		VK_DEBUG(vk, "Failed to map vp ubo buffer[0]!");
 	}
 
-	ret = _create_buffer(vk, usage_flags, memory_property_flags,
+	ret = _create_buffer(vk, ubo_usage_flags, memory_property_flags,
 	                     &d->ubo_viewport_handles[1],
 	                     sizeof(d->ubo_vp_data[1]), NULL);
 	if (ret != VK_SUCCESS) {
