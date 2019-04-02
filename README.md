@@ -26,7 +26,7 @@ and aims to support other operating systems in the near future.
 Dependencies include:
 
 * [CMake][] 3.10 or newer
-* [OpenHMD](https://openhmd.net) (found using pkg-config)
+* [OpenHMD][] (found using pkg-config)
 * Vulkan headers
 * Eigen3
 * glslang
@@ -56,7 +56,7 @@ software to use direct mode,
 without using any external, third-party, or backported
 package sources.
 
-See also [Status of DRM leases](https://haagch.frickel.club/#!drmlease.md)
+See also [Status of DRM Leases][drm-lease]
 for more details on specific packages, versions, and commits.
 
 Build process is similar to other CMake builds,
@@ -65,13 +65,17 @@ so something like the following will build it.
 Go into the source directory, create a build directory,
 and change into it.
 
-    mkdir build
-    cd build
+```bash
+mkdir build
+cd build
+```
 
 Then, invoke [CMake to generate a project][cmake-generate].
 Feel free to change the build type or generator ("Ninja" is fast and parallel) as you see fit.
 
-    cmake .. -DCMAKE_BUILD_TYPE=Debug -G "Unix Makefiles"
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=Debug -G "Unix Makefiles"
+```
 
 If you plan to install the runtime,
 append something like `-DCMAKE_INSTALL_PREFIX=~/.local`
@@ -83,20 +87,24 @@ though you can manually invoke your build tool (`make`, `ninja`, etc.) if you pr
 The first command builds the runtime and docs,
 and the second, which is optional, installs the runtime under `${CMAKE_INSTALL_PREFIX}`.
 
-    cmake --build .
-    cmake --build . --target install
+```bash
+cmake --build .
+cmake --build . --target install
+```
 
 Alternately, if using Make, the following will build the runtime and docs, then install.
 Replace `make` with `ninja` if you used the Ninja generator.
 
-    make
-    make install
+```bash
+make
+make install
+```
 
 Documentation can be browsed by opening `doc/html/index.html` in the build directory in a web browser.
 
 ## Getting started using OpenXR with Monado
 
-This implements the [OpenXR](https://khronos.org/openxr) API,
+This implements the [OpenXR][] API,
 so to do anything with it, you'll need an application
 that uses OpenXR, along with the OpenXR loader.
 The OpenXR loader is a glue library that connects OpenXR applications to OpenXR runtimes such as Monado
@@ -109,7 +117,9 @@ OpenXR loader and API layers.
 
 The OpenXR loader can be pointed to a runtime json file in a nonstandard location with the environment variable `XR_RUNTIME_JSON`. Example:
 
-    XR_RUNTIME_JSON=~/monado/build/openxr_monado-dev.json ./openxr-example
+```bash
+XR_RUNTIME_JSON=~/monado/build/openxr_monado-dev.json ./openxr-example
+```
 
 For this reason this runtime creates two manifest files within the build directory:
 
@@ -163,13 +173,18 @@ To manually apply clang-format to every non-external source file in the tree,
 run this command in the source dir with a `sh`-compatible shell
 (Git for Windows git-bash should be OK):
 
-    scripts/format-project.sh
+```bash
+scripts/format-project.sh
+```
 
 You can optionally put something like `CLANG_FORMAT=clang-format-7` before that command
 if your clang-format binary isn't named `clang-format`.
 Note that you'll typically prefer to use something like `git clang-format`
 to just re-format your changes, in case version differences in tools result in overall format changes.
 
+[OpenHMD]: https://openhmd.net
+[drm-lease]: https://haagch.frickel.club/#!drmlease%2Emd
+[OpenXR]: https://khronos.org/openxr
 [clang-format]: https://releases.llvm.org/7.0.0/tools/clang/docs/ClangFormat.html
 [cmake-build]: https://cmake.org/cmake/help/v3.12/manual/cmake.1.html#build-tool-mode
 [cmake-generate]: https://cmake.org/cmake/help/v3.12/manual/cmake.1.html
