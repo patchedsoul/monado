@@ -68,6 +68,7 @@ add_library(${RUNTIME_TARGET} SHARED
 	$<TARGET_OBJECTS:aux_util>
 	$<TARGET_OBJECTS:aux_math>
 	$<TARGET_OBJECTS:comp>
+	$<TARGET_OBJECTS:frameserver>
 	$<TARGET_OBJECTS:drv_ohmd>
 	$<TARGET_OBJECTS:st_oxr>
 	)
@@ -77,6 +78,7 @@ target_link_libraries(${RUNTIME_TARGET}
 	${Vulkan_LIBRARIES}
 	${XCB_LIBRARIES}
 	OpenGL::GLX
+	/usr/local/lib/libuvc.so
 	)
 
 target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_OHMD)

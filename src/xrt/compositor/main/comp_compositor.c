@@ -20,6 +20,7 @@
 #include "main/comp_compositor.h"
 #include "main/comp_client_interface.h"
 
+#include "../frameservers/uvc/uvc_frameserver.h"
 
 static void
 compositor_destroy(struct xrt_compositor *xc)
@@ -288,6 +289,8 @@ create_instance(struct comp_compositor *c)
 	if (c->settings.validate_vulkan)
 		vk_init_validation_callback(&c->vk);
 #endif
+
+	uvc_frameserver_test();
 
 	return ret;
 }
