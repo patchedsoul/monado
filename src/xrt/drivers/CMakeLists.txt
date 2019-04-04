@@ -7,6 +7,7 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/../auxiliary
 	)
 
+add_subdirectory(montrack)
 
 if(BUILD_DRIVER_HDK)
 	set(HDK_SOURCE_FILES
