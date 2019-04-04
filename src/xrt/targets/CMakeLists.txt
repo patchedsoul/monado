@@ -36,10 +36,82 @@ if(BUILD_DRIVER_PSVR)
 	list(APPEND DRIVER_OBJECTS $<TARGET_OBJECTS:drv_psvr>)
 	list(APPEND DRIVER_LIBRARIES ${HIDAPI_LIBRARIES})
 endif()
+if(BUILD_DRIVER_MONTRACK)
+	list(APPEND DRIVER_OBJECTS
+		$<TARGET_OBJECTS:drv_montrack>
+		$<TARGET_OBJECTS:frameserver>
+		$<TARGET_OBJECTS:filter>
+		$<TARGET_OBJECTS:optical_tracking>)
+	if(BUILD_WITH_LIBUVC AND BUILD_WITH_JPEG)
+		list(APPEND DRIVER_LIBRARIES
+			${libuvc_LIBRARIES}
+			${LIBUSB1_LIBRARIES})
+	endif()
+	if(BUILD_WITH_UVBI)
+		list(APPEND DRIVER_LIBRARIES uvbi::uvbi_plugin_parts)
+	endif()
+	if(BUILD_WITH_JPEG)
+		list(APPEND DRIVER_LIBRARIES ${JPEG_LIBRARIES})
+	endif()
+	if(BUILD_WITH_FFMPEG)
+		list(APPEND DRIVER_LIBRARIES
+			avformat
+			avcodec
+			avutil)
+	endif()
+
+
+	list(APPEND DRIVER_LIBRARIES
+		opencv_core
+		opencv_calib3d
+		opencv_highgui
+		opencv_imgproc
+		opencv_imgcodecs
+		opencv_features2d
+		opencv_video
+		)
+endif()
 
 configure_file(targets_enabled_drivers.h.cmake_in ${CMAKE_CURRENT_BINARY_DIR}/targets_enabled_drivers.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+if(BUILD_DRIVER_MONTRACK)
+	list(APPEND DRIVER_OBJECTS
+		$<TARGET_OBJECTS:drv_montrack>
+		$<TARGET_OBJECTS:frameserver>
+		$<TARGET_OBJECTS:filter>
+		$<TARGET_OBJECTS:optical_tracking>)
+	if(BUILD_WITH_LIBUVC AND BUILD_WITH_JPEG)
+		list(APPEND DRIVER_LIBRARIES
+			${libuvc_LIBRARIES}
+			${LIBUSB1_LIBRARIES})
+	endif()
+	if(BUILD_WITH_JPEG)
+		list(APPEND DRIVER_LIBRARIES
+			${JPEG_LIBRARIES})
+	endif()
+	if(BUILD_WITH_FFMPEG)
+		list(APPEND DRIVER_LIBRARIES
+			avformat # TODO find rather than hard code!
+			avcodec # TODO find rather than hard code!
+			avutil # TODO find rather than hard code!
+		)
+	endif()
+	if(BUILD_WITH_UVBI)
+		list(APPEND DRIVER_LIBRARIES
+			uvbi::uvbi_plugin_parts)
+	endif()
+	list(APPEND DRIVER_LIBRARIES
+		opencv_core
+		opencv_calib3d
+		opencv_highgui
+		opencv_imgproc
+		opencv_imgcodecs
+		opencv_features2d
+		opencv_video
+		)
+endif()
+
 add_subdirectory(common)
 add_subdirectory(openxr)
-add_subdirectory(cli)
+#add_subdirectory(cli)

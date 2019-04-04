@@ -14,6 +14,10 @@
 #include "hdk/hdk_interface.h"
 #endif
 
+#ifdef XRT_BUILD_MONTRACK
+#include "montrack/mt_interface.h"
+#endif
+
 #ifdef XRT_BUILD_OHMD
 #include "ohmd/oh_interface.h"
 #endif
@@ -59,6 +63,10 @@ struct xrt_prober_entry *target_entry_lists[] = {
 xrt_auto_prober_creator target_auto_list[] = {
 #ifdef XRT_BUILD_HDK
     hdk_create_auto_prober,
+#endif
+
+#ifdef XRT_BUILD_MONTRACK
+    mt_create_auto_prober,
 #endif
 
 #ifdef XRT_BUILD_PSVR

@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <frameservers/common/frameserver.h>
+#include <frameservers/v4l2/v4l2_frameserver.h>
+
 
 /*
  *
@@ -383,6 +386,29 @@ probe(struct xrt_prober* xp)
 	}
 #endif
 
+	printf("we are done with our probe, now start up a tracking camera");
+	struct frameserver* fs = frameserver_create(FRAMESERVER_TYPE_V4L2);
+	// get our count of source descriptors
+	uint32_t source_count;
+	frameserver_enumerate_sources(fs, NULL, &source_count);
+	struct v4l2_source_descriptor* source_descriptor_array =
+	    U_TYPED_ARRAY_CALLOC(struct v4l2_source_descriptor, source_count);
+	frameserver_enumerate_sources(fs, source_descriptor_array,
+	                              &source_count);
+
+	for (uint32_t i = 0; i < source_count; i++) {
+		struct v4l2_source_descriptor source =
+		    source_descriptor_array[i];
+		// just use whatever
+		printf("source width: %d source height %d source rate %d\n",
+		       source.width, source.height, source.rate);
+		if (source.format == FS_FORMAT_YUV444_UINT8 &&
+		    source.rate <= 166666) {
+			frameserver_stream_start(fs, &source);
+			break;
+		}
+	}
+	free(source_descriptor_array);
 	return 0;
 }
 

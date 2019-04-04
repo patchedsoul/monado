@@ -5,8 +5,13 @@
 include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/../include
 	${CMAKE_CURRENT_SOURCE_DIR}/../auxiliary
+	${CMAKE_CURRENT_SOURCE_DIR}/montrack
+	${CMAKE_CURRENT_SOURCE_DIR}/montrack/frameservers/common
 	)
 
+if(BUILD_DRIVER_MONTRACK)
+	add_subdirectory(montrack)
+endif()
 
 if(BUILD_DRIVER_HDK)
 	set(HDK_SOURCE_FILES
