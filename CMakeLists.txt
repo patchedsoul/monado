@@ -24,7 +24,8 @@ find_package(Vulkan REQUIRED)
 find_package(OpenGL REQUIRED COMPONENTS GLX)
 find_package(HIDAPI)
 find_package(OpenHMD)
-
+find_package(Libcheck)
+find_package(glfw3)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(X11)
@@ -37,6 +38,7 @@ cmake_dependent_option(BUILD_WITH_HIDAPI "Enable HIDAPI-based OSVR HDK driver" O
 cmake_dependent_option(BUILD_WITH_WAYLAND "Enable Wayland support" ON "WAYLAND_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_XLIB "Enable xlib support" ON "X11_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENGL "Enable OpenGL Graphics API support?" ON "OPENGL_FOUND" OFF)
+cmake_dependent_option(BUILD_TESTING "Enable building of the test suite?" ON "LIBCHECK_FOUND AND glfw3_FOUND AND OPENGL_FOUND" OFF)
 
 if(NOT BUILD_WITH_OPENHMD AND NOT BUILD_WITH_HIDAPI)
     message(FATAL_ERROR "You must enable at least one driver: either provide OpenHMD and enable BUILD_WITH_OPENHMD (for a variety of devices via OpenHMD), or provide HIDAPI and enable BUILD_WITH_HIDAPI (for the HDK driver)")
@@ -58,4 +60,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 add_subdirectory(src)
 add_subdirectory(doc)
 
-add_subdirectory(tests)
+if(BUILD_TESTING)
+    include(CTest)
+    add_subdirectory(tests)
+endif()
