@@ -5,9 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "../
-
-
 typedef enum frameserver_type { FRAMESERVER_NULL,FRAMESERVER_FFMPEG,FRAMESERVER_UVC,FRAMESERVER_V4L2 } frameserver_type_t;
 
 typedef enum frame_format {FORMAT_RAW,FORMAT_Y_UINT8,FORMAT_Y_UINT16,FORMAT_RGB_UINT8,FORMAT_BGR_UINT8,FORMAT_YUYV_UINT8,FORMAT_YUV444_UINT8,FORMAT_JPG} frame_format_t;
@@ -43,7 +40,6 @@ typedef struct frameserver_instance {
     bool (*frameserver_stream_stop)();
     bool (*frameserver_is_running)();
     } frameserver_instance_t;
-
 
 bool frameserver_create(frameserver_type t,frameserver_instance_t* inst);
 

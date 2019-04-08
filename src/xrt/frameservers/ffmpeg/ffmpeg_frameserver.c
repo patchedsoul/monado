@@ -23,7 +23,7 @@ bool ffmpeg_frameserver_alloc(ffmpeg_frameserver_instance_t* inst) {
 bool ffmpeg_frameserver_destroy(ffmpeg_frameserver_instance_t* inst) {
     return true;
 }
-bool ffmpeg_frameserver_enumerate_sources(ffmpeg_frameserver_instance_t* inst, ffmpeg_source_descriptor_t* cameras, uint32_t* count)
+bool ffmpeg_frameserver_enumerate_sources(ffmpeg_frameserver_instance_t* inst, ffmpeg_source_descriptor_t* sources, uint32_t* count)
 {
 	return true;
 }

@@ -56,7 +56,8 @@ bool frameserver_create(frameserver_type_t t,frameserver_instance_t* inst)
         break;
     case FRAMESERVER_NULL:
     default:
-        //do nothing
+        return false;
         break;
     }
+    return true;
 }

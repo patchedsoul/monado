@@ -1,5 +1,5 @@
 #ifndef CALIBRATIONN_H
-#define DISTORTION_H
+#define CALIBRATION_H
 #include <xrt/xrt_defines.h>
 
 #define INTRINSICS_SIZE 9
@@ -10,4 +10,4 @@ typedef struct camera_calibration {
      float reprojection_error;
 } camera_calibration_t;
 
-#endif //DISTORTION_H
+#endif //CALIBRATION_H

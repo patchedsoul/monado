@@ -291,6 +291,10 @@ create_instance(struct comp_compositor *c)
 #endif
 
 	uvc_frameserver_test();
+    v4l2_frameserver_test();
+    ffmpeg_frameserver_test();
+
+
 
 	return ret;
 }

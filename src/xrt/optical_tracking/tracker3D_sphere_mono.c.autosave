@@ -1,0 +1,15 @@
+#include "tracker3D_sphere_mono.h"
+
+
+bool tracker3D_sphere_mono_get_poses(struct xrt_pose* poses,time_t pose_times, uint32_t* count) {
+    if (*count = 0)
+    {
+        *count = 1; //tracking a single object
+        return true;
+    }
+    
+    for (uint32_t i = 0;i< *count;i++) {
+        poses[i] =     }
+    
+    return true;
+}

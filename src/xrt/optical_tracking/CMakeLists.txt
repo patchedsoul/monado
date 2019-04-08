@@ -12,6 +12,8 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	common/calibration.h
 	common/distortion.h
 	common/distortion.c
+        common/tracked_object.h
+        common/tracked_object.c
         tracker2D_blue_led.c
         tracker2D_blue_led.h
         tracker3D_sphere_mono.c
