@@ -1,5 +1,5 @@
 
-pkg_check_modules(CHECK check)
+find_package(Libcheck REQUIRED)
 
 add_executable(tests
 	tests_common.c
@@ -15,7 +15,7 @@ target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/src/xrt/auxiliary"
 
 find_package(glfw3 3.2 REQUIRED)
 find_package(OpenGL REQUIRED)
-target_include_directories(tests PRIVATE ${CHECK_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR})
+target_include_directories(tests PRIVATE ${OPENGL_INCLUDE_DIR})
 
-target_link_libraries(tests ${RUNTIME_TARGET} ${CHECK_LIBRARIES} ${OPENGL_gl_LIBRARY} glfw X11)
+target_link_libraries(tests ${RUNTIME_TARGET} libcheck::check ${OPENGL_gl_LIBRARY} glfw X11)
 
