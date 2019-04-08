@@ -36,9 +36,10 @@ typedef void *GLXContext;
 
 #include <xrt/xrt_defines.h>
 
+#include <oxr/oxr_logger.h>
+
 #include <oxr/oxr_api_funcs.h>
 #include <oxr/oxr_api_verify.h>
-#include <oxr/oxr_logger.h>
 
 void init_glx(Display **display, GLXDrawable *w, GLXContext *ctx);
 void destroy_glx();
