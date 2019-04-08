@@ -1,0 +1,26 @@
+# Copyright 2019, Collabora, Ltd.
+# SPDX-License-Identifier: BSL-1.0
+
+include_directories(
+	${CMAKE_CURRENT_SOURCE_DIR}/../include
+	${CMAKE_CURRENT_SOURCE_DIR}/../auxiliary
+	${CMAKE_CURRENT_SOURCE_DIR}
+	)
+
+set(OPTICAL_TRACKING_SOURCE_FILES
+	common/calibration.c
+	common/calibration.h
+	common/distortion.h
+	common/distortion.c
+        tracker2D_blue_led.c
+        tracker2D_blue_led.h
+        tracker3D_sphere_mono.c
+        tracker3D_sphere_mono.h
+	)
+
+# Use OBJECT to not create a archive, since it just gets in the way.
+add_library(optical_tracking OBJECT ${OPTICAL_TRACKING_SOURCE_FILES})
+set_property(TARGET optical_tracking PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(optical_tracking SYSTEM
+	PRIVATE ${OPENCV_INCLUDE_DIRS}
+	)

@@ -6,7 +6,20 @@
 
 static uvc_error_t res;
 
-bool uvc_frameserver_init(uvc_frameserver_instance* inst) {
+bool uvc_source_alloc(uvc_source_descriptor_t* desc)
+{
+   // do nothing right now
+    return true;
+}
+
+bool uvc_source_destroy(uvc_source_descriptor_t* desc)
+{
+   // do nothing right now
+    return true;
+}
+
+
+bool uvc_frameserver_alloc(uvc_frameserver_instance_t* inst) {
 	inst->device_list =NULL;
 	res = uvc_init(&(inst->context), NULL);
 	if (res < 0)
@@ -17,7 +30,7 @@ bool uvc_frameserver_init(uvc_frameserver_instance* inst) {
 	return true;
 }
 
-bool uvc_frameserver_enumerate_devices(uvc_frameserver_instance* inst, uvc_camera_descriptor_t* cameras, uint32_t* count)
+bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_source_descriptor_t* cameras, uint32_t* count)
 {
 	if (inst->device_list != NULL) {
 		//uvc_free_device_list(inst->device_list,0);
@@ -58,7 +71,7 @@ bool uvc_frameserver_enumerate_devices(uvc_frameserver_instance* inst, uvc_camer
 			uvc_free_device_list(inst->device_list,1);
 			return false;
 		}
-		uvc_camera_descriptor_t* desc = &(cameras[i]);
+        uvc_source_descriptor_t* desc = &(cameras[i]);
 		//TODO: check lengths
 		snprintf(desc->name,128,"%s %s %s %04x:%04x",uvc_device_descriptor->manufacturer,uvc_device_descriptor->product,uvc_device_descriptor->serialNumber,uvc_device_descriptor->idProduct,uvc_device_descriptor->idVendor);
 		desc->name[127]=0;
@@ -79,8 +92,8 @@ bool uvc_frameserver_enumerate_devices(uvc_frameserver_instance* inst, uvc_camer
 
 bool uvc_frameserver_test(){
 	printf("Running UVC Frameserver Test\n");
-	uvc_frameserver_instance instance;
-	if (! uvc_frameserver_init(&instance))
+    uvc_frameserver_instance_t instance;
+    if (! uvc_frameserver_alloc(&instance))
 	{
 		printf("FAILURE: Could not init frameserver.\n");
 		return false;
@@ -90,8 +103,8 @@ bool uvc_frameserver_test(){
 		printf("FAILURE: Could not get camera count.\n");
 		return false;
 	}
-	uvc_camera_descriptor_t* camera_list = calloc(camera_count,sizeof(uvc_camera_descriptor_t));
-	if (! uvc_frameserver_enumerate_devices(&instance, camera_list,&camera_count)) {
+    uvc_source_descriptor_t* camera_list = calloc(camera_count,sizeof(uvc_source_descriptor_t));
+    if (! uvc_frameserver_enumerate_devices(&instance, camera_list,&camera_count)) {
 		printf("FAILURE: Could not get camera descriptors\n");
 		return false;
 	}
