@@ -21,17 +21,17 @@ typedef struct v4l2_source_descriptor {
 	char serial[128];
 } v4l2_source_descriptor_t;
 
-
-bool v4l2_frameserver_alloc(v4l2_frameserver_instance_t*);
-bool v4l2_frameserver_destroy(v4l2_frameserver_instance_t*);
-bool v4l2_source_alloc(v4l2_source_descriptor_t*);
+v4l2_frameserver_instance_t* v4l2_frameserver_create(frameserver_instance_t* inst);
+bool v4l2_frameserver_destroy(frameserver_instance_t* inst);
+bool v4l2_source_create(v4l2_source_descriptor_t*);
 bool v4l2_source_destroy(v4l2_source_descriptor_t*);
-bool v4l2_frameserver_enumerate_sources(v4l2_frameserver_instance_t*, v4l2_source_descriptor_t* cameras, uint32_t* count);
-bool v4l2_frame_get(frame_t* _frame);
-void v4l2_register_callback(void* func);
-bool v4l2_stream_start();
-bool v4l2_stream_stop();
-bool v4l2_is_running();
+bool v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst, v4l2_source_descriptor_t* sources, uint32_t* count);
+bool v4l2_frame_get(frameserver_instance_t* inst, frame_t* frame);
+void v4l2_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type);
+bool v4l2_seek(frameserver_instance_t* inst, uint64_t timestamp);
+bool v4l2_stream_start(frameserver_instance_t* inst);
+bool v4l2_stream_stop(frameserver_instance_t* inst);
+bool v4l2_is_running(frameserver_instance_t* inst);
 bool v4l2_frameserver_test();
 
 

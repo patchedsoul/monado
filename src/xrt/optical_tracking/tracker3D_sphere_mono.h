@@ -3,31 +3,20 @@
 
 #include <xrt/xrt_defines.h>
 #include "common/calibration.h"
-#include "common/distortion.h"
 #include "common/tracked_object.h"
-#include "../frameservers/ffmpeg/ffmpeg_frameserver.h"
+#include "common/tracker.h"
 
-#define TRACKER_QUEUE_LENGTH 8 //cache the previous mesurements in case we need to replay
 
 typedef struct tracker3D_sphere_mono_instance {
     camera_calibration_t calibration;
-    camera_distortion_t distortion;
-    //TODO: frameserver API
-    ffmpeg_frameserver_instance_t frameserver_instance;
-    tracker2D_blue_led_instance_t blob_tracker;
-
+    frameserver_instance_t frameserver_instance;
+    tracked_object_t tracked_object;
 } tracker3D_sphere_mono_instance_t;
 
-
-
-
-bool tracker3D_sphere_mono_create(tracker3D_sphere_mono_descriptor_t* desc);
-
-bool tracker3D_sphere_mono_destroy();
-
-bool tracker3D_sphere_mono_track(frame_t* frame);
-
-bool tracker3D_sphere_mono_get_poses(struct xrt_pose* poses,time_t* pose_times,uint32_t* count);
+tracker3D_sphere_mono_instance_t* tracker3D_sphere_mono_create(tracker_instance_t* inst);
+bool tracker3D_sphere_mono_destroy(tracker_instance_t* inst);
+bool tracker3D_sphere_mono_track(tracker_instance_t* inst,frame_t* frame);
+bool tracker3D_sphere_mono_get_poses(tracker_instance_t* inst,tracked_object_t* objects,uint32_t* count);
 
 
 

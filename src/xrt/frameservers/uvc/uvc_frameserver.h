@@ -29,16 +29,17 @@ typedef struct uvc_source_descriptor {
 } uvc_source_descriptor_t;
 
 
-bool uvc_frameserver_alloc(uvc_frameserver_instance_t* inst);
+uvc_frameserver_instance_t* uvc_frameserver_create(frameserver_instance_t* inst);
 bool uvc_frameserver_destroy(uvc_frameserver_instance_t* inst);
-bool uvc_source_alloc(uvc_source_descriptor* desc);
-bool uvc_source_destroy(uvc_source_descriptor* desc);
+bool uvc_source_alloc(uvc_source_descriptor_t* desc);
+bool uvc_source_destroy(uvc_source_descriptor_t* desc);
 bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t*, uvc_source_descriptor_t* cameras, uint32_t* count);
-bool uvc_frame_get(frame_t* _frame);
-void uvc_register_callback(void* func);
-bool uvc_stream_start();
-bool uvc_stream_stop();
-bool uvc_is_running();
+bool uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
+void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type);
+bool uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
+bool uvc_frameserver_stream_start(frameserver_instance_t* inst);
+bool uvc_frameserver_stream_stop(frameserver_instance_t* inst);
+bool uvc_frameserver_is_running(frameserver_instance_t* inst);
 bool uvc_frameserver_test();
 
 

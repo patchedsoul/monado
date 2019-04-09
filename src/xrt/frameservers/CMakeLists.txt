@@ -8,8 +8,8 @@ include_directories(
 	)
 
 set(FRAMESERVER_SOURCE_FILES
-        ffmpeg/ffmpeg_frameserver.c
-        ffmpeg/ffmpeg_frameserver.h
+	ffmpeg/ffmpeg_frameserver.c
+	ffmpeg/ffmpeg_frameserver.h
 	uvc/uvc_frameserver.c
 	uvc/uvc_frameserver.h
 	v4l2/v4l2_frameserver.c

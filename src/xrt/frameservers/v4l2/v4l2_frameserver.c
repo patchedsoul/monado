@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-bool v4l2_source_alloc(v4l2_source_descriptor_t* desc)
+bool v4l2_source_create(v4l2_source_descriptor_t* desc)
 {
    // do nothing right now
     return true;
@@ -16,19 +16,53 @@ bool v4l2_source_destroy(v4l2_source_descriptor_t* desc) {
     return true;
 }
 
-bool v4l2_frameserver_alloc(v4l2_frameserver_instance_t* inst) {
-	return true;
+v4l2_frameserver_instance_t* v4l2_frameserver_create(frameserver_instance_t* inst) {
+    v4l2_frameserver_instance_t* i = calloc(sizeof(v4l2_frameserver_instance_t),1);
+    if (i) {
+		//inst->internal_instance = i;
+        return i;
+    }
+    return false;
 }
-bool v4l2_frameserver_destroy(v4l2_frameserver_instance_t* inst) {
+bool v4l2_frameserver_destroy(frameserver_instance_t* inst) {
+    free(inst->internal_instance);
     return true;
 }
 
 
-bool v4l2_frameserver_enumerate_sources(v4l2_frameserver_instance_t* inst, v4l2_source_descriptor_t* cameras, uint32_t* count)
+bool v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst, v4l2_source_descriptor_t* cameras, uint32_t* count)
 {
 
 	return true;
 }
+void v4l2_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type)
+{
+	//do nothing
+}
+
+bool v4l2_frame_get(frameserver_instance_t* inst, frame_t* frame) {
+	return false;
+}
+
+bool v4l2_seek(frameserver_instance_t* inst, uint64_t timestamp) {
+//do nothing
+return false;
+}
+
+bool v4l2_stream_start(frameserver_instance_t* inst){
+	return false;
+}
+bool v4l2_stream_stop(frameserver_instance_t* inst){
+	return false;
+}
+
+
+bool v4l2_is_running(frameserver_instance_t* inst) {
+//do nothing
+return false;
+}
+
+
 
 bool v4l2_frameserver_test(){
 	printf("Running V4L2 Frameserver Test\n");

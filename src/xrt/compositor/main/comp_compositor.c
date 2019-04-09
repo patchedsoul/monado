@@ -290,11 +290,7 @@ create_instance(struct comp_compositor *c)
 		vk_init_validation_callback(&c->vk);
 #endif
 
-	uvc_frameserver_test();
-    v4l2_frameserver_test();
-    ffmpeg_frameserver_test();
-
-
+	frameservers_test();
 
 	return ret;
 }

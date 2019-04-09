@@ -22,6 +22,6 @@ build*/
 
 # Ignore local settings
 .vscode
-
+*.autosave
 # Ignore merge-conflict resolution files
 *.orig

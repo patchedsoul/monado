@@ -6,7 +6,7 @@
 
 static uvc_error_t res;
 
-bool uvc_source_alloc(uvc_source_descriptor_t* desc)
+bool uvc_source_create(uvc_source_descriptor_t* desc)
 {
    // do nothing right now
     return true;
@@ -19,15 +19,22 @@ bool uvc_source_destroy(uvc_source_descriptor_t* desc)
 }
 
 
-bool uvc_frameserver_alloc(uvc_frameserver_instance_t* inst) {
-	inst->device_list =NULL;
-	res = uvc_init(&(inst->context), NULL);
-	if (res < 0)
-	{
-		uvc_perror(res, "UVC Context init failed");
-		return false;
-	}
-	return true;
+uvc_frameserver_instance_t* uvc_frameserver_create(frameserver_instance_t* inst) {
+    //TODO: calloc macro
+    uvc_frameserver_instance_t* i = calloc(1,sizeof(uvc_frameserver_instance_t));
+    if (i) {
+        i->device_list =NULL;
+        res = uvc_init(&(i->context), NULL);
+        if (res < 0)
+        {
+            uvc_perror(res, "UVC Context init failed");
+            return NULL;
+        }
+        inst->internal_instance = i;
+        return i;
+    }
+
+    return NULL;
 }
 
 bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_source_descriptor_t* cameras, uint32_t* count)
@@ -89,6 +96,27 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 	//uvc_free_device_list(device_list,1);
 	return true;
 }
+
+void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type) {
+	//do nothing
+}
+
+bool uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame) {
+	return false;
+}
+bool uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp) {
+	return false;
+}
+bool uvc_frameserver_stream_start(frameserver_instance_t* inst) {
+	return false;
+}
+bool uvc_frameserver_stream_stop(frameserver_instance_t* inst) {
+	return false;
+}
+bool uvc_frameserver_is_running(frameserver_instance_t* inst) {
+	return false;
+}
+
 
 bool uvc_frameserver_test(){
 	printf("Running UVC Frameserver Test\n");

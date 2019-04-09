@@ -14,7 +14,7 @@
 #include "libavcodec/avcodec.h"
 #include "libavutil/avutil.h"
 
-typedef enum event_type {EVENT_NONE,EVENT_FRAME} event_type_t;
+
 
 static AVPacket emptyPacket;
 
@@ -34,17 +34,18 @@ typedef struct ffmpeg_source_descriptor {
 } ffmpeg_source_descriptor_t;
 
 
-bool ffmpeg_frameserver_alloc(ffmpeg_frameserver_instance_t* inst);
+ffmpeg_frameserver_instance_t* ffmpeg_frameserver_create(frameserver_instance_t* inst);
 bool ffmpeg_frameserver_destroy(ffmpeg_frameserver_instance_t* inst);
-bool ffmpeg_source_alloc(ffmpeg_source_descriptor* desc);
-bool ffmpeg_source_destroy(ffmpeg_source_descriptor* desc);
-bool ffmpeg_frameserver_enumerate_sources(ffmpeg_frameserver_instance_t*, ffmpeg_source_descriptor_t* sources, uint32_t* count);
-bool ffmpeg_frame_get(frame_t* _frame);
-void ffmpeg_register_event_callback(void* func,event_type_t event_type);
-bool ffmpeg_seek(uint64_t timestamp);
-bool ffmpeg_stream_start(ffmpeg_source_descriptor_t* source);
-bool ffmpeg_stream_stop();
-bool ffmpeg_is_running();
+bool ffmpeg_source_create(ffmpeg_source_descriptor_t* desc);
+bool ffmpeg_source_destroy(ffmpeg_source_descriptor_t* desc);
+
+bool ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* sources, uint32_t* count);
+bool ffmpeg_frame_get(frameserver_instance_t* inst, frame_t* _frame);
+void ffmpeg_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type);
+bool ffmpeg_seek(frameserver_instance_t* inst, uint64_t timestamp);
+bool ffmpeg_stream_start(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* source);
+bool ffmpeg_stream_stop(frameserver_instance_t* inst);
+bool ffmpeg_is_running(frameserver_instance_t* inst);
 bool ffmpeg_frameserver_test();
 
 
