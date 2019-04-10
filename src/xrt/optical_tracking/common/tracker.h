@@ -22,5 +22,6 @@ typedef struct _tracker_instance {
 
 tracker_instance_t* tracker_create(tracker_type_t t);
 bool tracker_destroy(tracker_instance_t* inst);
+bool trackers_test();
 
 #endif //TRACKER_H

@@ -33,7 +33,7 @@ typedef struct _frameserver_instance {
     frameserver_type_t frameserver_type;
     bool (*frameserver_enumerate_sources)(frameserver_instance* inst, frameserver_source_descriptor sources, uint32_t* count);
     bool (*frameserver_frame_get)(frameserver_instance* inst,frame_t* _frame);
-    void (*frameserver_register_event_callback)(frameserver_instance* inst, void* func,frameserver_event_type_t event_type);
+	void (*frameserver_register_event_callback)(frameserver_instance* inst, void* target_instance, void* target_func,frameserver_event_type_t event_type);
     bool (*frameserver_seek)(frameserver_instance* inst, uint64_t timestamp);
     bool (*frameserver_stream_start)(frameserver_instance* inst, frameserver_source_descriptor source);
     bool (*frameserver_stream_stop)(frameserver_instance* inst);

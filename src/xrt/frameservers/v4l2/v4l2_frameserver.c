@@ -35,7 +35,7 @@ bool v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst, v4l2_sourc
 
 	return true;
 }
-void v4l2_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type)
+void v4l2_register_event_callback(frameserver_instance_t* inst, void* target_instance,void* target_func,frameserver_event_type_t event_type)
 {
 	//do nothing
 }

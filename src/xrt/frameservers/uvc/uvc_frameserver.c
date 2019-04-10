@@ -30,7 +30,7 @@ uvc_frameserver_instance_t* uvc_frameserver_create(frameserver_instance_t* inst)
             uvc_perror(res, "UVC Context init failed");
             return NULL;
         }
-        inst->internal_instance = i;
+		//inst->internal_instance = i;
         return i;
     }
 
@@ -97,7 +97,7 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 	return true;
 }
 
-void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type) {
+void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance, void* target_func, frameserver_event_type_t event_type) {
 	//do nothing
 }
 

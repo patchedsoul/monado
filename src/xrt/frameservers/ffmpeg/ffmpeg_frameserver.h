@@ -41,7 +41,7 @@ bool ffmpeg_source_destroy(ffmpeg_source_descriptor_t* desc);
 
 bool ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* sources, uint32_t* count);
 bool ffmpeg_frame_get(frameserver_instance_t* inst, frame_t* _frame);
-void ffmpeg_register_event_callback(frameserver_instance_t* inst, void* func,frameserver_event_type_t event_type);
+void ffmpeg_register_event_callback(frameserver_instance_t* inst, void* target_instance,void* target_func,frameserver_event_type_t event_type);
 bool ffmpeg_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool ffmpeg_stream_start(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* source);
 bool ffmpeg_stream_stop(frameserver_instance_t* inst);

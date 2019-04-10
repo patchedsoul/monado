@@ -1,12 +1,16 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
+#include "../frameservers/ffmpeg/ffmpeg_frameserver.h"
 
 tracker_instance_t* tracker_create(tracker_type_t t) {
 	tracker_instance_t* i = calloc(1,sizeof(tracker_instance_t));
 	if (i) {
 		switch (t) {
 		    case TRACKER_TYPE_SPHERE_MONO:
-			    i->internal_instance = tracker3D_sphere_mono_create(i);
+			    i->tracker_type = t;
+				i->internal_instance = tracker3D_sphere_mono_create(i);
+				i->tracker_get_poses = tracker3D_sphere_mono_get_poses;
+				i->tracker_track = tracker3D_sphere_mono_track;
 			    break;
 		    case TRACKER_TYPE_NONE:
 		    default:
@@ -17,4 +21,62 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 		return i;
 	}
 	return NULL;
+}
+
+bool trackers_test(){
+
+	//create a tracker
+	tracker_instance_t* tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
+	if (! tracker)
+	{
+		return false;
+	}
+	//how many objects does this tracker support (this is a maximum)
+	uint32_t tracked_object_count=0;
+	tracker->tracker_get_poses(tracker,NULL,&tracked_object_count);
+	tracked_object_t* tracked_objects = NULL;
+	if (tracked_object_count > 0)
+	{
+		tracked_objects = calloc(tracked_object_count,sizeof(tracked_object_t));
+	}
+
+	//create our frameserver, that will feed our tracker
+	frameserver_instance_t* frame_source = frameserver_create(FRAMESERVER_TYPE_FFMPEG);
+	//ask our frameserver for available sources - note this will return a frameserver-specific struct
+	//that we need to deal with
+	uint32_t source_count=0;
+	frame_source->frameserver_enumerate_sources(frame_source,NULL,&source_count);
+	if (source_count == 0){
+		return false;
+	}
+
+	ffmpeg_source_descriptor_t* descriptors = calloc(source_count,sizeof(ffmpeg_source_descriptor_t));
+
+	// TODO: we will currently leak calloced strings that are bound to the descriptors. we need to clean
+	// this memory up.
+	frame_source->frameserver_enumerate_sources(frame_source,descriptors,&source_count);
+
+	//bind our frame source frame event to our trackers track function
+	//TODO - the function signature invoked depending on the FRAMESERVER_EVENT_TYPE needs to be documented/codified
+	frame_source->frameserver_register_event_callback(frame_source,tracker,tracker->tracker_track,EVENT_FRAME);
+
+	printf("frame source path: %s\n",descriptors[0].filepath);
+
+	//start the stream - this is assumed to start a thread in the frameserver, which will invoke callbacks as necessary.
+	frame_source->frameserver_stream_start(frame_source,&(descriptors[0]));
+	//we can now poll our tracker for data, and update our xrt-side objects position
+	while (1) {
+		tracker->tracker_get_poses(tracker,tracked_objects,&tracked_object_count);
+		// tracked_object_count will contain the number of objects found in the frame
+		// there is no guarantee that they will be in the same order across calls
+		for (uint32_t i =0; i< tracked_object_count;i++)
+		{
+			tracked_object_t o = tracked_objects[i];
+			printf("tracked object id %d tag %d pos %f %f %f\n",o.tracking_id,o.tracking_tag,o.pose.position.x,o.pose.position.y,o.pose.position.z);
+		}
+		usleep(1000);
+	}
+
+
+	return true;
 }

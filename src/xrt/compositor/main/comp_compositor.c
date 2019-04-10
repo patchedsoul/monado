@@ -21,6 +21,7 @@
 #include "main/comp_client_interface.h"
 
 #include "../frameservers/uvc/uvc_frameserver.h"
+#include "../optical_tracking/common/tracker.h"
 
 static void
 compositor_destroy(struct xrt_compositor *xc)
@@ -291,7 +292,7 @@ create_instance(struct comp_compositor *c)
 #endif
 
 	frameservers_test();
-
+	trackers_test();
 	return ret;
 }
 

@@ -9,7 +9,6 @@
 
 typedef struct tracker3D_sphere_mono_instance {
     camera_calibration_t calibration;
-    frameserver_instance_t frameserver_instance;
     tracked_object_t tracked_object;
 } tracker3D_sphere_mono_instance_t;
 
