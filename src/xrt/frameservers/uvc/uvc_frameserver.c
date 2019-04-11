@@ -89,7 +89,7 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 			memcpy(desc->serial,uvc_device_descriptor->serialNumber,strlen(uvc_device_descriptor->serialNumber)+1);
 		}
 		desc->serial[127]=0;
-		desc->device = uvc_device;
+		//desc->device = uvc_device;
 		uvc_free_device_descriptor(uvc_device_descriptor);
 	}
 	//we can't free the device list since the device ptrs we hand out are contained in it

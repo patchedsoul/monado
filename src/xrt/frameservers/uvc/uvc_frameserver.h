@@ -15,6 +15,10 @@
 typedef struct uvc_frameserver_instance {
     uvc_device_t** device_list;
     uvc_context_t* context;
+	uvc_device_t* device;
+	uvc_device_handle_t* device_handle;
+	uvc_stream_handle_t* stream_handle;
+	uvc_stream_ctrl_t stream_ctrl;
 } uvc_frameserver_instance_t;
 
 typedef struct uvc_source_descriptor {
@@ -22,10 +26,10 @@ typedef struct uvc_source_descriptor {
 	uint16_t vendor_id;
 	uint16_t product_id;
 	char serial[128];
-	uvc_device_t* device;
-	uvc_device_handle_t* device_handle;
-	uvc_stream_handle_t* stream_handle;
-	uvc_stream_ctrl_t stream_ctrl;
+	uint64_t source_id;
+	frame_format_t format;
+	uint32_t width;
+	uint32_t height;
 } uvc_source_descriptor_t;
 
 

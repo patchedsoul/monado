@@ -19,6 +19,10 @@ typedef struct v4l2_source_descriptor {
 	uint16_t vendor_id;
 	uint16_t product_id;
 	char serial[128];
+	uint64_t source_id;
+	frame_format_t format;
+	uint32_t width;
+	uint32_t height;
 } v4l2_source_descriptor_t;
 
 v4l2_frameserver_instance_t* v4l2_frameserver_create(frameserver_instance_t* inst);

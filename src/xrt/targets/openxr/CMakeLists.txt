@@ -80,6 +80,9 @@ target_link_libraries(${RUNTIME_TARGET}
 	${XCB_LIBRARIES}
 	OpenGL::GLX
 	/usr/local/lib/libuvc.so
+	/usr/local/lib/libavformat.so
+	/usr/local/lib/libavcodec.so
+	/usr/local/lib/libavutil.so
 	)
 
 target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_OHMD)

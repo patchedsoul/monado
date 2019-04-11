@@ -10,7 +10,9 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 			    i->tracker_type = t;
 				i->internal_instance = tracker3D_sphere_mono_create(i);
 				i->tracker_get_poses = tracker3D_sphere_mono_get_poses;
-				i->tracker_track = tracker3D_sphere_mono_track;
+				i->tracker_queue = tracker3D_sphere_mono_queue;
+				i->tracker_has_new_poses = tracker3D_sphere_mono_new_poses;
+				i->tracker_configure = tracker3D_sphere_mono_configure;
 			    break;
 		    case TRACKER_TYPE_NONE:
 		    default:
@@ -56,16 +58,37 @@ bool trackers_test(){
 	// this memory up.
 	frame_source->frameserver_enumerate_sources(frame_source,descriptors,&source_count);
 
+	//select a frame source that is acceptable to our tracker
+	bool configured = false;
+	for (uint32_t i=0; i< source_count;i++)
+	{
+		tracker_mono_configuration_t tracker_config = {};
+		//fetch our calibration from some as-yet undefined data source
+		//tracker_config.calibration = ???
+		tracker_config.format = descriptors[i].format;
+		tracker_config.source_id =descriptors[i].source_id;
+
+		if (tracker->tracker_configure(tracker,&tracker_config)){
+			configured=true;
+			break;
+		}
+	}
+	if (! configured)
+	{
+		printf("ERROR: no compatible source for tracker from frameserver\n");
+		return false;
+	}
+
 	//bind our frame source frame event to our trackers track function
 	//TODO - the function signature invoked depending on the FRAMESERVER_EVENT_TYPE needs to be documented/codified
-	frame_source->frameserver_register_event_callback(frame_source,tracker,tracker->tracker_track,EVENT_FRAME);
+	frame_source->frameserver_register_event_callback(frame_source,tracker,tracker->tracker_queue,EVENT_FRAME);
 
 	printf("frame source path: %s\n",descriptors[0].filepath);
 
 	//start the stream - this is assumed to start a thread in the frameserver, which will invoke callbacks as necessary.
 	frame_source->frameserver_stream_start(frame_source,&(descriptors[0]));
 	//we can now poll our tracker for data, and update our xrt-side objects position
-	while (1) {
+	for (uint32_t i=0;i<20;i++){
 		tracker->tracker_get_poses(tracker,tracked_objects,&tracked_object_count);
 		// tracked_object_count will contain the number of objects found in the frame
 		// there is no guarantee that they will be in the same order across calls
