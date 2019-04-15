@@ -27,15 +27,17 @@ typedef struct v4l2_source_descriptor {
 
 v4l2_frameserver_instance_t* v4l2_frameserver_create(frameserver_instance_t* inst);
 bool v4l2_frameserver_destroy(frameserver_instance_t* inst);
-bool v4l2_source_create(v4l2_source_descriptor_t*);
-bool v4l2_source_destroy(v4l2_source_descriptor_t*);
+bool v4l2_frameserver_source_create(v4l2_source_descriptor_t*);
+bool v4l2_frameserver_source_destroy(v4l2_source_descriptor_t*);
+bool v4l2_frameserver_configure_capture(frameserver_instance_t* inst, capture_parameters_t cp);
 bool v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst, v4l2_source_descriptor_t* sources, uint32_t* count);
-bool v4l2_frame_get(frameserver_instance_t* inst, frame_t* frame);
-void v4l2_register_event_callback(frameserver_instance_t* inst, void* target_instance, void* target_func,frameserver_event_type_t event_type);
-bool v4l2_seek(frameserver_instance_t* inst, uint64_t timestamp);
-bool v4l2_stream_start(frameserver_instance_t* inst);
-bool v4l2_stream_stop(frameserver_instance_t* inst);
-bool v4l2_is_running(frameserver_instance_t* inst);
+bool v4l2_frameserver_get(frameserver_instance_t* inst, frame_t* frame);
+void v4l2_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance,event_consumer_callback_func target_func);
+void v4l2_frameserver_register_frame_callback(frameserver_instance_t* inst, void* target_instance,frame_consumer_callback_func target_func);
+bool v4l2_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
+bool v4l2_frameserver_stream_start(frameserver_instance_t* inst);
+bool v4l2_frameserver_stream_stop(frameserver_instance_t* inst);
+bool v4l2_frameserver_is_running(frameserver_instance_t* inst);
 bool v4l2_frameserver_test();
 
 

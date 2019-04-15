@@ -16,7 +16,7 @@ set(OPTICAL_TRACKING_SOURCE_FILES
         common/tracker.c
         tracker2D_blue_led.c
         tracker2D_blue_led.h
-        tracker3D_sphere_mono.c
+		tracker3D_sphere_mono.cpp
         tracker3D_sphere_mono.h
 	)
 

@@ -97,7 +97,16 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 	return true;
 }
 
-void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance, void* target_func, frameserver_event_type_t event_type) {
+
+bool uvc_frameserver_configure_capture(frameserver_instance_t* inst, capture_parameters_t cp) {
+	return true;
+}
+
+void uvc_frameserver_register_frame_callback(frameserver_instance_t* inst, void* target_instance, frame_consumer_callback_func target_func) {
+	//do nothing
+}
+
+void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance, event_consumer_callback_func target_func) {
 	//do nothing
 }
 

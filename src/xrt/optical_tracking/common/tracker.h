@@ -7,7 +7,7 @@
 
 typedef void* tracker_instance;
 typedef void* tracker_internal_instance;
-typedef void* tracker_configuration_t;
+typedef void* tracker_configuration;
 
 
 typedef struct tracker_mono_configuration {
@@ -33,10 +33,12 @@ typedef enum tracker_type {
 
 typedef struct _tracker_instance {
      tracker_type_t tracker_type;
+	 capture_parameters_t (*tracker_get_capture_params)(tracker_instance inst);
 	 bool (*tracker_queue)(tracker_instance inst,frame_t* frame);
+	 bool (*tracker_get_debug_frame)(tracker_instance inst,frame_t* frame);
 	 bool (*tracker_get_poses)(tracker_instance inst,tracked_object_t* tracked_objects,uint32_t* count);
-	 bool (*tracker_has_new_poses)(tracker_instance* inst);
-	 bool (*tracker_configure)(tracker_instance* inst, tracker_configuration_t config);
+	 bool (*tracker_has_new_poses)(tracker_instance inst);
+	 bool (*tracker_configure)(tracker_instance inst, tracker_configuration config);
      tracker_internal_instance internal_instance;
 } tracker_instance_t;
 

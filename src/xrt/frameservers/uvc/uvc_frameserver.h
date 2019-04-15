@@ -37,9 +37,11 @@ uvc_frameserver_instance_t* uvc_frameserver_create(frameserver_instance_t* inst)
 bool uvc_frameserver_destroy(uvc_frameserver_instance_t* inst);
 bool uvc_source_alloc(uvc_source_descriptor_t* desc);
 bool uvc_source_destroy(uvc_source_descriptor_t* desc);
+bool uvc_frameserver_configure_capture(frameserver_instance_t* inst, capture_parameters_t cp);
 bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t*, uvc_source_descriptor_t* cameras, uint32_t* count);
 bool uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
-void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance,void* target_func,frameserver_event_type_t event_type);
+void uvc_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance,event_consumer_callback_func target_func);
+void uvc_frameserver_register_frame_callback(frameserver_instance_t* inst, void* target_instance,frame_consumer_callback_func target_func);
 bool uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool uvc_frameserver_stream_start(frameserver_instance_t* inst);
 bool uvc_frameserver_stream_stop(frameserver_instance_t* inst);

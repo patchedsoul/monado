@@ -83,6 +83,12 @@ target_link_libraries(${RUNTIME_TARGET}
 	/usr/local/lib/libavformat.so
 	/usr/local/lib/libavcodec.so
 	/usr/local/lib/libavutil.so
+	/usr/local/lib64/libopencv_core.so
+	/usr/local/lib64/libopencv_highgui.so
+	/usr/local/lib64/libopencv_imgproc.so
+	/usr/local/lib64/libopencv_imgcodecs.so
+	/usr/local/lib64/libopencv_features2d.so
+	/usr/local/lib64/libopencv_video.so
 	)
 
 target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_OHMD)

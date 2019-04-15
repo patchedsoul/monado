@@ -27,6 +27,12 @@ ffmpeg_frameserver_instance_t* ffmpeg_frameserver_create(frameserver_instance_t*
     return NULL;
 }
 
+bool ffmpeg_frameserver_configure_capture(frameserver_instance_t* inst,capture_parameters_t cp) {
+	printf("ffmpeg is file-only, no capture params supported\n");
+	return true;
+}
+
+
 bool ffmpeg_frameserver_destroy(ffmpeg_frameserver_instance_t* inst) {
     //TODO: cleanup
     free(inst);
@@ -62,25 +68,24 @@ bool ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst, ffmpeg_s
 	return true;
 }
 
-bool ffmpeg_frame_get(frameserver_instance_t* inst, frame_t* _frame) {
+bool ffmpeg_frameserver_get(frameserver_instance_t* inst, frame_t* _frame) {
 	return false;
 }
-void ffmpeg_register_event_callback(frameserver_instance_t* inst, void* target_instance, frame_consumer_callback_t target_func,frameserver_event_type_t event_type) {
+void ffmpeg_frameserver_register_frame_callback(frameserver_instance_t* inst, void* target_instance, frame_consumer_callback_func target_func) {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
-	switch (event_type) {
-	    case EVENT_FRAME:
-		    internal->target_instance = target_instance;
-			internal->target_frame_callback = target_func;
-		break;
-	    case EVENT_NONE:
-	    default:
-		    printf("WARNING: unhandled event type %d\n",event_type);
-	}
+	internal->frame_target_instance = target_instance;
+	internal->frame_target_callback = target_func;
 }
-bool ffmpeg_seek(frameserver_instance_t* inst, uint64_t timestamp) {
+
+void ffmpeg_frameserver_register_event_callback(frameserver_instance_t* inst, void* target_instance, event_consumer_callback_func target_func) {
+	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	internal->event_target_instance = target_instance;
+	internal->event_target_callback = target_func;
+}
+bool ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp) {
 	return false;
 }
-bool ffmpeg_stream_start(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* source) {
+bool ffmpeg_frameserver_stream_start(frameserver_instance_t* inst, ffmpeg_source_descriptor_t* source) {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	if(pthread_create(&internal->stream_thread, NULL, ffmpeg_stream_run, inst)) {
 	printf("ERROR: could not createv thread\n");
@@ -92,13 +97,13 @@ bool ffmpeg_stream_start(frameserver_instance_t* inst, ffmpeg_source_descriptor_
 	return true;
 }
 
-bool ffmpeg_stream_stop(frameserver_instance_t* inst) {
+bool ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst) {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	//TODO: signal shutdown to thread
 	pthread_join(&internal->stream_thread);
 	return true;
 }
-bool ffmpeg_is_running(frameserver_instance_t* inst) {
+bool ffmpeg_frameserver_is_running(frameserver_instance_t* inst) {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	return internal->is_running;
 
@@ -209,18 +214,24 @@ void ffmpeg_stream_run(frameserver_instance_t* inst)
 			if (video_frame_finished > 0) {
 				//we have our frame! w00t!
 				printf("got frame!\n");
-				//now we need to invoke our callback.
-				//TODO: can do a better job with these void* callback functions
+				//now we need to invoke our callback with a frame.
 				frame_t f;
 				f.source_id = internal->source_descriptor.source_id;
 				f.format = internal->source_descriptor.format;
 				f.width = internal->av_current_frame->width;
 				f.height = internal->av_current_frame->height;
+				f.stride=internal->av_current_frame->linesize[0];
+				f.size_bytes = frame_size_in_bytes(&f);
 
 				// since we are just PoCing, we can just pass the
 				// Y plane.
 				f.data = internal->av_current_frame->data[0];
-				internal->target_frame_callback(internal->target_instance,&f);
+				internal->frame_target_callback(internal->frame_target_instance,&f);
+				frameserver_event_t e ={};
+				e.type = FRAMESERVER_EVENT_GOTFRAME;
+				if (internal->event_target_callback){
+					internal->event_target_callback(internal->event_target_instance,e);
+				}
 			}
 
 		}
