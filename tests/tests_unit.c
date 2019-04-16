@@ -162,7 +162,14 @@ START_TEST(semantic_path_unit_test) {
   char too_long[XR_MAX_PATH_LENGTH + 1];
   memset(too_long, 'a', XR_MAX_PATH_LENGTH + 1);
   too_long[0] = '/';
+  too_long[XR_MAX_PATH_LENGTH] = '\0';
   ck_assert_int_eq(oxr_xrStringToPath(oxr.instance, too_long, &path),
+                   XR_ERROR_PATH_FORMAT_INVALID);
+
+  char unterminated[XR_MAX_PATH_LENGTH];
+  memset(unterminated, 'a', XR_MAX_PATH_LENGTH);
+  unterminated[0] = '/';
+  ck_assert_int_eq(oxr_xrStringToPath(oxr.instance, unterminated, &path),
                    XR_ERROR_PATH_FORMAT_INVALID);
 
   ck_assert_int_eq(
