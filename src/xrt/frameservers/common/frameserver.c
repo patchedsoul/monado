@@ -99,7 +99,7 @@ frameserver_instance_t* frameserver_create(frameserver_type_t t) {
 bool frameservers_test() {
 
     ffmpeg_frameserver_test();
-   // uvc_frameserver_test();
+	uvc_frameserver_test();
    // v4l2_frameserver_test();
     return true;
 }

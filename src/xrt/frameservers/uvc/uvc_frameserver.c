@@ -30,20 +30,21 @@ uvc_frameserver_instance_t* uvc_frameserver_create(frameserver_instance_t* inst)
             uvc_perror(res, "UVC Context init failed");
             return NULL;
         }
-		//inst->internal_instance = i;
         return i;
     }
 
     return NULL;
 }
 
-bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_source_descriptor_t* cameras, uint32_t* count)
+bool uvc_frameserver_enumerate_sources(frameserver_instance_t* inst, uvc_source_descriptor_t* cameras, uint32_t* count)
 {
-	if (inst->device_list != NULL) {
+	uvc_error_t res;
+	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	if (internal->device_list != NULL) {
 		//uvc_free_device_list(inst->device_list,0);
 	}
 	uint32_t device_count = 0;
-	res = uvc_get_device_list(inst->context, &(inst->device_list));
+	res = uvc_get_device_list(internal->context, &(internal->device_list));
 	if (res < 0)
 	{
 		printf("ERROR: %s\n",uvc_strerror(res));
@@ -51,7 +52,7 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 	}
 	while (1)
 	{
-		uvc_device_t* uvc_device = inst->device_list[device_count];
+		uvc_device_t* uvc_device = internal->device_list[device_count];
 		if (uvc_device == NULL)
 		{
 			break;
@@ -62,20 +63,20 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 	{
 		//just return our count
 		*count = device_count;
-		uvc_free_device_list(inst->device_list,1);
+		uvc_free_device_list(internal->device_list,1);
 		return true;
 	}
 
 	//if we were passed an array of camera descriptors, fill them in
 	for (uint32_t i=0;i<device_count;i++)
 	{
-		uvc_device_t* uvc_device = inst->device_list[i];
+		uvc_device_t* uvc_device = internal->device_list[i];
 		uvc_device_descriptor_t* uvc_device_descriptor;
 		res = uvc_get_device_descriptor(uvc_device, &uvc_device_descriptor);
 		if (res < 0)
 		{
 			printf("ERROR: %s\n",uvc_strerror(res));
-			uvc_free_device_list(inst->device_list,1);
+			uvc_free_device_list(internal->device_list,1);
 			return false;
 		}
         uvc_source_descriptor_t* desc = &(cameras[i]);
@@ -90,6 +91,23 @@ bool uvc_frameserver_enumerate_sources(uvc_frameserver_instance_t* inst, uvc_sou
 		}
 		desc->serial[127]=0;
 		//desc->device = uvc_device;
+		res = uvc_open(uvc_device,&internal->device_handle);
+		if (res == UVC_SUCCESS)
+		{
+			const uvc_format_desc_t* format_desc = uvc_get_format_descs(internal->device_handle);
+			while(format_desc->next != NULL)
+			{
+				printf("Found format: %d\n",format_desc->bFormatIndex);
+				uvc_frame_desc_t* frame_desc = format_desc->frame_descs;
+				while (frame_desc->next != NULL)
+				{
+					printf("W %d H %d\n",frame_desc->wWidth,frame_desc->wHeight);
+					frame_desc=frame_desc->next;
+				}
+				format_desc=format_desc->next;
+			}
+			uvc_close(&internal->device_handle);
+		}
 		uvc_free_device_descriptor(uvc_device_descriptor);
 	}
 	//we can't free the device list since the device ptrs we hand out are contained in it
@@ -129,19 +147,19 @@ bool uvc_frameserver_is_running(frameserver_instance_t* inst) {
 
 bool uvc_frameserver_test(){
 	printf("Running UVC Frameserver Test\n");
-    uvc_frameserver_instance_t instance;
-    if (! uvc_frameserver_alloc(&instance))
+	frameserver_instance_t* uvc_frameserver = frameserver_create(FRAMESERVER_TYPE_UVC);
+	if (!uvc_frameserver )
 	{
-		printf("FAILURE: Could not init frameserver.\n");
+		printf("FAILURE: Could not create frameserver.\n");
 		return false;
 	}
 	uint32_t camera_count =0;
-	if (! uvc_frameserver_enumerate_devices(&instance,NULL,&camera_count)) {
+	if (! uvc_frameserver->frameserver_enumerate_sources(uvc_frameserver,NULL,&camera_count)) {
 		printf("FAILURE: Could not get camera count.\n");
 		return false;
 	}
     uvc_source_descriptor_t* camera_list = calloc(camera_count,sizeof(uvc_source_descriptor_t));
-    if (! uvc_frameserver_enumerate_devices(&instance, camera_list,&camera_count)) {
+	if (! uvc_frameserver->frameserver_enumerate_sources(uvc_frameserver, camera_list,&camera_count)) {
 		printf("FAILURE: Could not get camera descriptors\n");
 		return false;
 	}

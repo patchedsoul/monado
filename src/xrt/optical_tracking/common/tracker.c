@@ -1,6 +1,6 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
-#include "../frameservers/ffmpeg/ffmpeg_frameserver.h"
+#include "../frameservers/uvc/uvc_frameserver.h"
 
 tracker_instance_t* tracker_create(tracker_type_t t) {
 	tracker_instance_t* i = calloc(1,sizeof(tracker_instance_t));
@@ -45,7 +45,7 @@ bool trackers_test(){
 	}
 
 	//create our frameserver, that will feed our tracker
-	frameserver_instance_t* frame_source = frameserver_create(FRAMESERVER_TYPE_FFMPEG);
+	frameserver_instance_t* frame_source = frameserver_create(FRAMESERVER_TYPE_UVC);
 	//get the requested camera settings from the tracker. this may need work.
 	frame_source->frameserver_configure_capture(frame_source,tracker->tracker_get_capture_params(tracker));
 
@@ -57,7 +57,7 @@ bool trackers_test(){
 		return false;
 	}
 
-	ffmpeg_source_descriptor_t* descriptors = calloc(source_count,sizeof(ffmpeg_source_descriptor_t));
+	uvc_source_descriptor_t* descriptors = calloc(source_count,sizeof(uvc_source_descriptor_t));
 
 	// TODO: we will currently leak calloced strings that are bound to the descriptors. we need to clean
 	// this memory up.
@@ -69,12 +69,18 @@ bool trackers_test(){
 	{
 		tracker_mono_configuration_t tracker_config = {};
 		//fetch our calibration from some as-yet undefined data source
-		//tracker_config.calibration = ???
+		tracker_config.calibration.intrinsics[0] = 300;
+		tracker_config.calibration.intrinsics[2] = 450;
+		tracker_config.calibration.intrinsics[4] = 300;
+		tracker_config.calibration.intrinsics[5] = 270;
+		tracker_config.calibration.intrinsics[8] = 1.0;
+
 		tracker_config.format = descriptors[i].format;
 		tracker_config.source_id =descriptors[i].source_id;
 
 		if (tracker->tracker_configure(tracker,&tracker_config)){
 			configured=true;
+			//we will return on the first acceptable source found
 			break;
 		}
 	}
@@ -88,7 +94,7 @@ bool trackers_test(){
 	//TODO - the function signature invoked depending on the FRAMESERVER_EVENT_TYPE needs to be documented/codified
 	frame_source->frameserver_register_frame_callback(frame_source,tracker,tracker->tracker_queue);
 
-	printf("frame source path: %s\n",descriptors[0].filepath);
+	printf("frame source path: %s\n",&(descriptors[0].name));
 
 	//start the stream - this is assumed to start a thread in the frameserver, which will invoke callbacks as necessary.
 	frame_source->frameserver_stream_start(frame_source,&(descriptors[0]));
@@ -101,7 +107,7 @@ bool trackers_test(){
 		for (uint32_t i =0; i< tracked_object_count;i++)
 		{
 			tracked_object_t o = tracked_objects[i];
-			printf("tracked object id %d tag %d pos %f %f %f\n",o.tracking_id,o.tracking_tag,o.pose.position.x,o.pose.position.y,o.pose.position.z);
+			//printf("tracked object id %d tag %d pos %f %f %f\n",o.tracking_id,o.tracking_tag,o.pose.position.x,o.pose.position.y,o.pose.position.z);
 		}
 		usleep(5000);
 	}

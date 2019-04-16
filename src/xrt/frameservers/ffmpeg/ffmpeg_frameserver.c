@@ -213,7 +213,7 @@ void ffmpeg_stream_run(frameserver_instance_t* inst)
 			}
 			if (video_frame_finished > 0) {
 				//we have our frame! w00t!
-				printf("got frame!\n");
+				//printf("got frame!\n");
 				//now we need to invoke our callback with a frame.
 				frame_t f;
 				f.source_id = internal->source_descriptor.source_id;
