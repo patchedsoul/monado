@@ -74,6 +74,7 @@ bool frameserver_destroy(frameserver_instance_t* inst);
 bool frame_data_alloc(frame_t*);
 int32_t frame_size_in_bytes(frame_t* f);
 int32_t frame_bytes_per_pixel(frame_t* f);
+float format_bytes_per_pixel(frame_format_t f);
 bool split_stereo_frame(frame_t* source, frame_t* left, frame_t* right);
 bool extract_plane(frame_t* source,plane_t plane,frame_t* out);
 

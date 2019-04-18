@@ -35,7 +35,7 @@ bool trackers_test(){
 	{
 		return false;
 	}
-	//how many objects does this tracker support (this is a maximum)
+	//how many objects does this tracker support? (this is a maximum)
 	uint32_t tracked_object_count=0;
 	tracker->tracker_get_poses(tracker,NULL,&tracked_object_count);
 	tracked_object_t* tracked_objects = NULL;
@@ -46,42 +46,53 @@ bool trackers_test(){
 
 	//create our frameserver, that will feed our tracker
 	frameserver_instance_t* frame_source = frameserver_create(FRAMESERVER_TYPE_UVC);
-	//get the requested camera settings from the tracker. this may need work.
+	// get the requested camera settings from the tracker. this most likely needs work on
+	// how to express these preferences.
 	frame_source->frameserver_configure_capture(frame_source,tracker->tracker_get_capture_params(tracker));
 
 	//ask our frameserver for available sources - note this will return a frameserver-specific struct
-	//that we need to deal with
+	//that we need to deal with.
 	uint32_t source_count=0;
 	frame_source->frameserver_enumerate_sources(frame_source,NULL,&source_count);
 	if (source_count == 0){
 		return false;
 	}
-
 	uvc_source_descriptor_t* descriptors = calloc(source_count,sizeof(uvc_source_descriptor_t));
 
 	// TODO: we will currently leak calloced strings that are bound to the descriptors. we need to clean
 	// this memory up.
 	frame_source->frameserver_enumerate_sources(frame_source,descriptors,&source_count);
 
+	tracker_mono_configuration_t tracker_config = {};
+	//fetch our calibration from some as-yet undefined data source
+	tracker_config.calibration.intrinsics[0] = 300;
+	tracker_config.calibration.intrinsics[2] = 450;
+	tracker_config.calibration.intrinsics[4] = 300;
+	tracker_config.calibration.intrinsics[5] = 270;
+	tracker_config.calibration.intrinsics[8] = 1.0;
+
 	//select a frame source that is acceptable to our tracker
 	bool configured = false;
-	for (uint32_t i=0; i< source_count;i++)
-	{
-		tracker_mono_configuration_t tracker_config = {};
-		//fetch our calibration from some as-yet undefined data source
-		tracker_config.calibration.intrinsics[0] = 300;
-		tracker_config.calibration.intrinsics[2] = 450;
-		tracker_config.calibration.intrinsics[4] = 300;
-		tracker_config.calibration.intrinsics[5] = 270;
-		tracker_config.calibration.intrinsics[8] = 1.0;
+	uint32_t highest_width = 0;
+	uint32_t highest_height = 0;
+	uint32_t best_index = 0;
+	for (uint32_t i=0; i< source_count;i++){
+		//TODO: is there an existing camera descriptor bound
+		// to this tracker in the config? if so try and use it
+
+		//otherwise, try and configure the tracker for the highest width/height
+		//available on any camera source. we probably need to filter on framerate too
 
 		tracker_config.format = descriptors[i].format;
 		tracker_config.source_id =descriptors[i].source_id;
 
 		if (tracker->tracker_configure(tracker,&tracker_config)){
 			configured=true;
-			//we will return on the first acceptable source found
-			break;
+			if (descriptors[i].width > highest_width && descriptors[i].height >= highest_height) {
+				highest_width = descriptors[i].width;
+				highest_height = descriptors[i].height;
+				best_index=i;
+			}
 		}
 	}
 	if (! configured)
@@ -94,10 +105,10 @@ bool trackers_test(){
 	//TODO - the function signature invoked depending on the FRAMESERVER_EVENT_TYPE needs to be documented/codified
 	frame_source->frameserver_register_frame_callback(frame_source,tracker,tracker->tracker_queue);
 
-	printf("frame source path: %s\n",&(descriptors[0].name));
+	printf("frame source path: %s %d x %d\n",&(descriptors[best_index].name), descriptors[best_index].width,descriptors[best_index].height,descriptors[best_index].format);
 
-	//start the stream - this is assumed to start a thread in the frameserver, which will invoke callbacks as necessary.
-	frame_source->frameserver_stream_start(frame_source,&(descriptors[0]));
+	frame_source->frameserver_stream_start(frame_source,&(descriptors[best_index]));
+
 	//we can now poll our tracker for data, and update our xrt-side objects position
 	//just poll 20 times for our test
 	for (uint32_t i=0;i<20;i++){

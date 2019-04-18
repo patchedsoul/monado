@@ -59,7 +59,7 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		printf("ERROR: you must configure this tracker before it can accept frames\n");
 		return false;
 	}
-	//printf("received frame, tracking!\n");
+	printf("received frame, tracking!\n");
 	if (!internal->alloced_frames)
 	{
 		internal->frame_gray = cv::Mat(frame->height,frame->stride,CV_8UC1,cv::Scalar(0,0,0));
@@ -76,7 +76,7 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	internal->keypoints.clear();
 	memcpy(internal->frame_gray.data,frame->data,frame->size_bytes);
 	cv::bitwise_not ( internal->frame_gray,internal->frame_gray);
-	//bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+	bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
 
 	//add this frame to the background average mask generator
 	internal->background_subtractor->apply(internal->frame_gray,internal->mask_gray);

@@ -35,6 +35,28 @@ int32_t frame_bytes_per_pixel(frame_t* f){
 	return -1;
 }
 
+float format_bytes_per_pixel(frame_format_t f){
+	switch (f){
+	case FORMAT_Y_UINT8:
+		return 1.0f;
+	case FORMAT_YUV420_UINT8:
+		return 1.5f;
+	case FORMAT_Y_UINT16:
+	case FORMAT_YUV422_UINT8:
+		return 2.0f;
+	case FORMAT_BGR_UINT8:
+	case FORMAT_RGB_UINT8:
+	case FORMAT_YUV444_UINT8:
+		return 3.0f;
+	case FORMAT_RAW:
+	case FORMAT_JPG:
+	default:
+		printf("cannot compute format size\n");
+		return -1.0f;
+	}
+	return -1.0f;
+}
+
 bool split_stereo_frame(frame_t* source, frame_t* left,  frame_t* right){
 	printf("ERROR: Not implemented!\n");
 	return false;
@@ -99,7 +121,7 @@ frameserver_instance_t* frameserver_create(frameserver_type_t t) {
 bool frameservers_test() {
 
     ffmpeg_frameserver_test();
-	uvc_frameserver_test();
+	//uvc_frameserver_test();
    // v4l2_frameserver_test();
     return true;
 }
