@@ -5,10 +5,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define MAX_PLANES 3 //this is what we see currently in e.g. RGB,YUV
+
 //frame
-typedef enum frame_format {FORMAT_RAW,FORMAT_Y_UINT8,FORMAT_Y_UINT16,FORMAT_RGB_UINT8,FORMAT_BGR_UINT8,FORMAT_YUYV_UINT8,FORMAT_YUV444_UINT8,FORMAT_YUV422_UINT8,FORMAT_YUV420_UINT8,FORMAT_JPG} frame_format_t;
+typedef enum frame_format {FORMAT_NONE,FORMAT_RAW,FORMAT_Y_UINT8,FORMAT_Y_UINT16,FORMAT_RGB_UINT8,FORMAT_BGR_UINT8,FORMAT_YUYV_UINT8,FORMAT_YUV444_UINT8,FORMAT_YUV422_UINT8,FORMAT_YUV420_UINT8,FORMAT_JPG} frame_format_t;
 typedef enum stereo_format {STEREO_NONE,STEREO_SBS,STEREO_OAU} stereo_format_t;
-typedef enum plane {PLANE_R,PLANE_G,PLANE_B,PLANE_Y,PLANE_U,PLANE_V} plane_t;
+typedef enum plane {PLANE_NONE,PLANE_R,PLANE_G,PLANE_B,PLANE_Y,PLANE_U,PLANE_V} plane_t;
 
 typedef struct frame
 {
@@ -72,11 +74,12 @@ frameserver_instance_t* frameserver_create(frameserver_type_t t);
 bool frameserver_destroy(frameserver_instance_t* inst);
 
 bool frame_data_alloc(frame_t*);
+bool frame_data_free(frame_t*);
 int32_t frame_size_in_bytes(frame_t* f);
 int32_t frame_bytes_per_pixel(frame_t* f);
-float format_bytes_per_pixel(frame_format_t f);
-bool split_stereo_frame(frame_t* source, frame_t* left, frame_t* right);
-bool extract_plane(frame_t* source,plane_t plane,frame_t* out);
+float format_bytes_per_pixel(frame_format_t f); //this is a float to support e.g. YUV420
+bool frame_split_stereo(frame_t* source, frame_t* left, frame_t* right);
+bool frame_extract_plane(frame_t* source,plane_t plane,frame_t* out);
 
 bool frameservers_test();
 

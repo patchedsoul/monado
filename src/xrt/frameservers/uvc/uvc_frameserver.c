@@ -155,21 +155,37 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 {
 	uvc_error_t res;
 	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	bool split_planes;
+	plane_t planes[MAX_PLANES] ={};
+
 
 	enum uvc_frame_format uvc_format = UVC_FRAME_FORMAT_UNKNOWN;
-	float uvc_bytes_per_pixel = 3.0; //assume 8 bit 444
-	// convert our 'internal' format into a uvc format.
+	enum frame_format stream_format = FORMAT_NONE;
+	float uvc_bytes_per_pixel = 0.0f;
+
+	// convert our 'internal' format from our source_descriptor into a uvc format.
 	// we only deal with YUYV format right now, for lowest latency, but this
 	// will need work later
 	switch (internal->source_descriptor.format){
 	case FORMAT_YUYV_UINT8:
+		uvc_format = UVC_FRAME_FORMAT_YUYV;
+		stream_format=FORMAT_YUYV_UINT8;
+		uvc_bytes_per_pixel=2.0;
+		split_planes=false;
+		break;
 	case FORMAT_Y_UINT8:
 		uvc_format = UVC_FRAME_FORMAT_YUYV;
-		uvc_bytes_per_pixel=2.0;
+		stream_format=FORMAT_YUYV_UINT8;
+		uvc_bytes_per_pixel=2.0; //the 'uvc' format is still YUYV
+		split_planes=true;
+		planes[0] = PLANE_Y;
 		break;
 	default:
-		printf("Could not map source format to uvc format");
+		printf("ERROR Could not map source format to uvc format\n");
 		uvc_format = UVC_FRAME_FORMAT_ANY;
+		stream_format=FORMAT_RGB_UINT8;
+		uvc_bytes_per_pixel=3.0; //assume it will fit into 3 bytes per pixel
+		split_planes=false;
 	}
 	//clear our kill_handler_thread flag, likely set when closing
 	//devices during format enumeration
@@ -213,9 +229,15 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	}
 
 
-	int wat = internal->source_descriptor.width * internal->source_descriptor.height * uvc_bytes_per_pixel;
+	size_t framesize = internal->source_descriptor.width * internal->source_descriptor.height * uvc_bytes_per_pixel;
 	frame_t f;
-	uvc_frame_t* frame = uvc_allocate_frame(wat);
+	uint8_t* plane_data[MAX_PLANES];
+	uvc_frame_t* frame = uvc_allocate_frame(framesize);
+	if (split_planes)
+	{
+		//we will just split Y for now, a fuller implementation can come later.
+		plane_data[0] = malloc(internal->source_descriptor.width * internal->source_descriptor.height);
+	}
 	{
 		while (internal->is_running)
 		{
@@ -224,26 +246,42 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 			{
 				printf("ERROR: stream_get_frame %s\n",uvc_strerror(res));
 			} else {
-				if (frame){
+				if (frame) {
 					printf("got frame\n");
 					f.source_id = internal->source_descriptor.source_id;
-					f.format = internal->source_descriptor.format;
+					f.format = stream_format;
 					f.width = frame->width;
 					f.height = frame->height;
-					f.stride=frame->step;
+					f.stride=frame->width;
 					f.size_bytes = frame_size_in_bytes(&f);
 
-					// since we are just PoCing, we can just pass the
-					// Y plane.
+					//this is a bit of a kludge - if we are providing FORMAT_Y_UINT8
+					//we need to rewrite our pixel buffer appropriately
 					f.data = frame->data;
+					frame_t plane_frame;
+					if (internal->source_descriptor.format == FORMAT_Y_UINT8) {
+						//split our plane out
+						plane_frame = f;
+						plane_frame.format = FORMAT_Y_UINT8;
+						plane_frame.size_bytes = frame_size_in_bytes(&plane_frame);
+						plane_frame.data = malloc(plane_frame.size_bytes);
+						frame_extract_plane(&f,PLANE_Y,&plane_frame);
+					}
+
 					if (internal->frame_target_callback){
-					internal->frame_target_callback(internal->frame_target_instance,&f);
+					internal->frame_target_callback(internal->frame_target_instance,&plane_frame);
 					}
 					frameserver_event_t e ={};
 					e.type = FRAMESERVER_EVENT_GOTFRAME;
 					if (internal->event_target_callback){
 						internal->event_target_callback(internal->event_target_instance,e);
 					}
+
+					//free the plane we copied
+					if (internal->source_descriptor.format == FORMAT_Y_UINT8) {
+						free(plane_frame.data);
+					}
+
 				}
 			}
 		}

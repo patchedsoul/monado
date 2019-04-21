@@ -4,37 +4,6 @@
 #include "uvc/uvc_frameserver.h";
 
 
-int32_t frame_size_in_bytes(frame_t* f) {
-	if (f) {
-		//TODO: alpha formats, padding etc.
-		switch (f->format){
-		case FORMAT_Y_UINT8:
-			return f->stride * f->height;
-		case FORMAT_YUV420_UINT8:
-			return f->stride * f->height *1.5;
-		case FORMAT_Y_UINT16:
-		case FORMAT_YUV422_UINT8:
-			return f->stride*f->height *2;
-		case FORMAT_BGR_UINT8:
-		case FORMAT_RGB_UINT8:
-		case FORMAT_YUV444_UINT8:
-			return f->stride*f->height*3;
-		case FORMAT_RAW:
-		case FORMAT_JPG:
-		default:
-			printf("cannot compute frame size\n");
-			return -1;
-		}
-	}
-
-	return -1;
-}
-
-int32_t frame_bytes_per_pixel(frame_t* f){
-	printf("ERROR: Not implemented\n");
-	return -1;
-}
-
 float format_bytes_per_pixel(frame_format_t f){
 	switch (f){
 	case FORMAT_Y_UINT8:
@@ -43,6 +12,7 @@ float format_bytes_per_pixel(frame_format_t f){
 		return 1.5f;
 	case FORMAT_Y_UINT16:
 	case FORMAT_YUV422_UINT8:
+	case FORMAT_YUYV_UINT8:
 		return 2.0f;
 	case FORMAT_BGR_UINT8:
 	case FORMAT_RGB_UINT8:
@@ -57,14 +27,77 @@ float format_bytes_per_pixel(frame_format_t f){
 	return -1.0f;
 }
 
-bool split_stereo_frame(frame_t* source, frame_t* left,  frame_t* right){
+
+int32_t frame_size_in_bytes(frame_t* f) {
+	if (f) {
+		int32_t frame_bytes = -1;
+		//TODO: alpha formats, padding etc.
+		switch (f->format){
+		case FORMAT_Y_UINT8:
+		case FORMAT_YUV420_UINT8:
+		case FORMAT_Y_UINT16:
+		case FORMAT_YUV422_UINT8:
+		case FORMAT_BGR_UINT8:
+		case FORMAT_RGB_UINT8:
+		case FORMAT_YUV444_UINT8:
+		case FORMAT_YUYV_UINT8:
+			frame_bytes = f->stride * f->height * format_bytes_per_pixel(f->format);
+			break;
+		case FORMAT_RAW:
+		case FORMAT_JPG:
+		default:
+			printf("cannot compute frame size for this format\n");
+		}
+	return frame_bytes;
+	}
+	return -1;
+}
+
+int32_t frame_bytes_per_pixel(frame_t* f){
+	printf("ERROR: Not implemented\n");
+	return -1;
+}
+
+
+bool frame_split_stereo(frame_t* source, frame_t* left,  frame_t* right){
 	printf("ERROR: Not implemented!\n");
 	return false;
 }
 
-bool extract_plane(frame_t* source, plane_t plane, frame_t* out) {
-	printf("ERROR: Not implemented!\n");
-	return false;
+bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
+	//only handle splitting Y out of YUYV for now
+	if (source->format != FORMAT_YUYV_UINT8 && plane != PLANE_Y){
+		printf("ERROR: unhandled plane extraction\n");
+		return false;
+	}
+	if (! source->data)
+	{
+		printf("ERROR: no frame data!\n");
+		return false;
+	}
+
+	//Y from YUYV
+
+	if (! out->data)
+	{
+		printf("allocating data for plane - someone needs to free this!\n");
+		out->data = malloc(source->width*source->height);
+	}
+
+	uint8_t* source_ptr;
+	uint8_t* dest_ptr;
+	uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);	
+	uint32_t source_line_bytes = source->stride * format_bytes_per_pixel(source->format);
+	uint8_t dest_pixel_bytes=1;
+	uint32_t dest_line_bytes = source->width;
+	for (uint32_t i=0;i< source->height;i++) {
+		for (uint32_t j=0;j<source->stride;j++) {
+			source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes); 
+			dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
+			*dest_ptr = *source_ptr;
+		}
+	}
+	return true;
 }
 
 frameserver_instance_t* frameserver_create(frameserver_type_t t) {
