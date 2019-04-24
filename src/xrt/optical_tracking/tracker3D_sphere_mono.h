@@ -8,6 +8,7 @@
 
 
 #define TRACKED_POINTS 1
+#define ROI_OFFSET 32.0f
 
 #ifdef __cplusplus
 extern "C" {

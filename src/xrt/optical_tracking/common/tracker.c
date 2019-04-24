@@ -46,9 +46,6 @@ bool trackers_test(){
 
 	//create our frameserver, that will feed our tracker
 	frameserver_instance_t* frame_source = frameserver_create(FRAMESERVER_TYPE_UVC);
-	// get the requested camera settings from the tracker. this most likely needs work on
-	// how to express these preferences.
-	frame_source->frameserver_configure_capture(frame_source,tracker->tracker_get_capture_params(tracker));
 
 	//ask our frameserver for available sources - note this will return a frameserver-specific struct
 	//that we need to deal with.
@@ -76,6 +73,10 @@ bool trackers_test(){
 	uint32_t highest_width = 0;
 	uint32_t highest_height = 0;
 	uint32_t best_index = 0;
+	uint32_t best_uncompressed=0;
+	uint32_t highest_u_width = 0;
+	uint32_t highest_u_height = 0;
+	uint32_t uncompressed_count =0;
 	for (uint32_t i=0; i< source_count;i++){
 		//TODO: is there an existing camera descriptor bound
 		// to this tracker in the config? if so try and use it
@@ -83,18 +84,39 @@ bool trackers_test(){
 		//otherwise, try and configure the tracker for the highest width/height
 		//available on any camera source. we probably need to filter on framerate too
 
+		//prefer an uncompressed mode if there is parity in resolution
+
 		tracker_config.format = descriptors[i].format;
 		tracker_config.source_id =descriptors[i].source_id;
 
-		if (tracker->tracker_configure(tracker,&tracker_config)){
+		if (tracker->tracker_configure(tracker,&tracker_config)){ //our tracker accepts this
 			configured=true;
-			if (descriptors[i].width > highest_width && descriptors[i].height >= highest_height) {
+			if (descriptors[i].stream_format == UVC_FRAME_FORMAT_YUYV && descriptors[i].width >= highest_u_width && descriptors[i].height > highest_u_height) {
+				highest_u_width = descriptors[i].width;
+				highest_u_height = descriptors[i].height;
+				best_uncompressed=i;
+				uncompressed_count ++;
+			}
+
+			if (descriptors[i].width >= highest_width && descriptors[i].height > highest_height) {
 				highest_width = descriptors[i].width;
 				highest_height = descriptors[i].height;
 				best_index=i;
 			}
 		}
 	}
+	tracker_config.format = descriptors[best_index].format;
+	tracker_config.source_id =descriptors[best_index].source_id;
+	uint32_t source_index = best_index;
+	if (uncompressed_count >0) {
+	//prefer the best uncompressed mode
+		tracker_config.format = descriptors[best_uncompressed].format;
+		tracker_config.source_id =descriptors[best_uncompressed].source_id;
+		source_index = best_uncompressed;
+	}
+
+	configured = tracker->tracker_configure(tracker,&tracker_config);
+
 	if (! configured)
 	{
 		printf("ERROR: no compatible source for tracker from frameserver\n");
@@ -105,9 +127,11 @@ bool trackers_test(){
 	//TODO - the function signature invoked depending on the FRAMESERVER_EVENT_TYPE needs to be documented/codified
 	frame_source->frameserver_register_frame_callback(frame_source,tracker,tracker->tracker_queue);
 
-	printf("frame source path: %s %d x %d\n",&(descriptors[best_index].name), descriptors[best_index].width,descriptors[best_index].height,descriptors[best_index].format);
+	printf("frame source path: %s %d x %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format);
 
-	frame_source->frameserver_stream_start(frame_source,&(descriptors[best_index]));
+	frame_source->frameserver_configure_capture(frame_source,tracker->tracker_get_capture_params(tracker));
+
+	frame_source->frameserver_stream_start(frame_source,&(descriptors[source_index]));
 
 	//we can now poll our tracker for data, and update our xrt-side objects position
 	//just poll 20 times for our test

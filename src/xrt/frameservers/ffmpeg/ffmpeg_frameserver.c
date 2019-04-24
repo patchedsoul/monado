@@ -64,7 +64,7 @@ bool ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst, ffmpeg_s
 	sources[1].frame_count=99;
 	memcpy(sources[1].name,source_name,strlen(source_name)+1);
 	sources[1].name[127]=0; //unecessary in this context, but why not?
-	sources[0].format = FORMAT_Y_UINT8;
+	sources[1].format = FORMAT_Y_UINT8;
 	return true;
 }
 

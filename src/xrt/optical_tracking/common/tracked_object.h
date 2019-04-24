@@ -3,6 +3,12 @@
 #include <xrt/xrt_defines.h>
 #include "../auxiliary/util/u_time.h"
 
+typedef struct tracked_blob {
+	struct xrt_vec2 center;
+	float diameter;
+	struct xrt_vec2 velocity;
+} tracked_blob_t;
+
 typedef struct tracked_object {
     struct xrt_pose pose;
     time_t pose_time;
@@ -10,5 +16,8 @@ typedef struct tracked_object {
 	uint32_t tracking_tag; // a tracker may assign an opaque tag to denote object type
 	uint32_t tracking_id; // a tracker may assign an opaque id to facilitate interframe correlation
 } tracked_object_t;
+
+
+
 
 #endif //TRACKEDOBJECT_H

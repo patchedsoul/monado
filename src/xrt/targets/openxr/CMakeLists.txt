@@ -89,6 +89,7 @@ target_link_libraries(${RUNTIME_TARGET}
 	/usr/local/lib64/libopencv_imgcodecs.so
 	/usr/local/lib64/libopencv_features2d.so
 	/usr/local/lib64/libopencv_video.so
+	libjpeg.so
 	)
 
 target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_OHMD)

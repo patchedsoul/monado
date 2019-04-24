@@ -41,10 +41,13 @@ int32_t frame_size_in_bytes(frame_t* f) {
 		case FORMAT_RGB_UINT8:
 		case FORMAT_YUV444_UINT8:
 		case FORMAT_YUYV_UINT8:
-			frame_bytes = f->stride * f->height * format_bytes_per_pixel(f->format);
+			frame_bytes = f->stride * f->height;
 			break;
-		case FORMAT_RAW:
 		case FORMAT_JPG:
+			//this is a maximum (assuming YUV444)
+			frame_bytes = f->width * f->height * 3;
+		case FORMAT_RAW:
+		case FORMAT_NONE:
 		default:
 			printf("cannot compute frame size for this format\n");
 		}
@@ -76,26 +79,41 @@ bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
 		return false;
 	}
 
-	//Y from YUYV
-
-	if (! out->data)
-	{
-		printf("allocating data for plane - someone needs to free this!\n");
-		out->data = malloc(source->width*source->height);
-	}
 
 	uint8_t* source_ptr;
 	uint8_t* dest_ptr;
-	uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);	
-	uint32_t source_line_bytes = source->stride * format_bytes_per_pixel(source->format);
+	uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);
+	uint32_t source_line_bytes = source->stride;
 	uint8_t dest_pixel_bytes=1;
 	uint32_t dest_line_bytes = source->width;
-	for (uint32_t i=0;i< source->height;i++) {
-		for (uint32_t j=0;j<source->stride;j++) {
-			source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes); 
-			dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
-			*dest_ptr = *source_ptr;
-		}
+
+	if (! out->data)
+	{
+		printf("allocating data for NULL plane - someone needs to free this!\n");
+		out->data = malloc(source->width*source->height);
+	}
+
+	switch (source->format) {
+	    case FORMAT_YUYV_UINT8:
+		    for (uint32_t i=0;i< source->height;i++) {
+				for (uint32_t j=0;j<source->width;j++) {
+					source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes);
+					dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
+					*dest_ptr = *source_ptr;
+				}
+			}
+		    break;
+	    case FORMAT_YUV444_UINT8:
+		    for (uint32_t i=0;i< source->height;i++) {
+				for (uint32_t j=0;j<source->width;j++) {
+					source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes);
+					dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
+					*dest_ptr = *source_ptr;
+				}
+			}
+		    break;
+	    default:
+		    return false;
 	}
 	return true;
 }

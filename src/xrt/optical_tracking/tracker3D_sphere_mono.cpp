@@ -5,6 +5,7 @@ typedef struct tracker3D_sphere_mono_instance {
 	bool configured;
 	camera_calibration_t calibration;
 	tracked_object_t tracked_object;
+	tracked_blob_t tracked_blob;
 	bool poses_consumed;
 	cv::SimpleBlobDetector::Params params;
 	std::vector<cv::KeyPoint> keypoints;
@@ -13,6 +14,8 @@ typedef struct tracker3D_sphere_mono_instance {
 	cv::Mat frame_gray;
 	cv::Mat mask_gray;
 	cv::Mat debug_rgb;
+	cv::Mat intrinsics;
+	cv::Mat distortion;
 	bool alloced_frames;
 } tracker3D_sphere_mono_instance_t;
 
@@ -49,7 +52,7 @@ bool tracker3D_sphere_mono_get_debug_frame(tracker_instance_t* inst,frame_t* fra
 capture_parameters_t tracker3D_sphere_mono_get_capture_params(tracker_instance_t* inst) {
 	capture_parameters_t cp={};
 	cp.exposure = 0.1f;
-	cp.gain=0.1f;
+	cp.gain=0.01f;
 	return cp;
 }
 
@@ -81,25 +84,21 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	//add this frame to the background average mask generator
 	internal->background_subtractor->apply(internal->frame_gray,internal->mask_gray);
 	//we always want to be able to track small motions, so write white blocks into the masks that encompass the last seen positions of the blobs
-
-
-
-	for (uint32_t i=0;i<TRACKED_POINTS;i++)
-	{
-		//xrt_vec3 lastPos = lastTrackData.positions2D[i];
-		//if (lastTrackData.confidence[i] > 0)
-		//{
-		 //   cv::rectangle(leftCameraGray[1], cv::Point2f(lastPos.x-32,lastPos.y-32),cv::Point2f(lastPos.x+32,lastPos.y+32),cv::Scalar( 255 ),-1,0);
-		 //   cv::rectangle(rightCameraGray[1],cv::Point2f(lastPos.z-32,lastPos.w-32),cv::Point2f(lastPos.z+32,lastPos.w+32),cv::Scalar( 255 ),-1,0);
-		//}
+	xrt_vec2 lastPos = internal->tracked_blob.center;
+	float offset = ROI_OFFSET;
+	if (internal->tracked_blob.diameter > ROI_OFFSET) {
+		offset = internal->tracked_blob.diameter;
 	}
+	cv::rectangle(internal->frame_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
 
 	//do blob detection with our mask
-	internal->sbd->detect(internal->frame_gray, internal->keypoints);//,internal->mask_gray);
+	internal->sbd->detect(internal->frame_gray, internal->keypoints,internal->mask_gray);
 	for (uint32_t i=0;i<internal->keypoints.size();i++)
 	{
 		cv::KeyPoint blob = internal->keypoints.at(i);
-		//printf ("2D blob X: %f Y: %f\n",blob.pt.x,blob.pt.y);
+		printf ("2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
+		internal->tracked_blob.center = {blob.pt.x,blob.pt.y};
+		internal->tracked_blob.diameter=blob.size;
 
 		//intrinsics are 3x3
 		float cx = internal->calibration.intrinsics[2];
@@ -107,12 +106,20 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		float focalx=internal->calibration.intrinsics[0];
 		float focaly=internal->calibration.intrinsics[4];
 
+		// we can just undistort our blob-centers, rather than undistorting
+		// every pixel in the frame
+		cv::Mat srcArray(1,1,CV_32FC2);
+		cv::Mat dstArray(1,1,CV_32FC2);
+
+		srcArray.at<cv::Point2f>(1,1) = cv::Point2f(internal->tracked_blob.center.x,internal->tracked_blob.center.y);
+		//cv::undistortPoints(srcArray,dstArray,)
+
 		float pixelConstant =1.0f;
-		float z = blob.size * pixelConstant;
+		float z = internal->tracked_blob.diameter * pixelConstant;
 		float x = ((cx - blob.pt.x) * z) / focalx;
 		float y = ((cy - blob.pt.y ) * z) / focaly;
 
-		printf("%f %f %f\n",x,y,z);
+		//printf("%f %f %f\n",x,y,z);
 	}
 	return true;
 }
@@ -150,6 +157,8 @@ bool tracker3D_sphere_mono_configure(tracker_instance_t* inst,tracker_mono_confi
 		return false;
 	}
 	internal->calibration = config->calibration;
+	uint32_t intrinsics_dim = sqrt(INTRINSICS_SIZE);
+	//internal->intrinsics = cv::Mat(intrinsics_dim,intrinsics_dim);
 	internal->configured=true;
 	return true;
 }
