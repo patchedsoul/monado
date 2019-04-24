@@ -41,6 +41,10 @@ tracker3D_sphere_mono_instance_t* tracker3D_sphere_mono_create(tracker_instance_
 		i->poses_consumed=false;
 		i->configured=false;
 		i->alloced_frames=false;
+		int intrinsics_dim = sqrt(INTRINSICS_SIZE);
+		i->intrinsics = cv::Mat(intrinsics_dim,intrinsics_dim,CV_32F);
+		i->distortion = cv::Mat(DISTORTION_SIZE,1,CV_32F);
+
 		return i;
 	}
 	return NULL;
@@ -100,11 +104,18 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		internal->tracked_blob.center = {blob.pt.x,blob.pt.y};
 		internal->tracked_blob.diameter=blob.size;
 
-		//intrinsics are 3x3
-		float cx = internal->calibration.intrinsics[2];
-		float cy = internal->calibration.intrinsics[5];
-		float focalx=internal->calibration.intrinsics[0];
-		float focaly=internal->calibration.intrinsics[4];
+		// intrinsics are 3x3 - compensate for difference between
+		// measurement framesize and current frame size
+		// TODO: handle differing aspect ratio
+		float xscale = internal->frame_gray.cols / internal->calibration.calib_size[0];
+		float yscale = internal->frame_gray.rows / internal->calibration.calib_size[1];
+
+		float cx = internal->calibration.intrinsics[2] *  xscale;
+		float cy = internal->calibration.intrinsics[5] * yscale;
+		float focalx=internal->calibration.intrinsics[0] * xscale;
+		float focaly=internal->calibration.intrinsics[4] * yscale;
+
+
 
 		// we can just undistort our blob-centers, rather than undistorting
 		// every pixel in the frame
@@ -112,14 +123,14 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		cv::Mat dstArray(1,1,CV_32FC2);
 
 		srcArray.at<cv::Point2f>(1,1) = cv::Point2f(internal->tracked_blob.center.x,internal->tracked_blob.center.y);
-		//cv::undistortPoints(srcArray,dstArray,)
+		cv::undistortPoints(srcArray,dstArray,internal->intrinsics,internal->distortion);
 
 		float pixelConstant =1.0f;
 		float z = internal->tracked_blob.diameter * pixelConstant;
-		float x = ((cx - blob.pt.x) * z) / focalx;
-		float y = ((cy - blob.pt.y ) * z) / focaly;
+		float x = ((cx - dstArray.at<float>(0,0)) * z) / focalx;
+		float y = ((cy - dstArray.at<float>(0,1) ) * z) / focaly;
 
-		//printf("%f %f %f\n",x,y,z);
+		printf("%f %f %f\n",x,y,z);
 	}
 	return true;
 }
@@ -157,8 +168,8 @@ bool tracker3D_sphere_mono_configure(tracker_instance_t* inst,tracker_mono_confi
 		return false;
 	}
 	internal->calibration = config->calibration;
-	uint32_t intrinsics_dim = sqrt(INTRINSICS_SIZE);
-	//internal->intrinsics = cv::Mat(intrinsics_dim,intrinsics_dim);
+	memcpy(internal->intrinsics.ptr(0),internal->calibration.intrinsics,sizeof(internal->calibration.intrinsics));
+	memcpy(internal->distortion.ptr(0),internal->calibration.distortion,sizeof(internal->calibration.distortion));
 	internal->configured=true;
 	return true;
 }

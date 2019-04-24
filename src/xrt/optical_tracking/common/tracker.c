@@ -1,6 +1,7 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
 #include "../frameservers/uvc/uvc_frameserver.h"
+#include <string.h>
 
 tracker_instance_t* tracker_create(tracker_type_t t) {
 	tracker_instance_t* i = calloc(1,sizeof(tracker_instance_t));
@@ -61,14 +62,10 @@ bool trackers_test(){
 	frame_source->frameserver_enumerate_sources(frame_source,descriptors,&source_count);
 
 	tracker_mono_configuration_t tracker_config = {};
-	//fetch our calibration from some as-yet undefined data source
-	tracker_config.calibration.intrinsics[0] = 300;
-	tracker_config.calibration.intrinsics[2] = 450;
-	tracker_config.calibration.intrinsics[4] = 300;
-	tracker_config.calibration.intrinsics[5] = 270;
-	tracker_config.calibration.intrinsics[8] = 1.0;
 
 	//select a frame source that is acceptable to our tracker
+	//normally we would have a clear idea which source to choose (i.e. camera ids, resolution, format)
+
 	bool configured = false;
 	uint32_t highest_width = 0;
 	uint32_t highest_height = 0;
@@ -83,8 +80,6 @@ bool trackers_test(){
 
 		//otherwise, try and configure the tracker for the highest width/height
 		//available on any camera source. we probably need to filter on framerate too
-
-		//prefer an uncompressed mode if there is parity in resolution
 
 		tracker_config.format = descriptors[i].format;
 		tracker_config.source_id =descriptors[i].source_id;
@@ -106,14 +101,27 @@ bool trackers_test(){
 		}
 	}
 	tracker_config.format = descriptors[best_index].format;
-	tracker_config.source_id =descriptors[best_index].source_id;
+	tracker_config.source_id = descriptors[best_index].source_id;
 	uint32_t source_index = best_index;
-	if (uncompressed_count >0) {
+	if (uncompressed_count > 0) {
 	//prefer the best uncompressed mode
 		tracker_config.format = descriptors[best_uncompressed].format;
 		tracker_config.source_id =descriptors[best_uncompressed].source_id;
 		source_index = best_uncompressed;
 	}
+
+	// look up our calibration from some as-yet undefined data source
+	// using the selected source data.
+	// currently hardcoded to a camera #define in calibration.h
+	float camera_size[2] = LOGITECH_C270_SIZE;
+	float camera_intr[INTRINSICS_SIZE] = LOGITECH_C270_INTR;
+	float camera_dist[DISTORTION_SIZE] = LOGITECH_C270_DIST;
+
+	tracker_config.calibration.calib_size[0]=camera_size[0];
+	tracker_config.calibration.calib_size[1]=camera_size[1];
+	memcpy(tracker_config.calibration.intrinsics,camera_intr,sizeof(tracker_config.calibration.intrinsics));
+	memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
+
 
 	configured = tracker->tracker_configure(tracker,&tracker_config);
 

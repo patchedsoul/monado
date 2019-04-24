@@ -219,7 +219,7 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 		    f.format = FORMAT_YUYV_UINT8;
 		    break;
 	    case UVC_FRAME_FORMAT_MJPEG:
-		    f.format = FORMAT_JPG;
+		    f.format = FORMAT_JPG; //this will get reset to YUV444
 			cinfo.err = jpeg_std_error(&jerr);
 			jpeg_create_decompress(&cinfo);
 		    break;
@@ -254,7 +254,6 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 					f.stride = f.width * 3; //jpg format does not supply stride
 					//decode our jpg frame.
 					if (! temp_data) {
-						//YUV444 data is what we expect
 						temp_data=malloc(frame_size_in_bytes(&f));
 					}
 					jpeg_mem_src(&cinfo,frame->data,frame->data_bytes);
@@ -272,6 +271,9 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 					f.data = temp_data;
 					jpeg_finish_decompress(&cinfo);
 				}
+
+				//we can upsample YUYV to YUV444 so we have two 'standard' formats
+				// that our tracker can request - Y and YUV444
 
 
 				//if we are providing FORMAT_Y_UINT8
