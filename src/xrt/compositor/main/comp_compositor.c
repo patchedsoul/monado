@@ -293,6 +293,7 @@ create_instance(struct comp_compositor *c)
 
 	frameservers_test();
 	trackers_test();
+	filters_test();
 	return ret;
 }
 

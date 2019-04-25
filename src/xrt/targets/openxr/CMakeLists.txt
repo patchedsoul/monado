@@ -68,6 +68,7 @@ add_library(${RUNTIME_TARGET} SHARED
 	$<TARGET_OBJECTS:aux_util>
 	$<TARGET_OBJECTS:aux_math>
 	$<TARGET_OBJECTS:comp>
+	$<TARGET_OBJECTS:filter>
 	$<TARGET_OBJECTS:frameserver>
 	$<TARGET_OBJECTS:optical_tracking>
 	$<TARGET_OBJECTS:drv_ohmd>

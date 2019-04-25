@@ -8,7 +8,9 @@ include_directories(
 	)
 
 set(FILTER_SOURCE_FILES
-        filter_opencv_kalman.c
+	    common/filter.h
+		common/filter.c
+		filter_opencv_kalman.cpp
         filter_opencv_kalman.h
 	)
 
