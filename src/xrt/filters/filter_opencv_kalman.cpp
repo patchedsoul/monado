@@ -20,24 +20,29 @@ bool filter_opencv_kalman__destroy(filter_instance_t* inst) {
 
 bool filter_opencv_kalman_queue(filter_instance_t* inst,filter_measurement_t* measurement) {
 	filter_opencv_kalman_instance_t* internal = (filter_opencv_kalman_instance_t*)inst->internal_instance;
-	internal->observation.at<float>(0,0) = measurement->sample.position.x;
-	internal->observation.at<float>(1,0) = measurement->sample.position.y;
-	internal->observation.at<float>(2,0) = measurement->sample.position.z;
+	internal->observation.at<float>(0,0) = measurement->pose.position.x;
+	internal->observation.at<float>(1,0) = measurement->pose.position.y;
+	internal->observation.at<float>(2,0) = measurement->pose.position.z;
 	internal->kalman_filter.correct(internal->observation);
 
 	return false;
 }
-bool filter_opencv_kalman_get_state(filter_instance_t* inst,opencv_kalman_filter_state_t* state) {
+bool filter_opencv_kalman_get_state(filter_instance_t* inst,filter_state_t* state) {
 	return false;
 }
-bool filter_opencv_kalman_set_state(filter_instance_t* inst,opencv_kalman_filter_state_t* state) {
+bool filter_opencv_kalman_set_state(filter_instance_t* inst,filter_state_t* state) {
 	return false;
 }
-bool filter_opencv_kalman_predict_state(filter_instance_t* inst, opencv_kalman_filter_state_t*, timepoint_ns time) {
+bool filter_opencv_kalman_predict_state(filter_instance_t* inst, filter_state_t*, timepoint_ns time) {
 	return false;
 }
 bool filter_opencv_kalman_configure(filter_instance_t* inst, opencv_filter_configuration_t* config) {
-	return false;
+	filter_opencv_kalman_instance_t* internal = (filter_opencv_kalman_instance_t*)inst->internal_instance;
+	internal->configuration = *config;
+	cv::setIdentity(internal->kalman_filter.processNoiseCov, cv::Scalar::all(internal->configuration.process_noise_cov));
+	cv::setIdentity(internal->kalman_filter.measurementNoiseCov, cv::Scalar::all(internal->configuration.measurement_noise_cov));
+	internal->configured = true;
+	return true;
 }
 
 

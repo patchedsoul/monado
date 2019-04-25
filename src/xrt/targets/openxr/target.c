@@ -10,6 +10,8 @@
 
 #include <stdlib.h>
 
+#include "montrack/mt_interface.h"
+
 #ifdef XRT_HAVE_OHMD
 #include "ohmd/oh_interface.h"
 #endif
@@ -23,6 +25,7 @@ typedef struct xrt_prober *(*prober_creator)();
 
 
 static const prober_creator DRIVERS[] = {
+    mt_create_prober,
 #ifdef XRT_HAVE_HDK
     // Returns NULL if none found, so OK to go first.
     hdk_create_prober,

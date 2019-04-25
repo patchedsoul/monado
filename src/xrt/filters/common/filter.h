@@ -9,11 +9,23 @@ typedef void* filter_configuration_ptr;
 typedef void* filter_state_ptr;
 
 typedef struct filter_measurement {
-	struct xrt_pose sample;
+	struct xrt_pose pose;
 	bool has_position;
 	bool has_rotation;
 	timepoint_ns timestamp;
 } filter_measurement_t;
+
+typedef struct filter_state {
+	struct xrt_pose pose;
+	bool has_position;
+	bool has_rotation;
+	struct xrt_vec3 velocity;
+	struct xrt_vec3 acceleration;
+	struct xrt_quat angular_velocity;
+	struct xrt_quat angular_accel;
+	timepoint_ns timestamp;
+} filter_state_t;
+
 
 typedef enum filter_type {
 	FILTER_TYPE_NONE,
@@ -25,7 +37,7 @@ typedef struct _filter_instance {
 	 bool (*filter_queue)(filter_instance_ptr inst,filter_measurement_t* measurement);
 	 bool (*filter_set_state)(filter_instance_ptr inst,filter_state_ptr state);
 	 bool (*filter_get_state)(filter_instance_ptr inst,filter_state_ptr state);
-	 bool (*filter_predict_state)(filter_instance_ptr inst, filter_state_ptr state, timepoint_ns time);
+	 bool (*filter_predict_state)(filter_instance_ptr inst, filter_state_t* state, timepoint_ns time);
 	 bool (*filter_configure)(filter_instance_ptr inst, filter_configuration_ptr config);
 	 filter_internal_instance_ptr internal_instance;
 } filter_instance_t;

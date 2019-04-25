@@ -10,7 +10,7 @@ typedef struct opencv_fiter_configuration {
 }opencv_filter_configuration_t;
 
 typedef struct opencv_kalman_filter_state {
-
+	struct xrt_pose pose;
 } opencv_kalman_filter_state_t;
 
 #ifdef __cplusplus
@@ -25,9 +25,9 @@ filter_opencv_kalman_instance_t* filter_opencv_kalman_create(filter_instance_t* 
 bool filter_opencv_kalman__destroy(filter_instance_t* inst);
 
 bool filter_opencv_kalman_queue(filter_instance_t* inst,filter_measurement_t* measurement);
-bool filter_opencv_kalman_get_state(filter_instance_t* inst,opencv_kalman_filter_state_t* state);
-bool filter_opencv_kalman_set_state(filter_instance_t* inst,opencv_kalman_filter_state_t* state);
-bool filter_opencv_kalman_predict_state(filter_instance_t* inst, opencv_kalman_filter_state_t*, timepoint_ns time);
+bool filter_opencv_kalman_get_state(filter_instance_t* inst,filter_state_t* state);
+bool filter_opencv_kalman_set_state(filter_instance_t* inst,filter_state_t* state);
+bool filter_opencv_kalman_predict_state(filter_instance_t* inst, filter_state_t*, timepoint_ns time);
 bool filter_opencv_kalman_configure(filter_instance_t* inst, opencv_filter_configuration_t* config);
 
 #ifdef __cplusplus

@@ -5,6 +5,9 @@
 #include "calibration.h"
 #include "tracked_object.h"
 
+#define MAX_FRAMESERVERS 8 //maximum number of cameras/sources that can be bound to a tracker
+
+
 typedef void* tracker_instance;
 typedef void* tracker_internal_instance;
 typedef void* tracker_configuration;
