@@ -28,6 +28,7 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame);
 bool tracker3D_sphere_mono_get_poses(tracker_instance_t* inst,tracked_object_t* objects,uint32_t* count);
 bool tracker3D_sphere_mono_new_poses(tracker_instance_t* inst);
 bool tracker3D_sphere_mono_configure(tracker_instance_t* inst, tracker_mono_configuration_t* config);
+void tracker3D_sphere_mono_register_measurement_callback (tracker_instance_t* inst, void* target_instance, measurement_consumer_callback_func target_func);
 
 #ifdef __cplusplus
 } //extern "C"

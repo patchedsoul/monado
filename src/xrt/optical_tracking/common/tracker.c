@@ -14,6 +14,7 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 				i->tracker_get_poses = tracker3D_sphere_mono_get_poses;
 				i->tracker_get_debug_frame= tracker3D_sphere_mono_get_debug_frame;
 				i->tracker_queue = tracker3D_sphere_mono_queue;
+				i->tracker_register_measurement_callback = tracker3D_sphere_mono_register_measurement_callback;
 				i->tracker_has_new_poses = tracker3D_sphere_mono_new_poses;
 				i->tracker_configure = tracker3D_sphere_mono_configure;
 			    break;

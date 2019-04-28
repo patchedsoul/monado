@@ -3,6 +3,8 @@
 
 typedef struct tracker3D_sphere_mono_instance {
 	bool configured;
+	measurement_consumer_callback_func measurement_target_callback;
+	void* measurement_target_instance; //where we send our measurements
 	camera_calibration_t calibration;
 	tracked_object_t tracked_object;
 	tracked_blob_t tracked_blob;
@@ -131,6 +133,16 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		float y = ((cy - dstArray.at<float>(0,1) ) * z) / focaly;
 
 		printf("%f %f %f\n",x,y,z);
+		tracker_measurement_t m = {};
+		m.has_position = true;
+		m.timestamp =0;
+		m.pose.position.x = x;
+		m.pose.position.y = y;
+		m.pose.position.z = z;
+
+		if (internal->measurement_target_callback){
+			internal->measurement_target_callback(internal->measurement_target_instance,&m);
+		}
 	}
 	return true;
 }
@@ -172,5 +184,11 @@ bool tracker3D_sphere_mono_configure(tracker_instance_t* inst,tracker_mono_confi
 	memcpy(internal->distortion.ptr(0),internal->calibration.distortion,sizeof(internal->calibration.distortion));
 	internal->configured=true;
 	return true;
+}
+
+void tracker3D_sphere_mono_register_measurement_callback (tracker_instance_t* inst, void* target_instance, measurement_consumer_callback_func target_func) {
+	tracker3D_sphere_mono_instance_t* internal = (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
+	internal->measurement_target_instance = target_instance;
+	internal->measurement_target_callback = target_func;
 }
 

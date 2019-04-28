@@ -291,9 +291,9 @@ create_instance(struct comp_compositor *c)
 		vk_init_validation_callback(&c->vk);
 #endif
 
-	frameservers_test();
-	trackers_test();
-	filters_test();
+	//frameservers_test();
+	//trackers_test();
+	//filters_test();
 	return ret;
 }
 
