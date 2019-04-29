@@ -79,18 +79,17 @@ bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
 		return false;
 	}
 
-
 	uint8_t* source_ptr;
 	uint8_t* dest_ptr;
 	uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);
 	uint32_t source_line_bytes = source->stride;
-	uint8_t dest_pixel_bytes=1;
-	uint32_t dest_line_bytes = source->width;
+    uint8_t dest_pixel_bytes= format_bytes_per_pixel(out->format);
+    uint32_t dest_line_bytes = out->width;
 
 	if (! out->data)
 	{
 		printf("allocating data for NULL plane - someone needs to free this!\n");
-		out->data = malloc(source->width*source->height);
+        out->data = malloc(frame_size_in_bytes(out));
 	}
 
 	switch (source->format) {
@@ -117,6 +116,58 @@ bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
 	}
 	return true;
 }
+
+bool frame_resample(frame_t* source, frame_t* out) {
+    if (source->format != FORMAT_YUYV_UINT8 && out->format != FORMAT_YUV444_UINT8){
+        printf("ERROR: unhandled resample operation\n");
+        return false;
+    }
+
+    if (! source->data)
+    {
+        printf("ERROR: no frame data!\n");
+        return false;
+    }
+
+    uint8_t* source_ptr;
+    uint8_t* dest_ptr;
+    uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);
+    uint32_t source_line_bytes = source->stride;
+    uint8_t dest_pixel_bytes= format_bytes_per_pixel(out->format);
+    uint32_t dest_line_bytes = out->width;
+
+    if (! out->data)
+    {
+        printf("allocating data for NULL plane - someone needs to free this!\n");
+        out->data = malloc(frame_size_in_bytes(out));
+    }
+
+    switch (source->format) {
+        uint8_t lastU = 0;
+        case FORMAT_YUYV_UINT8:
+            for (uint32_t i=0;i< source->height;i++) {
+                for (uint32_t j=0;j<source->width;j++) {
+                    source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes);
+                    dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
+                    *dest_ptr = *source_ptr; //Y
+                    if (j %2 == 0) {
+                        *(dest_ptr+1) = *(source_ptr+1); //U
+                        *(dest_ptr+2) = *(source_ptr+3); //V from next source pixel
+                        lastU = *(dest_ptr+1);
+                    } else {
+                        *(dest_ptr+1) = lastU;
+                        *(dest_ptr+2) = *(source_ptr+1);
+                    }
+                }
+            }
+            return true;
+            break;
+        default:
+            return false;
+    }
+    return false;
+}
+
 
 frameserver_instance_t* frameserver_create(frameserver_type_t t) {
     frameserver_instance_t* i = calloc(1,sizeof(frameserver_instance_t));

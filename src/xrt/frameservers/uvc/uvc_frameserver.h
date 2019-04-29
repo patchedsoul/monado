@@ -34,6 +34,7 @@ typedef struct uvc_source_descriptor {
 	uint32_t uvc_device_index;
 	enum uvc_frame_format stream_format;
 	frame_format_t format;
+    sampling_t sampling;
 	uint32_t width;
 	uint32_t height;
 	uint32_t rate;

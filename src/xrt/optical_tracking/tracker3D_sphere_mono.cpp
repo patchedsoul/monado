@@ -57,8 +57,8 @@ bool tracker3D_sphere_mono_get_debug_frame(tracker_instance_t* inst,frame_t* fra
 }
 capture_parameters_t tracker3D_sphere_mono_get_capture_params(tracker_instance_t* inst) {
 	capture_parameters_t cp={};
-	cp.exposure = 0.1f;
-	cp.gain=0.01f;
+    cp.exposure = 0.5f;
+    cp.gain=0.1f;
 	return cp;
 }
 
@@ -71,8 +71,8 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	printf("received frame, tracking!\n");
 	if (!internal->alloced_frames)
 	{
-		internal->frame_gray = cv::Mat(frame->height,frame->stride,CV_8UC1,cv::Scalar(0,0,0));
-		internal->mask_gray = cv::Mat(frame->height,frame->stride,CV_8UC1,cv::Scalar(0,0,0));
+        internal->frame_gray = cv::Mat(frame->height,frame->stride,CV_8UC1,cv::Scalar(0,0,0));
+        internal->mask_gray = cv::Mat(frame->height,frame->stride,CV_8UC1,cv::Scalar(0,0,0));
 		internal->debug_rgb = cv::Mat(frame->height,frame->width,CV_8UC3,cv::Scalar(0,0,0));
 		internal->alloced_frames =true;
 	}
@@ -84,8 +84,7 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	//is being done
 	internal->keypoints.clear();
 	memcpy(internal->frame_gray.data,frame->data,frame->size_bytes);
-	cv::bitwise_not ( internal->frame_gray,internal->frame_gray);
-	bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+    cv::bitwise_not ( internal->frame_gray,internal->frame_gray);
 
 	//add this frame to the background average mask generator
 	internal->background_subtractor->apply(internal->frame_gray,internal->mask_gray);
@@ -95,11 +94,14 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	if (internal->tracked_blob.diameter > ROI_OFFSET) {
 		offset = internal->tracked_blob.diameter;
 	}
-	cv::rectangle(internal->frame_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
+    //cv::rectangle(internal->frame_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
 
 	//do blob detection with our mask
 	internal->sbd->detect(internal->frame_gray, internal->keypoints,internal->mask_gray);
-	for (uint32_t i=0;i<internal->keypoints.size();i++)
+    bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+    ret = cv::imwrite("/tmp/mask.jpg",internal->mask_gray);
+
+    for (uint32_t i=0;i<internal->keypoints.size();i++)
 	{
 		cv::KeyPoint blob = internal->keypoints.at(i);
 		printf ("2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
