@@ -91,6 +91,26 @@ arch:build-meson:
   - meson -Ddocs=disabled ..
   - ninja
 
+debian:build-cxx-cmake:
+  stage: build
+  image: $DEBIAN_CONTAINER_IMAGE
+  allow_failure: true # Won't break build for now if C++ build fails
+  script:
+  - mkdir build
+  - pushd build
+  - cmake -GNinja -DBUILD_AS_CXX=ON ..
+  - ninja
+
+arch:build-cxx-cmake:
+  stage: build
+  image: $ARCH_CONTAINER_IMAGE
+  allow_failure: true # Won't break build for now if C++ build fails
+  script:
+  - mkdir build
+  - pushd build
+  - cmake -GNinja -DBUILD_AS_CXX=ON ..
+  - ninja
+
 ###
 # Pages
 ###
