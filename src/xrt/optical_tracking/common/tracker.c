@@ -2,6 +2,8 @@
 #include "tracker3D_sphere_mono.h"
 #include "../frameservers/uvc/uvc_frameserver.h"
 #include <string.h>
+#include <sys/ioctl.h>
+#include <errno.h>
 
 tracker_instance_t* tracker_create(tracker_type_t t) {
 	tracker_instance_t* i = calloc(1,sizeof(tracker_instance_t));
@@ -24,9 +26,68 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 			    return NULL;
 			break;
 		}
+        // Create debug socket file descriptor
+        if ((i->debug_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+            printf("ERROR: socket creation failed\n");
+            return NULL;
+        }
+        int opt = 1;
+        if (setsockopt(i->debug_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                                                          &opt, sizeof(opt))) {
+            printf("ERROR: socket option setting failed\n");
+            return NULL;
+        }
+        i->debug_address.sin_family = AF_INET;
+        i->debug_address.sin_addr.s_addr = INADDR_ANY;
+        i->debug_address.sin_port = htons( 6666 );
+        if (bind(i->debug_fd, (struct sockaddr *)&i->debug_address,
+                                     sizeof(i->debug_address))<0) {
+            printf("ERROR: socket option setting failed\n");
+            return NULL;
+        }
+        if (listen(i->debug_fd, 3) < 0)
+            {
+            printf("ERROR: socket listen failed\n");
+            return NULL;
+        }
+
+        if (ioctl(i->debug_fd, FIONBIO, (char *)&opt) < 0) {
+             printf("ERROR: non-blocking ioctl failed");
+             close(i->debug_fd);
+             return NULL;
+          }
+        i->client_connected = false;
 		return i;
 	}
 	return NULL;
+}
+
+bool tracker_send_debug_frame(tracker_instance_t* inst)
+{
+    frame_t f = {};
+    if (inst->tracker_get_debug_frame(inst,&f))
+    {
+        if (! inst->client_connected) {
+            inst->debug_client_fd = accept(inst->debug_fd, NULL, NULL);
+            if (inst->debug_client_fd == -1) {
+                if (errno == EWOULDBLOCK) {
+                    return false;
+                }
+                else {
+                    //some other socket problem, flagrantly ignore.
+                    return false;
+                }
+            }
+            inst->client_connected = true;
+        }
+
+       if (inst->client_connected) {
+          //just write. whats the worst that can happen?
+           send(inst->debug_client_fd, f.data, f.size_bytes, 0);
+
+       }
+
+    }
 }
 
 bool trackers_test(){
@@ -118,11 +179,10 @@ bool trackers_test(){
 	float camera_intr[INTRINSICS_SIZE] = LOGITECH_C270_INTR;
 	float camera_dist[DISTORTION_SIZE] = LOGITECH_C270_DIST;
 
-	tracker_config.calibration.calib_size[0]=camera_size[0];
-	tracker_config.calibration.calib_size[1]=camera_size[1];
+    tracker_config.calibration.calib_capture_size[0]=camera_size[0];
+    tracker_config.calibration.calib_capture_size[1]=camera_size[1];
 	memcpy(tracker_config.calibration.intrinsics,camera_intr,sizeof(tracker_config.calibration.intrinsics));
-	memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
-
+    memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
 
 	configured = tracker->tracker_configure(tracker,&tracker_config);
 
@@ -151,11 +211,12 @@ bool trackers_test(){
 		for (uint32_t i =0; i< tracked_object_count;i++)
 		{
 			tracked_object_t o = tracked_objects[i];
-			//printf("tracked object id %d tag %d pos %f %f %f\n",o.tracking_id,o.tracking_tag,o.pose.position.x,o.pose.position.y,o.pose.position.z);
+            printf("tracked object id %d tag %d pos %f %f %f\n",o.tracking_id,o.tracking_tag,o.pose.position.x,o.pose.position.y,o.pose.position.z);
 		}
 		usleep(5000);
 	}
 
+    frame_source->frameserver_stream_stop(frame_source);
 
 	return true;
 }

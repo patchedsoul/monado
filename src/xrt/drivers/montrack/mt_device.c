@@ -85,7 +85,7 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 	// we can now create our chain of components - frameserver -> tracker-> filter
 	// TODO - add IMU input source -> filter
 
-	md->frameserver_count=1;
+    md->frameserver_count=1; // this driver uses a single camera source
 	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
 	// ask our frameserver for available sources - note this will return a
 	// type-specific struct that we need to deal with e.g. UVC-specific, FFMPEG-specific.
@@ -105,15 +105,15 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 	uint32_t source_index; //our frameserver config descriptor index
 	for (uint32_t i=0; i< source_count;i++){
 		if (descriptors[i].product_id == 0x0825 && descriptors[i].vendor_id == 0x046d && descriptors[i].format == FORMAT_Y_UINT8) {
-			if (descriptors[i].width == 1280 && descriptors[i].height == 960 && descriptors[i].rate == 333333) {
+            if (descriptors[i].width == 640 && descriptors[i].height == 480 && descriptors[i].rate == 333333) {
 				tracker_config.format = descriptors[i].format;
 				tracker_config.source_id =descriptors[i].source_id;
 				float camera_size[2] = LOGITECH_C270_SIZE;
 				float camera_intr[INTRINSICS_SIZE] = LOGITECH_C270_INTR;
 				float camera_dist[DISTORTION_SIZE] = LOGITECH_C270_DIST;
 
-				tracker_config.calibration.calib_size[0]=camera_size[0];
-				tracker_config.calibration.calib_size[1]=camera_size[1];
+                tracker_config.calibration.calib_capture_size[0]=camera_size[0];
+                tracker_config.calibration.calib_capture_size[1]=camera_size[1];
 				memcpy(tracker_config.calibration.intrinsics,camera_intr,sizeof(tracker_config.calibration.intrinsics));
 				memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
 				source_index =i;
@@ -130,7 +130,6 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 		return false;
 	}
 
-
 	//connect our frameserver to our tracker
 	md->frameservers[0]->frameserver_register_frame_callback(md->frameservers[0],md->tracker,md->tracker->tracker_queue);
 
@@ -145,7 +144,7 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 
 	// now we can configure our frameserver and start the stream
 
-	printf("INFO: frame source path: %s %d x %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format);
+    printf("INFO: frame source path: %s %d x %d interval: %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format,descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(md->frameservers[0],md->tracker->tracker_get_capture_params(md->tracker));
 	md->frameservers[0]->frameserver_stream_start(md->frameservers[0],&(descriptors[source_index]));
 

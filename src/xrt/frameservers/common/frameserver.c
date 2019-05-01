@@ -94,15 +94,7 @@ bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
 
 	switch (source->format) {
 	    case FORMAT_YUYV_UINT8:
-		    for (uint32_t i=0;i< source->height;i++) {
-				for (uint32_t j=0;j<source->width;j++) {
-					source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes);
-					dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
-					*dest_ptr = *source_ptr;
-				}
-			}
-		    break;
-	    case FORMAT_YUV444_UINT8:
+        case FORMAT_YUV444_UINT8:
 		    for (uint32_t i=0;i< source->height;i++) {
 				for (uint32_t j=0;j<source->width;j++) {
 					source_ptr = source->data + (j * source_pixel_bytes) + (i * source_line_bytes);
@@ -118,6 +110,7 @@ bool frame_extract_plane(frame_t* source, plane_t plane, frame_t* out) {
 }
 
 bool frame_resample(frame_t* source, frame_t* out) {
+    //TODO: more complete resampling.
     if (source->format != FORMAT_YUYV_UINT8 && out->format != FORMAT_YUV444_UINT8){
         printf("ERROR: unhandled resample operation\n");
         return false;

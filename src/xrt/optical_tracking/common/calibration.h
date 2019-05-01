@@ -8,7 +8,7 @@
 typedef struct camera_calibration {
      float intrinsics[INTRINSICS_SIZE];
      float distortion[DISTORTION_SIZE];
-	 float calib_size[2];
+     float calib_capture_size[2];
 	 struct xrt_pose pose; //camera position
      float reprojection_error;
 } camera_calibration_t;

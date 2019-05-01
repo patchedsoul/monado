@@ -14,9 +14,9 @@ set(OPTICAL_TRACKING_SOURCE_FILES
         common/tracked_object.c
         common/tracker.h
         common/tracker.c
-        tracker2D_blue_led.c
-        tracker2D_blue_led.h
-		tracker3D_sphere_mono.cpp
+        tracker3D_blue_ball_stereo.c
+        tracker3D_blue_ball_stereo.h
+        tracker3D_sphere_mono.cpp
         tracker3D_sphere_mono.h
 	)
 

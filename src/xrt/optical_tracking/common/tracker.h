@@ -4,8 +4,13 @@
 #include "../frameservers/common/frameserver.h"
 #include "calibration.h"
 #include "tracked_object.h"
-
+#include <sys/socket.h>
+#include <netinet/in.h>
 #define MAX_FRAMESERVERS 8 //maximum number of cameras/sources that can be bound to a tracker
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct tracker_measurement {
 	struct xrt_pose pose;
@@ -33,6 +38,10 @@ typedef struct tracker_stereo_configuration {
 	camera_calibration_t r_calibration;
 	frame_format_t r_format;
 	uint64_t r_source_id;
+    bool split_left; // single-frame stereo will split the left frame
+    frame_rect_t l_rect;
+    frame_rect_t r_rect;
+
 } tracker_stereo_configuration_t;
 
 typedef enum tracker_type {
@@ -51,10 +60,20 @@ typedef struct _tracker_instance {
 	 void (*tracker_register_measurement_callback)(tracker_instance_ptr inst, void* target_instance, measurement_consumer_callback_func target_func);
 	 bool (*tracker_configure)(tracker_instance_ptr inst, tracker_configuration_ptr config);
 	 tracker_internal_instance_ptr internal_instance;
+     int debug_fd, debug_socket, socket_read;
+     int debug_client_fd;
+     bool client_connected;
+     struct sockaddr_in debug_address;
 } tracker_instance_t;
 
 tracker_instance_t* tracker_create(tracker_type_t t);
 bool tracker_destroy(tracker_instance_t* inst);
+bool tracker_send_debug_frame(tracker_instance_t* inst);
+
 bool trackers_test();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //TRACKER_H

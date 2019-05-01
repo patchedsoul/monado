@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <../auxiliary/math/m_api.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MAX_PLANES 3 //this is what we see currently in e.g. RGB,YUV
 
@@ -13,8 +18,12 @@ typedef enum stereo_format {STEREO_NONE,STEREO_SBS,STEREO_OAU} stereo_format_t;
 typedef enum plane {PLANE_NONE,PLANE_R,PLANE_G,PLANE_B,PLANE_Y,PLANE_U,PLANE_V} plane_t;
 typedef enum sampling {SAMPLING_NONE,SAMPLING_UPSAMPLED, SAMPLING_DOWNSAMPLED} sampling_t;
 
-typedef struct frame
-{
+typedef struct frame_rect {
+    struct xrt_vec2 tl;
+    struct xrt_vec2 br;
+} frame_rect_t;
+
+typedef struct frame {
 	uint16_t width;
 	uint16_t height;
 	uint16_t stride;
@@ -84,5 +93,9 @@ bool frame_extract_plane(frame_t* source,plane_t plane,frame_t* out);
 bool frame_resample(frame_t* source, frame_t* out);
 
 bool frameservers_test();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //FRAMESERVER_H

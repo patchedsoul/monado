@@ -38,7 +38,7 @@ tracker3D_sphere_mono_instance_t* tracker3D_sphere_mono_create(tracker_instance_
 		i->params.minRepeatability=1; //need this to avoid error?
 
 		i->sbd = cv::SimpleBlobDetector::create(i->params);
-		i->background_subtractor = cv::createBackgroundSubtractorMOG2(128,64,false);
+        i->background_subtractor = cv::createBackgroundSubtractorMOG2(32,16,false);
 
 		i->poses_consumed=false;
 		i->configured=false;
@@ -52,8 +52,14 @@ tracker3D_sphere_mono_instance_t* tracker3D_sphere_mono_create(tracker_instance_
 	return NULL;
 }
 bool tracker3D_sphere_mono_get_debug_frame(tracker_instance_t* inst,frame_t* frame){
-	//not implemented
-	return false;
+    tracker3D_sphere_mono_instance_t* internal = (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
+    frame->format = FORMAT_RGB_UINT8;
+    frame->width = internal->debug_rgb.cols;
+    frame->stride = internal->debug_rgb.cols * format_bytes_per_pixel(frame->format);
+    frame->height = internal->debug_rgb.rows;
+    frame->data = internal->debug_rgb.data;
+    frame->size_bytes = frame_size_in_bytes(frame);
+    return true;
 }
 capture_parameters_t tracker3D_sphere_mono_get_capture_params(tracker_instance_t* inst) {
 	capture_parameters_t cp={};
@@ -80,46 +86,54 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 	//would be added to a queue and a tracker thread
 	//would analyse it asynchronously.
 
-	//we will just randomise the pose to show 'something'
-	//is being done
 	internal->keypoints.clear();
 	memcpy(internal->frame_gray.data,frame->data,frame->size_bytes);
     cv::bitwise_not ( internal->frame_gray,internal->frame_gray);
 
+
 	//add this frame to the background average mask generator
-	internal->background_subtractor->apply(internal->frame_gray,internal->mask_gray);
+    internal->background_subtractor->apply(internal->frame_gray,internal->mask_gray);
 	//we always want to be able to track small motions, so write white blocks into the masks that encompass the last seen positions of the blobs
 	xrt_vec2 lastPos = internal->tracked_blob.center;
 	float offset = ROI_OFFSET;
 	if (internal->tracked_blob.diameter > ROI_OFFSET) {
 		offset = internal->tracked_blob.diameter;
 	}
-    //cv::rectangle(internal->frame_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
+    cv::rectangle(internal->mask_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
+    //write something into our debug image
+    cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
+    cv::rectangle(internal->debug_rgb, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 0,0,255 ),-1,0);
 
-	//do blob detection with our mask
+    //do blob detection with our mask
 	internal->sbd->detect(internal->frame_gray, internal->keypoints,internal->mask_gray);
-    bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
-    ret = cv::imwrite("/tmp/mask.jpg",internal->mask_gray);
+    //bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+    //ret = cv::imwrite("/tmp/mask.jpg",internal->mask_gray);
 
+    cv::KeyPoint blob;
+    tracker_measurement_t m = {};
+    //we can just grab the last blob in our list.
+
+    //TODO: select the most likely blob here
     for (uint32_t i=0;i<internal->keypoints.size();i++)
 	{
-		cv::KeyPoint blob = internal->keypoints.at(i);
+        blob = internal->keypoints.at(i);
 		printf ("2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
-		internal->tracked_blob.center = {blob.pt.x,blob.pt.y};
+    }
+    cv::drawKeypoints(internal->frame_gray,internal->keypoints,internal->debug_rgb,cv::Scalar(128,255,18),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    if (internal->keypoints.size() > 0) {
+        internal->tracked_blob.center = {blob.pt.x,blob.pt.y};
 		internal->tracked_blob.diameter=blob.size;
 
 		// intrinsics are 3x3 - compensate for difference between
 		// measurement framesize and current frame size
 		// TODO: handle differing aspect ratio
-		float xscale = internal->frame_gray.cols / internal->calibration.calib_size[0];
-		float yscale = internal->frame_gray.rows / internal->calibration.calib_size[1];
+        float xscale = internal->frame_gray.cols / internal->calibration.calib_capture_size[0];
+        float yscale = internal->frame_gray.rows / internal->calibration.calib_capture_size[1];
 
 		float cx = internal->calibration.intrinsics[2] *  xscale;
 		float cy = internal->calibration.intrinsics[5] * yscale;
 		float focalx=internal->calibration.intrinsics[0] * xscale;
 		float focaly=internal->calibration.intrinsics[4] * yscale;
-
-
 
 		// we can just undistort our blob-centers, rather than undistorting
 		// every pixel in the frame
@@ -127,7 +141,7 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		cv::Mat dstArray(1,1,CV_32FC2);
 
 		srcArray.at<cv::Point2f>(1,1) = cv::Point2f(internal->tracked_blob.center.x,internal->tracked_blob.center.y);
-		cv::undistortPoints(srcArray,dstArray,internal->intrinsics,internal->distortion);
+        cv::undistortPoints(srcArray,dstArray,internal->intrinsics,internal->distortion);
 
 		float pixelConstant =1.0f;
 		float z = internal->tracked_blob.diameter * pixelConstant;
@@ -135,17 +149,24 @@ bool tracker3D_sphere_mono_queue(tracker_instance_t* inst,frame_t* frame) {
 		float y = ((cy - dstArray.at<float>(0,1) ) * z) / focaly;
 
 		printf("%f %f %f\n",x,y,z);
-		tracker_measurement_t m = {};
+
 		m.has_position = true;
 		m.timestamp =0;
 		m.pose.position.x = x;
 		m.pose.position.y = y;
-		m.pose.position.z = z;
+        m.pose.position.z = z;
 
-		if (internal->measurement_target_callback){
-			internal->measurement_target_callback(internal->measurement_target_instance,&m);
-		}
+
+        if (internal->measurement_target_callback){
+         internal->measurement_target_callback(internal->measurement_target_instance,&m);
+        }
 	}
+
+    //write our debug frame out
+    tracker_send_debug_frame(inst); //publish our debug frame
+
+
+
 	return true;
 }
 

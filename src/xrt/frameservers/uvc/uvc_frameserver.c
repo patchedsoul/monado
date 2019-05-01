@@ -72,7 +72,7 @@ bool uvc_frameserver_enumerate_sources(frameserver_instance_t* inst, uvc_source_
 		printf("counting formats\n");
 		for (uint32_t i=0;i<device_count;i++){
 		uvc_source_descriptor_t* temp_sds_count= NULL;
-		//we need to free the source descriptors, even though we only use the count
+        // we need to free the source descriptors, even though we only use the count
 		uint32_t c = uvc_frameserver_get_source_descriptors(&temp_sds_count,internal->device_list[i],i);
 		source_count += c;
 		free(temp_sds_count);
@@ -92,11 +92,12 @@ bool uvc_frameserver_enumerate_sources(frameserver_instance_t* inst, uvc_source_
 	uint32_t cameras_offset=0;
 	for (uint32_t i=0;i<device_count;i++)
 	{
-		uint32_t c = uvc_frameserver_get_source_descriptors(&temp_sds,internal->device_list[i],i);
+        // last parameter will end up in source_id
+        uint32_t c = uvc_frameserver_get_source_descriptors(&temp_sds,internal->device_list[i],i);
 		printf("Got %d sources\n",c);
 		if (c > 0) {
             source_count +=c;
-            memcpy(cameras+cameras_offset,temp_sds,source_count * sizeof(uvc_source_descriptor_t));
+            memcpy(cameras+cameras_offset,temp_sds,c * sizeof(uvc_source_descriptor_t));
             cameras_offset+=c;
         }
 	}
@@ -149,7 +150,8 @@ bool uvc_frameserver_stream_start(frameserver_instance_t* inst,uvc_source_descri
 }
 
 bool uvc_frameserver_stream_stop(frameserver_instance_t* inst) {
-	return false;
+    //TODO: stop the stream, join the thread, cleanup.
+    return false;
 }
 
 bool uvc_frameserver_is_running(frameserver_instance_t* inst) {
@@ -206,7 +208,7 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 		//defaults - auto-anything off
 		uvc_set_ae_mode(internal->device_handle, 1);
 		uvc_set_ae_priority(internal->device_handle,0);
-		//we may need to enumerate the control range.. assume 01-00
+        //we may need to enumerate the control range.. assume 0-100
 		uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 100);
 		uvc_set_gain(internal->device_handle,internal->capture_params.gain * 100);
 		internal->is_configured = true;
@@ -283,79 +285,76 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
                                 sampled_frame.stride = f.width;
                                 sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
 
-                            if (! sampled_frame.data) {
-                                sampled_frame.data = malloc(sampled_frame.size_bytes);
-                            }
+                                if (! sampled_frame.data) {
+                                    sampled_frame.data = malloc(sampled_frame.size_bytes);
+                                }
 
-                            frame_extract_plane(&f,PLANE_Y,&sampled_frame);
+                                frame_extract_plane(&f,PLANE_Y,&sampled_frame);
 
-                            if (internal->frame_target_callback){
-                                internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+                                if (internal->frame_target_callback){
+                                    internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+                                }
+                                break;
+                            default:
+                                //supply our YUV444 directly
+                                if (internal->frame_target_callback){
+                                    internal->frame_target_callback(internal->frame_target_instance,&f);
+                                }
+                        }
+                        break;
+                    case UVC_FRAME_FORMAT_YUYV:
+                        switch (internal->source_descriptor.format) {
+                            case FORMAT_Y_UINT8:
+                                //split our Y plane out
+                                sampled_frame = f; //copy our buffer frames attributes
+                                sampled_frame.format = FORMAT_Y_UINT8;
+                                sampled_frame.stride = f.width;
+                                sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
+
+                                if (! sampled_frame.data) {
+                                    sampled_frame.data = malloc(sampled_frame.size_bytes);
+                                }
+
+                                frame_extract_plane(&f,PLANE_Y,&sampled_frame);
+
+                                if (internal->frame_target_callback){
+                                    internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+                                }
+                                break;
+                            case FORMAT_YUV444_UINT8:
+                                //upsample our YUYV to YUV444
+                                sampled_frame = f; //copy our buffer frames attributes
+                                sampled_frame.format = FORMAT_YUV444_UINT8;
+                                sampled_frame.stride = f.width * 3;
+                                sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
+                                //allocate on first access
+                                if (! sampled_frame.data) {
+                                    sampled_frame.data = malloc(sampled_frame.size_bytes);
+                                }
+                                if (frame_resample(&f,&sampled_frame)) {
+                                    if (internal->frame_target_callback) {
+                                        internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+                                    }
+                                break;
+                                }
+                                printf("ERROR: could not resample frame from %d to %d\n",f.format,sampled_frame.format);
+                                break;
+                            default:
+                                //supply our YUYV directly
+                                if (internal->frame_target_callback){
+                                    internal->frame_target_callback(internal->frame_target_instance,&f);
+                                }
                             }
                             break;
                         default:
-                        if (internal->frame_target_callback){
-                                internal->frame_target_callback(internal->frame_target_instance,&f);
-                        }
-                        break;
+                            printf("ERROR: Unknown stream format\n");
                     }
-                    case UVC_FRAME_FORMAT_YUYV:
-                    switch (internal->source_descriptor.format) {
-                        case FORMAT_Y_UINT8:
-                            //split our Y plane out
-                            sampled_frame = f; //copy our buffer frames attributes
-                            sampled_frame.format = FORMAT_Y_UINT8;
-                            sampled_frame.stride = f.width;
-                            sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
-
-                        if (! sampled_frame.data) {
-                            sampled_frame.data = malloc(sampled_frame.size_bytes);
-                        }
-
-                        frame_extract_plane(&f,PLANE_Y,&sampled_frame);
-
-                        if (internal->frame_target_callback){
-                            internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
-                        }
-                        break;
-                    case FORMAT_YUV444_UINT8:
-                        //upsample our YUYV
-                        sampled_frame = f; //copy our buffer frames attributes
-                        sampled_frame.format = FORMAT_YUV444_UINT8;
-                        sampled_frame.stride = f.width * 3;
-                        sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
-                        //allocate on first access
-                        if (! sampled_frame.data) {
-                            sampled_frame.data = malloc(sampled_frame.size_bytes);
-                        }
-                        if (frame_resample(&f,&sampled_frame)) {
-                            if (internal->frame_target_callback) {
-                                internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
-                            }
-                            break;
-                        }
-                        printf("ERROR: could not resample frame from %d to %d\n",f.format,sampled_frame.format);
-                        break;
-                    default:
-                    if (internal->frame_target_callback){
-                            internal->frame_target_callback(internal->frame_target_instance,&f);
-                    }
-                }
-                break;
-                    default:
-                        printf("ERROR: Unknown stream format\n");
-                }
-
-                    //we can upsample YUYV to YUV444 so we have two 'standard' formats
-                    // that our tracker can request - Y and YUV444
-
-				//notify  anyone listening
-				frameserver_event_t e ={};
-				e.type = FRAMESERVER_EVENT_GOTFRAME;
-				if (internal->event_target_callback){
+                frameserver_event_t e ={};
+                e.type = FRAMESERVER_EVENT_GOTFRAME;
+                if (internal->event_target_callback){
 					internal->event_target_callback(internal->event_target_instance,e);
-				}
-			}
+                }
+            }
 		}
 	}
 	uvc_free_frame(frame);
