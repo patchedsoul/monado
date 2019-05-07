@@ -46,7 +46,7 @@ typedef struct tracker_stereo_configuration {
 
 typedef enum tracker_type {
     TRACKER_TYPE_NONE,
-    TRACKER_TYPE_2D_BLUE_LED,
+	TRACKER_TYPE_SPHERE_STEREO,
     TRACKER_TYPE_SPHERE_MONO
 } tracker_type_t;
 

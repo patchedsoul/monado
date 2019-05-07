@@ -49,7 +49,9 @@ mt_prober_autoprobe(struct xrt_prober* p)
 	// are present etc. - for now we will attempt to create a mono blob tracker, with any
 	// uvc camera we can use
 
-	mt_device_t* mtd = mt_device_create("PETE",true,true);
+	//mt_device_t* mtd = mt_device_create("MONO_LOGITECH_C270",true,true);
+	mt_device_t* mtd = mt_device_create("STEREO_ELP_60FPS",true,true);
+
 	return &mtd->base;
 }
 

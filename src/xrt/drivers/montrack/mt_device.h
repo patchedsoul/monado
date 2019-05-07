@@ -45,6 +45,12 @@ mt_device(struct xrt_device *xdev)
 mt_device_t *
 mt_device_create(char* device_name,bool log_verbose, bool log_debug);
 
+bool mt_create_mono_c270(mt_device_t* md); //mono blob tracker, logitech 30fps c270 camera
+bool mt_create_stereo_elp(mt_device_t* md); //stereo tracker, ELP 60fps stereo camera
+
+
+
+void dummy_init_mt_device(mt_device_t* md);
 
 
 #ifdef __cplusplus

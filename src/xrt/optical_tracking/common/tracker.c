@@ -1,5 +1,6 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
+#include "tracker3D_sphere_stereo.h"
 #include "../frameservers/uvc/uvc_frameserver.h"
 #include <string.h>
 #include <sys/ioctl.h>
@@ -20,13 +21,25 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 				i->tracker_has_new_poses = tracker3D_sphere_mono_new_poses;
 				i->tracker_configure = tracker3D_sphere_mono_configure;
 			    break;
+		    case TRACKER_TYPE_SPHERE_STEREO:
+			    i->tracker_type = t;
+				i->internal_instance = tracker3D_sphere_stereo_create(i);
+				i->tracker_get_capture_params = tracker3D_sphere_stereo_get_capture_params;
+				i->tracker_get_poses = tracker3D_sphere_stereo_get_poses;
+				i->tracker_get_debug_frame= tracker3D_sphere_stereo_get_debug_frame;
+				i->tracker_queue = tracker3D_sphere_stereo_queue;
+				i->tracker_register_measurement_callback = tracker3D_sphere_stereo_register_measurement_callback;
+				i->tracker_has_new_poses = tracker3D_sphere_stereo_new_poses;
+				i->tracker_configure = tracker3D_sphere_stereo_configure;
+			    break;
 		    case TRACKER_TYPE_NONE:
 		    default:
 			    free(i);
 			    return NULL;
 			break;
 		}
-        // Create debug socket file descriptor
+		//TODO: make this optional
+		// Create debug socket file descriptor
         if ((i->debug_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             printf("ERROR: socket creation failed\n");
             return NULL;
