@@ -76,10 +76,12 @@ math_vec3_validate(const struct xrt_vec3 *vec3);
  * Logically, *inAndOut += *additional
  * OK if the two arguments are the same addresses.
  *
+ * @return true on success.
+ *
  * @relates xrt_vec3
  * @ingroup aux_math
  */
-void
+bool
 math_vec3_accum(const struct xrt_vec3 *additional, struct xrt_vec3 *inAndOut);
 
 
@@ -101,20 +103,24 @@ math_quat_validate(const struct xrt_quat *quat);
 /*!
  * Normalize a quaternion.
  *
+ * @return true on success.
+ *
  * @relates xrt_quat
  * @ingroup aux_math
  */
-void
+bool
 math_quat_normalize(struct xrt_quat *inout);
 
 /*!
  * Rotate a vector.
  *
+ * @return true on success.
+ *
  * @relates xrt_quat
  * @relatesalso xrt_vec3
  * @ingroup aux_math
  */
-void
+bool
 math_quat_rotate_vec3(const struct xrt_quat *left,
                       const struct xrt_vec3 *right,
                       struct xrt_vec3 *result);
@@ -122,10 +128,12 @@ math_quat_rotate_vec3(const struct xrt_quat *left,
 /*!
  * Rotate a quaternion (compose rotations).
  *
+ * @return true on success.
+ *
  * @relates xrt_quat
  * @ingroup aux_math
  */
-void
+bool
 math_quat_rotate(const struct xrt_quat *left,
                  const struct xrt_quat *right,
                  struct xrt_quat *result);
@@ -138,11 +146,13 @@ math_quat_rotate(const struct xrt_quat *left,
  * ang_vel and dt should share the same units of time, and the ang_vel
  * vector should be in radians per unit of time.
  *
+ * @return true on success.
+ *
  * @relates xrt_quat
  * @relatesalso xrt_vec3
  * @ingroup aux_math
  */
-void
+bool
 math_quat_integrate_velocity(const struct xrt_quat *quat,
                              const struct xrt_vec3 *ang_vel,
                              const float dt,
@@ -157,11 +167,13 @@ math_quat_integrate_velocity(const struct xrt_quat *quat,
  * out_ang_vel and dt share the same units of time, and out_ang_vel is be in
  * radians per unit of time.
  *
+ * @return true on success.
+ *
  * @relates xrt_quat
  * @relatesalso xrt_vec3
  * @ingroup aux_math
  */
-void
+bool
 math_quat_finite_difference(const struct xrt_quat *quat0,
                             const struct xrt_quat *quat1,
                             const float dt,
@@ -187,10 +199,12 @@ math_pose_validate(const struct xrt_pose *pose);
  *
  * OK if input and output are the same addresses.
  *
+ * @return true on success.
+ *
  * @relates xrt_pose
  * @ingroup aux_math
  */
-void
+bool
 math_pose_invert(const struct xrt_pose *pose, struct xrt_pose *outPose);
 
 /*!
@@ -198,10 +212,12 @@ math_pose_invert(const struct xrt_pose *pose, struct xrt_pose *outPose);
  *
  * OK if input and output are the same addresses.
  *
+ * @return true on success.
+ *
  * @relates xrt_pose
  * @ingroup aux_math
  */
-void
+bool
 math_pose_transform(const struct xrt_pose *transform,
                     const struct xrt_pose *pose,
                     struct xrt_pose *outPose);
@@ -214,10 +230,12 @@ math_pose_transform(const struct xrt_pose *transform,
  *
  * OK if input and output are the same addresses.
  *
+ * @return true on success.
+ *
  * @relates xrt_pose
  * @ingroup aux_math
  */
-void
+bool
 math_pose_openxr_locate(const struct xrt_pose *space_pose,
                         const struct xrt_pose *relative_pose,
                         const struct xrt_pose *base_space_pose,
@@ -232,10 +250,12 @@ math_pose_openxr_locate(const struct xrt_pose *space_pose,
 /*!
  * Reset a relation to zero velocity, located at origin, and all validity flags.
  *
+ * @return true on success.
+ *
  * @relates xrt_space_relation
  * @ingroup aux_math
  */
-void
+bool
 math_relation_reset(struct xrt_space_relation *out);
 
 /*!
@@ -244,11 +264,13 @@ math_relation_reset(struct xrt_space_relation *out);
  * Updates all valid pose and derivative fields. Does not modify the validity
  * mask. Treats both position and orientation of transform as valid.
  *
+ * @return true on success.
+ *
  * @relates xrt_space_relation
  * @see xrt_pose
  * @ingroup aux_math
  */
-void
+bool
 math_relation_accumulate_transform(const struct xrt_pose *transform,
                                    struct xrt_space_relation *in_out_relation);
 
@@ -257,10 +279,12 @@ math_relation_accumulate_transform(const struct xrt_pose *transform,
  *
  * Updates all valid pose and derivative fields, as well as the validity mask.
  *
+ * @return true on success.
+ *
  * @relates xrt_space_relation
  * @ingroup aux_math
  */
-void
+bool
 math_relation_accumulate_relation(
     const struct xrt_space_relation *additional_relation,
     struct xrt_space_relation *in_out_relation);
@@ -274,11 +298,13 @@ math_relation_accumulate_relation(
  *
  * OK if input and output are the same addresses.
  *
+ * @return true on success.
+ *
  * @relates xrt_space_relation
  * @see xrt_pose
  * @ingroup aux_math
  */
-void
+bool
 math_relation_openxr_locate(const struct xrt_pose *space_pose,
                             const struct xrt_space_relation *relative_relation,
                             const struct xrt_pose *base_space_pose,

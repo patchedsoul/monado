@@ -15,6 +15,8 @@
 
 #include <assert.h>
 
+#include "util/u_abi.h"
+
 #include "math/m_api.h"
 #include "math/m_eigen_interop.h"
 
@@ -30,6 +32,7 @@ template <> struct FourthRootMachineEps<double>
 		return 1.e-13;
 	}
 };
+
 template <> struct FourthRootMachineEps<float>
 {
 	/// machine epsilon is 1e-24, so fourth root is 1e-6
@@ -39,6 +42,7 @@ template <> struct FourthRootMachineEps<float>
 		return 1.e-6f;
 	}
 };
+
 /// Computes the "historical" (un-normalized) sinc(Theta)
 /// (sine(theta)/theta for theta != 0, defined as the limit value of 0
 /// at theta = 0)
@@ -131,11 +135,12 @@ quat_ln(Eigen::Quaternion<Scalar> const &quat)
 
 } // namespace
 
-extern "C" void
+
+extern "C" bool
 math_quat_integrate_velocity(const struct xrt_quat *quat,
                              const struct xrt_vec3 *ang_vel,
                              const float dt,
-                             struct xrt_quat *result)
+                             struct xrt_quat *result) XRT_ABI_TRY
 {
 	assert(quat != NULL);
 	assert(ang_vel != NULL);
@@ -147,13 +152,16 @@ math_quat_integrate_velocity(const struct xrt_quat *quat,
 	Eigen::Quaternionf incremental_rotation =
 	    quat_exp(map_vec3(*ang_vel) * dt * 0.5f).normalized();
 	map_quat(*result) = q * incremental_rotation;
-}
 
-extern "C" void
+	return true;
+}
+XRT_ABI_CATCH_RETURN_FALSE
+
+extern "C" bool
 math_quat_finite_difference(const struct xrt_quat *quat0,
                             const struct xrt_quat *quat1,
                             const float dt,
-                            struct xrt_vec3 *out_ang_vel)
+                            struct xrt_vec3 *out_ang_vel) XRT_ABI_TRY
 {
 	assert(quat0 != NULL);
 	assert(quat1 != NULL);
@@ -164,4 +172,7 @@ math_quat_finite_difference(const struct xrt_quat *quat0,
 	Eigen::Quaternionf inc_quat =
 	    map_quat(*quat1) * map_quat(*quat0).conjugate();
 	map_vec3(*out_ang_vel) = 2.f * quat_ln(inc_quat);
+
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE

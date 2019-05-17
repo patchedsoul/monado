@@ -13,6 +13,8 @@
 
 #include <assert.h>
 
+#include "util/u_abi.h"
+
 #include "math/m_api.h"
 #include "math/m_eigen_interop.h"
 
@@ -50,6 +52,7 @@ copy(const struct xrt_vec3* v)
 }
 
 
+
 /*
  *
  * Exported vector functions.
@@ -57,21 +60,25 @@ copy(const struct xrt_vec3* v)
  */
 
 extern "C" bool
-math_vec3_validate(const struct xrt_vec3* vec3)
+math_vec3_validate(const struct xrt_vec3* vec3) XRT_ABI_TRY
 {
 	assert(vec3 != NULL);
 
 	return map_vec3(*vec3).allFinite();
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
-extern "C" void
-math_vec3_accum(const struct xrt_vec3* additional, struct xrt_vec3* inAndOut)
+extern "C" bool
+math_vec3_accum(const struct xrt_vec3* additional,
+                struct xrt_vec3* inAndOut) XRT_ABI_TRY
 {
 	assert(additional != NULL);
 	assert(inAndOut != NULL);
 
 	map_vec3(*inAndOut) += map_vec3(*additional);
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
 
 /*
@@ -81,7 +88,7 @@ math_vec3_accum(const struct xrt_vec3* additional, struct xrt_vec3* inAndOut)
  */
 
 extern "C" bool
-math_quat_validate(const struct xrt_quat* quat)
+math_quat_validate(const struct xrt_quat* quat) XRT_ABI_TRY
 {
 	assert(quat != NULL);
 	auto rot = copy(*quat);
@@ -101,18 +108,21 @@ math_quat_validate(const struct xrt_quat* quat)
 
 	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
-extern "C" void
-math_quat_normalize(struct xrt_quat* inout)
+extern "C" bool
+math_quat_normalize(struct xrt_quat* inout) XRT_ABI_TRY
 {
 	assert(inout != NULL);
 	map_quat(*inout).normalize();
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
-extern "C" void
+extern "C" bool
 math_quat_rotate(const struct xrt_quat* left,
                  const struct xrt_quat* right,
-                 struct xrt_quat* result)
+                 struct xrt_quat* result) XRT_ABI_TRY
 {
 	assert(left != NULL);
 	assert(right != NULL);
@@ -124,12 +134,14 @@ math_quat_rotate(const struct xrt_quat* left,
 	auto q = l * r;
 
 	map_quat(*result) = q;
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
-extern "C" void
+extern "C" bool
 math_quat_rotate_vec3(const struct xrt_quat* left,
                       const struct xrt_vec3* right,
-                      struct xrt_vec3* result)
+                      struct xrt_vec3* result) XRT_ABI_TRY
 {
 	assert(left != NULL);
 	assert(right != NULL);
@@ -141,7 +153,10 @@ math_quat_rotate_vec3(const struct xrt_quat* left,
 	auto v = l * r;
 
 	map_vec3(*result) = v;
+
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
 
 /*
@@ -151,16 +166,18 @@ math_quat_rotate_vec3(const struct xrt_quat* left,
  */
 
 extern "C" bool
-math_pose_validate(const struct xrt_pose* pose)
+math_pose_validate(const struct xrt_pose* pose) XRT_ABI_TRY
 {
 	assert(pose != NULL);
 
 	return math_vec3_validate(&pose->position) &&
 	       math_quat_validate(&pose->orientation);
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
-extern "C" void
-math_pose_invert(const struct xrt_pose* pose, struct xrt_pose* outPose)
+extern "C" bool
+math_pose_invert(const struct xrt_pose* pose,
+                 struct xrt_pose* outPose) XRT_ABI_TRY
 {
 	assert(pose != NULL);
 	assert(outPose != NULL);
@@ -173,7 +190,10 @@ math_pose_invert(const struct xrt_pose* pose, struct xrt_pose* outPose)
 
 	position(*outPose) = newPosition;
 	orientation(*outPose) = newOrientation;
+
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
 /*!
  * Return the result of transforming a point by a pose/transform.
@@ -196,10 +216,10 @@ transform_pose(const xrt_pose& transform, const xrt_pose& pose)
 	return ret;
 }
 
-extern "C" void
+extern "C" bool
 math_pose_transform(const struct xrt_pose* transform,
                     const struct xrt_pose* pose,
-                    struct xrt_pose* outPose)
+                    struct xrt_pose* outPose) XRT_ABI_TRY
 {
 	assert(pose != NULL);
 	assert(transform != NULL);
@@ -207,13 +227,16 @@ math_pose_transform(const struct xrt_pose* transform,
 
 	xrt_pose newPose = transform_pose(*transform, *pose);
 	memcpy(outPose, &newPose, sizeof(xrt_pose));
-}
 
-extern "C" void
+	return true;
+}
+XRT_ABI_CATCH_RETURN_FALSE
+
+extern "C" bool
 math_pose_openxr_locate(const struct xrt_pose* space_pose,
                         const struct xrt_pose* relative_pose,
                         const struct xrt_pose* base_space_pose,
-                        struct xrt_pose* result)
+                        struct xrt_pose* result) XRT_ABI_TRY
 {
 	assert(space_pose != NULL);
 	assert(relative_pose != NULL);
@@ -237,7 +260,10 @@ math_pose_openxr_locate(const struct xrt_pose* space_pose,
 	math_pose_transform(&pose, &spc, &pose);
 
 	*result = pose;
+
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE
 
 /*!
  * Return the result of rotating a derivative vector by a matrix.
@@ -363,27 +389,34 @@ static const struct xrt_space_relation BLANK_RELATION = {
     {0, 0, 0},
 };
 
-extern "C" void
-math_relation_reset(struct xrt_space_relation* out)
+extern "C" bool
+math_relation_reset(struct xrt_space_relation* out) XRT_ABI_TRY
 {
 	*out = BLANK_RELATION;
-}
 
-extern "C" void
+	return true;
+}
+XRT_ABI_CATCH_RETURN_FALSE
+
+extern "C" bool
 math_relation_accumulate_transform(const struct xrt_pose* transform,
                                    struct xrt_space_relation* in_out_relation)
+    XRT_ABI_TRY
 {
 	assert(transform != nullptr);
 	assert(in_out_relation != nullptr);
 
 	// No modifying the validity flags here.
 	transform_accumulate_pose(*transform, *in_out_relation);
-}
 
-extern "C" void
+	return true;
+}
+XRT_ABI_CATCH_RETURN_FALSE
+
+extern "C" bool
 math_relation_accumulate_relation(
     const struct xrt_space_relation* additional_relation,
-    struct xrt_space_relation* in_out_relation)
+    struct xrt_space_relation* in_out_relation) XRT_ABI_TRY
 {
 	assert(additional_relation != NULL);
 	assert(in_out_relation != NULL);
@@ -422,13 +455,16 @@ math_relation_accumulate_relation(
 		map_vec3(in_out_relation->angular_acceleration) +=
 		    map_vec3(additional_relation->angular_acceleration);
 	}
-}
 
-extern "C" void
+	return true;
+}
+XRT_ABI_CATCH_RETURN_FALSE
+
+extern "C" bool
 math_relation_openxr_locate(const struct xrt_pose* space_pose,
                             const struct xrt_space_relation* relative_relation,
                             const struct xrt_pose* base_space_pose,
-                            struct xrt_space_relation* result)
+                            struct xrt_space_relation* result) XRT_ABI_TRY
 {
 	assert(space_pose != NULL);
 	assert(relative_relation != NULL);
@@ -452,4 +488,7 @@ math_relation_openxr_locate(const struct xrt_pose* space_pose,
 	math_relation_accumulate_transform(&spc, &accumulating_relation);
 
 	*result = accumulating_relation;
+
+	return true;
 }
+XRT_ABI_CATCH_RETURN_FALSE

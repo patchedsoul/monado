@@ -8,13 +8,17 @@
  */
 
 #include <string>
+
+#include "util/u_abi.h"
+
 #include "m_api.h"
 
 
 extern "C" size_t
-math_hash_string(const char *str_c, size_t length)
+math_hash_string(const char *str_c, size_t length) XRT_ABI_TRY
 {
 	std::string str = std::string(str_c, length);
 	std::hash<std::string> str_hash;
 	return str_hash(str);
 }
+XRT_ABI_CATCH_RETURN(0)
