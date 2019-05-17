@@ -21,6 +21,7 @@
 #include <string.h>
 #include <assert.h>
 #include <type_traits>
+#include <exception>
 
 #include "xrt/xrt_device.h"
 #include "math/m_api.h"
@@ -32,6 +33,17 @@
 
 #include "hdk_device.h"
 
+#define HDK_CATCH_RETURN_NOTHING()                                             \
+	catch (std::exception const &e)                                        \
+	{                                                                      \
+		fprintf(stderr, "%s: caught exceptions: %s\n", __func__,       \
+		        e.what());                                             \
+	}                                                                      \
+	catch (...)                                                            \
+	{                                                                      \
+		fprintf(stderr, "%s: caught unrecognized exception\n",         \
+		        __func__);                                             \
+	}
 
 /**
  * A fixed-point to float conversion function.
@@ -86,8 +98,7 @@ hdk_get_le_int16(uint8_t *&bufPtr)
 }
 
 static void
-hdk_device_destroy(struct xrt_device *xdev)
-{
+hdk_device_destroy(struct xrt_device *xdev) try {
 	struct hdk_device *hd = hdk_device(xdev);
 
 	if (hd->dev != NULL) {
@@ -97,6 +108,7 @@ hdk_device_destroy(struct xrt_device *xdev)
 
 	free(hd);
 }
+HDK_CATCH_RETURN_NOTHING()
 
 static void
 hdk_device_update_inputs(struct xrt_device *xdev,
@@ -110,8 +122,7 @@ hdk_device_get_tracked_pose(struct xrt_device *xdev,
                             enum xrt_input_name name,
                             struct time_state *timekeeping,
                             int64_t *out_timestamp,
-                            struct xrt_space_relation *out_relation)
-{
+                            struct xrt_space_relation *out_relation) try {
 	struct hdk_device *hd = hdk_device(xdev);
 
 	if (name != XRT_INPUT_GENERIC_HEAD_RELATION) {
@@ -212,14 +223,19 @@ hdk_device_get_tracked_pose(struct xrt_device *xdev,
 	HDK_SPEW(hd, "GET_TRACKED_POSE (%f, %f, %f, %f) ANG_VEL (%f, %f, %f)",
 	         quat.x, quat.y, quat.z, quat.w, ang_vel_quat.x, ang_vel_quat.y,
 	         ang_vel_quat.z);
+} catch (std::exception const &e) {
+	fprintf(stderr, "%s: caught exceptions: %s\n", __func__, e.what());
+	out_relation->relation_flags = xrt_space_relation_flags(0);
+} catch (...) {
+	fprintf(stderr, "%s: caught unrecognized exception\n", __func__);
+	out_relation->relation_flags = xrt_space_relation_flags(0);
 }
 
 static void
 hdk_device_get_view_pose(struct xrt_device *xdev,
                          struct xrt_vec3 *eye_relation,
                          uint32_t view_index,
-                         struct xrt_pose *out_pose)
-{
+                         struct xrt_pose *out_pose) try {
 	struct xrt_pose pose = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 	bool adjust = view_index == 0;
 
@@ -240,6 +256,7 @@ hdk_device_get_view_pose(struct xrt_device *xdev,
 
 	*out_pose = pose;
 }
+HDK_CATCH_RETURN_NOTHING()
 
 #define HDK_DEBUG_INT(hd, name, val) HDK_DEBUG(hd, "\t%s = %u", name, val)
 
@@ -259,7 +276,7 @@ struct hdk_device *
 hdk_device_create(struct os_hid_device *dev,
                   enum HDK_VARIANT variant,
                   bool print_spew,
-                  bool print_debug)
+                  bool print_debug) try
 {
 	enum u_device_alloc_flags flags = (enum u_device_alloc_flags)(
 	    U_DEVICE_ALLOC_HMD | U_DEVICE_ALLOC_TRACKING_NONE);
@@ -447,4 +464,10 @@ hdk_device_create(struct os_hid_device *dev,
 	}
 
 	return hd;
+} catch (std::exception const &e) {
+	fprintf(stderr, "%s: caught exceptions: %s\n", __func__, e.what());
+	return nullptr;
+} catch (...) {
+	fprintf(stderr, "%s: caught unrecognized exception\n", __func__);
+	return nullptr;
 }
