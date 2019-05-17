@@ -77,7 +77,7 @@ u_hashset_erase_c_str(struct u_hashset *hs, const char *c_str);
  *
  * @ingroup aux_util
  */
-void
+int
 u_hashset_clear_and_call_for_each(struct u_hashset *hs,
                                   u_hashset_callback cb,
                                   void *priv);

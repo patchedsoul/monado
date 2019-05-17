@@ -9,9 +9,12 @@
 
 #include "util/u_hashset.h"
 
+#include "util/u_abi.h"
+
 #include <cstring>
 #include <unordered_map>
 #include <vector>
+#include <exception>
 
 
 /*
@@ -25,7 +28,6 @@ struct u_hashset
 	std::unordered_map<std::string, struct u_hashset_item *> map = {};
 };
 
-
 /*
  *
  * "Exported" functions.
@@ -33,26 +35,28 @@ struct u_hashset
  */
 
 extern "C" int
-u_hashset_create(struct u_hashset **out_hashset)
+u_hashset_create(struct u_hashset **out_hashset) XRT_ABI_TRY
 {
 	auto hs = new u_hashset;
 	*out_hashset = hs;
 	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
-u_hashset_destroy(struct u_hashset **hs)
+u_hashset_destroy(struct u_hashset **hs) XRT_ABI_TRY
 {
 	delete *hs;
 	*hs = NULL;
 	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
 u_hashset_find_str(struct u_hashset *hs,
                    const char *str,
                    size_t length,
-                   struct u_hashset_item **out_item)
+                   struct u_hashset_item **out_item) XRT_ABI_TRY
 {
 	std::string key = std::string(str, length);
 	auto search = hs->map.find(key);
@@ -63,51 +67,61 @@ u_hashset_find_str(struct u_hashset *hs,
 	}
 	return -1;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
 u_hashset_find_c_str(struct u_hashset *hs,
                      const char *c_str,
-                     struct u_hashset_item **out_item)
+                     struct u_hashset_item **out_item) XRT_ABI_TRY
 {
 	size_t length = strlen(c_str);
 	return u_hashset_find_str(hs, c_str, length, out_item);
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
-u_hashset_insert_item(struct u_hashset *hs, struct u_hashset_item *item)
+u_hashset_insert_item(struct u_hashset *hs,
+                      struct u_hashset_item *item) XRT_ABI_TRY
 {
 	std::string key = std::string(item->c_str, item->length);
 	hs->map[key] = item;
 	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
-u_hashset_erase_item(struct u_hashset *hs, struct u_hashset_item *item)
+u_hashset_erase_item(struct u_hashset *hs,
+                     struct u_hashset_item *item) XRT_ABI_TRY
 {
 	std::string key = std::string(item->c_str, item->length);
 	hs->map.erase(key);
 	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
-u_hashset_erase_str(struct u_hashset *hs, const char *str, size_t length)
+u_hashset_erase_str(struct u_hashset *hs,
+                    const char *str,
+                    size_t length) XRT_ABI_TRY
 {
 	std::string key = std::string(str, length);
 	hs->map.erase(key);
 	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
 
 extern "C" int
-u_hashset_erase_c_str(struct u_hashset *hs, const char *c_str)
+u_hashset_erase_c_str(struct u_hashset *hs, const char *c_str) XRT_ABI_TRY
 {
 	size_t length = strlen(c_str);
 	return u_hashset_erase_str(hs, c_str, length);
 }
+XRT_ABI_CATCH_RETURN(-1)
 
-extern "C" void
+extern "C" int
 u_hashset_clear_and_call_for_each(struct u_hashset *hs,
                                   u_hashset_callback cb,
-                                  void *priv)
+                                  void *priv) XRT_ABI_TRY
 {
 	std::vector<struct u_hashset_item *> tmp;
 	tmp.reserve(hs->map.size());
@@ -121,4 +135,6 @@ u_hashset_clear_and_call_for_each(struct u_hashset *hs,
 	for (auto n : tmp) {
 		cb(n, priv);
 	}
+	return 0;
 }
+XRT_ABI_CATCH_RETURN(-1)
