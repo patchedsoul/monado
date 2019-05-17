@@ -258,20 +258,6 @@ hdk_device_get_view_pose(struct xrt_device *xdev,
 }
 HDK_CATCH_RETURN_NOTHING()
 
-#define HDK_DEBUG_INT(hd, name, val) HDK_DEBUG(hd, "\t%s = %u", name, val)
-
-#define HDK_DEBUG_MM(hd, name, val)                                            \
-	HDK_DEBUG(hd, "\t%s = %i.%02imm", name, (int32_t)(val * 1000.f),       \
-	          abs((int32_t)(val * 100000.f)) % 100)
-
-#define HDK_DEBUG_ANGLE(hd, name, val)                                         \
-	HDK_DEBUG(hd, "\t%s = %f (%i)", name, val,                             \
-	          (int32_t)(val * (180 / M_PI)))
-
-#define HDK_DEBUG_MAT2X2(hd, name, rot)                                        \
-	HDK_DEBUG(hd, "\t%s = {%f, %f} {%f, %f}", name, rot.v[0], rot.v[1],    \
-	          rot.v[2], rot.v[3])
-
 struct hdk_device *
 hdk_device_create(struct os_hid_device *dev,
                   enum HDK_VARIANT variant,
