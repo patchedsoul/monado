@@ -131,12 +131,19 @@ quat_ln(Eigen::Quaternion<Scalar> const &quat)
 
 } // namespace
 
-extern "C" void
+
+#ifndef XRT_DOXYGEN
+#define ABI_CATCH                                                              \
+	catch (...)                                                            \
+	{                                                                      \
+		return false;                                                  \
+	}
+#endif
+extern "C" bool
 math_quat_integrate_velocity(const struct xrt_quat *quat,
                              const struct xrt_vec3 *ang_vel,
                              const float dt,
-                             struct xrt_quat *result)
-{
+                             struct xrt_quat *result) try {
 	assert(quat != NULL);
 	assert(ang_vel != NULL);
 	assert(result != NULL);
@@ -147,14 +154,16 @@ math_quat_integrate_velocity(const struct xrt_quat *quat,
 	Eigen::Quaternionf incremental_rotation =
 	    quat_exp(map_vec3(*ang_vel) * dt * 0.5f).normalized();
 	map_quat(*result) = q * incremental_rotation;
-}
 
-extern "C" void
+	return true;
+}
+ABI_CATCH
+
+extern "C" bool
 math_quat_finite_difference(const struct xrt_quat *quat0,
                             const struct xrt_quat *quat1,
                             const float dt,
-                            struct xrt_vec3 *out_ang_vel)
-{
+                            struct xrt_vec3 *out_ang_vel) try {
 	assert(quat0 != NULL);
 	assert(quat1 != NULL);
 	assert(out_ang_vel != NULL);
@@ -164,4 +173,7 @@ math_quat_finite_difference(const struct xrt_quat *quat0,
 	Eigen::Quaternionf inc_quat =
 	    map_quat(*quat1) * map_quat(*quat0).conjugate();
 	map_vec3(*out_ang_vel) = 2.f * quat_ln(inc_quat);
+
+	return true;
 }
+ABI_CATCH
