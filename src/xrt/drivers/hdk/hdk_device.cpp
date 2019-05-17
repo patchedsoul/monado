@@ -24,9 +24,10 @@
 
 #include "xrt/xrt_device.h"
 #include "math/m_api.h"
+#include "util/u_abi.h"
 #include "util/u_debug.h"
-#include "util/u_misc.h"
 #include "util/u_device.h"
+#include "util/u_misc.h"
 #include "util/u_time.h"
 #include "os/os_hid.h"
 
@@ -86,7 +87,7 @@ hdk_get_le_int16(uint8_t *&bufPtr)
 }
 
 static void
-hdk_device_destroy(struct xrt_device *xdev)
+hdk_device_destroy(struct xrt_device *xdev) XRT_ABI_TRY
 {
 	struct hdk_device *hd = hdk_device(xdev);
 
@@ -97,6 +98,7 @@ hdk_device_destroy(struct xrt_device *xdev)
 
 	free(hd);
 }
+XRT_ABI_CATCH
 
 static void
 hdk_device_update_inputs(struct xrt_device *xdev,
@@ -110,7 +112,7 @@ hdk_device_get_tracked_pose(struct xrt_device *xdev,
                             enum xrt_input_name name,
                             struct time_state *timekeeping,
                             int64_t *out_timestamp,
-                            struct xrt_space_relation *out_relation)
+                            struct xrt_space_relation *out_relation) XRT_ABI_TRY
 {
 	struct hdk_device *hd = hdk_device(xdev);
 
@@ -213,12 +215,22 @@ hdk_device_get_tracked_pose(struct xrt_device *xdev,
 	         quat.x, quat.y, quat.z, quat.w, ang_vel_quat.x, ang_vel_quat.y,
 	         ang_vel_quat.z);
 }
+catch (std::exception const &e)
+{
+	fprintf(stderr, "%s: caught exceptions: %s\n", __func__, e.what());
+	out_relation->relation_flags = xrt_space_relation_flags(0);
+}
+catch (...)
+{
+	fprintf(stderr, "%s: caught unrecognized exception\n", __func__);
+	out_relation->relation_flags = xrt_space_relation_flags(0);
+}
 
 static void
 hdk_device_get_view_pose(struct xrt_device *xdev,
                          struct xrt_vec3 *eye_relation,
                          uint32_t view_index,
-                         struct xrt_pose *out_pose)
+                         struct xrt_pose *out_pose) XRT_ABI_TRY
 {
 	struct xrt_pose pose = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 	bool adjust = view_index == 0;
@@ -240,6 +252,7 @@ hdk_device_get_view_pose(struct xrt_device *xdev,
 
 	*out_pose = pose;
 }
+XRT_ABI_CATCH
 
 #define HDK_DEBUG_INT(hd, name, val) HDK_DEBUG(hd, "\t%s = %u", name, val)
 
@@ -259,7 +272,7 @@ struct hdk_device *
 hdk_device_create(struct os_hid_device *dev,
                   enum HDK_VARIANT variant,
                   bool print_spew,
-                  bool print_debug)
+                  bool print_debug) XRT_ABI_TRY
 {
 	enum u_device_alloc_flags flags = (enum u_device_alloc_flags)(
 	    U_DEVICE_ALLOC_HMD | U_DEVICE_ALLOC_TRACKING_NONE);
@@ -448,3 +461,4 @@ hdk_device_create(struct os_hid_device *dev,
 
 	return hd;
 }
+XRT_ABI_CATCH_RETURN(nullptr)
