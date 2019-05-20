@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+typedef enum tracker_calibration_mode {CALIBRATION_MODE_NONE,CALIBRATION_MODE_CHESSBOARD} tracker_calibration_mode_t;
+
 typedef struct tracker_measurement {
 	struct xrt_pose pose;
 	bool has_position;
@@ -29,6 +31,7 @@ typedef struct tracker_mono_configuration {
 	camera_calibration_t calibration;
 	frame_format_t format;
 	uint64_t source_id;
+	tracker_calibration_mode_t calibration_mode; // our tracker can run in calibration mode.
     } tracker_mono_configuration_t;
 
 typedef struct tracker_stereo_configuration {
@@ -41,6 +44,7 @@ typedef struct tracker_stereo_configuration {
     bool split_left; // single-frame stereo will split the left frame
     frame_rect_t l_rect;
     frame_rect_t r_rect;
+	tracker_calibration_mode_t calibration_mode; // our tracker can run in calibration mode.
 
 } tracker_stereo_configuration_t;
 
@@ -49,6 +53,8 @@ typedef enum tracker_type {
 	TRACKER_TYPE_SPHERE_STEREO,
     TRACKER_TYPE_SPHERE_MONO
 } tracker_type_t;
+
+//tracker interface
 
 typedef struct _tracker_instance {
      tracker_type_t tracker_type;

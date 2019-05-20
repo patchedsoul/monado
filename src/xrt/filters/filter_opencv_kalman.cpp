@@ -37,7 +37,7 @@ bool filter_opencv_kalman_set_state(filter_instance_t* inst,filter_state_t* stat
 }
 bool filter_opencv_kalman_predict_state(filter_instance_t* inst, filter_state_t* state, timepoint_ns time) {
 	filter_opencv_kalman_instance_t* internal = (filter_opencv_kalman_instance_t*)inst->internal_instance;
-	printf("getting filtered pose\n");
+	//printf("getting filtered pose\n");
 	if (! internal->running) {
 		return false;
 	}

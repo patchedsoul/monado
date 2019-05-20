@@ -426,7 +426,7 @@ uint32_t uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,uv
 
                             temp_alloc = realloc(*sds,(sd_count + 3) * sizeof(uvc_source_descriptor_t));
 							if (! temp_alloc) {
-							printf("ERROR: could not allocate memory");
+							printf("ERROR: could not allocate memory\n");
 							exit(1);
 							}
 
@@ -466,7 +466,7 @@ uint32_t uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,uv
 
 							temp_alloc = realloc(*sds,(sd_count + 2) * sizeof(uvc_source_descriptor_t));
 							if (! temp_alloc) {
-								printf("ERROR: could not allocate memory");
+								printf("ERROR: could not allocate memory\n");
 								exit(1);
 							}
 							*sds = temp_alloc;

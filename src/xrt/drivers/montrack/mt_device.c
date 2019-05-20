@@ -183,7 +183,7 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 
 	// TODO - add IMU input source -> filter
 
-	md->frameserver_count=1; // this driver uses a single camera source
+	md->frameserver_count=1; // this driver uses a single, composite stereo, camera source
 	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
 	// ask our frameserver for available sources - note this will return a
 	// type-specific struct that we need to deal with e.g. UVC-specific, FFMPEG-specific.
@@ -209,19 +209,16 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =descriptors[i].source_id;
 
-				float l_camera_size[2] = ELP_60FPS_SIZE;
-				float l_camera_intr[INTRINSICS_SIZE] = ELP_60FPS_INTR_L;
-				float l_camera_dist[DISTORTION_SIZE] = ELP_60FPS_DIST_L;
-				float r_camera_size[2] = ELP_60FPS_SIZE;
-				float r_camera_intr[INTRINSICS_SIZE] = ELP_60FPS_INTR_R;
-				float r_camera_dist[DISTORTION_SIZE] = ELP_60FPS_DIST_R;
+				//TODO: check if we have saved calibration data for this device
+				//if not, we need to set the tracker to calibration mode
+				tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
 
 				//50/50 horizontal split - may need to put this in calibration data
 
 				struct xrt_vec2 ltl = {0.0f,0.0f};
-				struct xrt_vec2 lbr = {640.0f,480.0f};
-				struct xrt_vec2 rtl = {640.0f,0.0f};
-				struct xrt_vec2 rbr = {1280.0f,480.0f};
+				struct xrt_vec2 lbr = {descriptors[i].width / 2.0f,descriptors[i].height};
+				struct xrt_vec2 rtl = {descriptors[i].width / 2.0f,0.0f};
+				struct xrt_vec2 rbr = {descriptors[i].width ,descriptors[i].height};
 
 				tracker_config.l_rect.tl=ltl;
 				tracker_config.l_rect.br=lbr;
@@ -229,15 +226,6 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 				tracker_config.r_rect.br=rbr;
 
 				tracker_config.split_left = true;
-
-				tracker_config.l_calibration.calib_capture_size[0]=l_camera_size[0];
-				tracker_config.l_calibration.calib_capture_size[1]=l_camera_size[1];
-				memcpy(tracker_config.l_calibration.intrinsics,l_camera_intr,sizeof(tracker_config.l_calibration.intrinsics));
-				memcpy(tracker_config.l_calibration.distortion,l_camera_dist,sizeof(tracker_config.l_calibration.distortion));
-				tracker_config.r_calibration.calib_capture_size[0]=r_camera_size[0];
-				tracker_config.r_calibration.calib_capture_size[1]=r_camera_size[1];
-				memcpy(tracker_config.r_calibration.intrinsics,r_camera_intr,sizeof(tracker_config.r_calibration.intrinsics));
-				memcpy(tracker_config.r_calibration.distortion,r_camera_dist,sizeof(tracker_config.r_calibration.distortion));
 
 				source_index =i;
 			}

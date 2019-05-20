@@ -86,6 +86,7 @@ target_link_libraries(${RUNTIME_TARGET}
 	/usr/local/lib/libavcodec.so
 	/usr/local/lib/libavutil.so
 	/usr/local/lib64/libopencv_core.so
+	/usr/local/lib64/libopencv_calib3d.so
 	/usr/local/lib64/libopencv_highgui.so
 	/usr/local/lib64/libopencv_imgproc.so
 	/usr/local/lib64/libopencv_imgcodecs.so

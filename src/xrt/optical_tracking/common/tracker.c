@@ -38,7 +38,7 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 			    return NULL;
 			break;
 		}
-		//TODO: make this optional
+		//TODO: make this optional - we should use pipewire or similar here
 		// Create debug socket file descriptor
         if ((i->debug_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             printf("ERROR: socket creation failed\n");
