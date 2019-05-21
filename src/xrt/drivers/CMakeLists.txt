@@ -25,6 +25,7 @@ set (MONTRACK_SOURCE_FILES
 	montrack/mt_device.h
 	montrack/mt_interface.h
 	montrack/mt_prober.c
+	montrack/mt_events.h
 	)
 # Use OBJECT to not create a archive, since it just gets in the way.
 add_library(drv_montrack OBJECT ${MONTRACK_SOURCE_FILES})

@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <../auxiliary/math/m_api.h>
 
+#include "../../drivers/montrack/mt_events.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,22 +49,17 @@ typedef struct capture_parameters{
 // frameserver
 
 typedef enum frameserver_type { FRAMESERVER_TYPE_NONE,FRAMESERVER_TYPE_FFMPEG,FRAMESERVER_TYPE_UVC,FRAMESERVER_TYPE_V4L2 } frameserver_type_t;
-typedef enum frameserver_event_type {FRAMESERVER_EVENT_NONE, FRAMESERVER_EVENT_GOTFRAME} frameserver_event_type_t;
 
 //Interface types
 typedef void* frameserver_internal_instance_ptr;
 typedef void* frameserver_source_descriptor_ptr;
 typedef void* frameserver_instance_ptr;
 
-typedef struct frameserver_event {
-	frameserver_type_t type;
-	// extra data to go along with events
-	// can be added here
-} frameserver_event_t;
+
 
 
 typedef void (*frame_consumer_callback_func)(void* instance, frame_t* frame);
-typedef void (*event_consumer_callback_func)(void* instance, frameserver_event_t event);
+
 
 // Frameserver API
 

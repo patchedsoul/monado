@@ -204,7 +204,7 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 		return;
 	}
 
-	if (! internal->is_configured) {
+	/*if (! internal->is_configured) {
 		//defaults - auto-anything off
 		uvc_set_ae_mode(internal->device_handle, 1);
 		uvc_set_ae_priority(internal->device_handle,0);
@@ -212,7 +212,7 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 		uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 100);
 		uvc_set_gain(internal->device_handle,internal->capture_params.gain * 100);
 		internal->is_configured = true;
-	}
+	}*/
 
 	frame_t f = {}; //our buffer
 	f.source_id = internal->source_descriptor.source_id;
@@ -240,6 +240,18 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 
 	uvc_frame_t* frame = uvc_allocate_frame(internal->stream_ctrl.dwMaxVideoFrameSize);
 	while (internal->is_running) {
+
+		//if our config is invalidated at runtime, recofigure
+		if (! internal->is_configured) {
+			//defaults - auto-anything off
+			uvc_set_ae_mode(internal->device_handle, 1);
+			uvc_set_ae_priority(internal->device_handle,0);
+			//we may need to enumerate the control range.. assume 0-100
+			uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 100);
+			uvc_set_gain(internal->device_handle,internal->capture_params.gain * 100);
+			internal->is_configured = true;
+		}
+
 		res =  uvc_stream_get_frame	(internal->stream_handle, &frame,0);
         if (res < 0) {
 			printf("ERROR: stream_get_frame %s\n",uvc_strerror(res));
@@ -349,8 +361,8 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
                         default:
                             printf("ERROR: Unknown stream format\n");
                     }
-                frameserver_event_t e ={};
-                e.type = FRAMESERVER_EVENT_GOTFRAME;
+				driver_event_t e ={};
+				e.type =EVENT_FRAMESERVER_GOTFRAME;
                 if (internal->event_target_callback){
 					internal->event_target_callback(internal->event_target_instance,e);
                 }

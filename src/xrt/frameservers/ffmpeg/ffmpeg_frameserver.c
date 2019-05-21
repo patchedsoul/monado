@@ -227,8 +227,8 @@ void ffmpeg_stream_run(frameserver_instance_t* inst)
 				// Y plane.
 				f.data = internal->av_current_frame->data[0];
 				internal->frame_target_callback(internal->frame_target_instance,&f);
-				frameserver_event_t e ={};
-				e.type = FRAMESERVER_EVENT_GOTFRAME;
+				driver_event_t e ={};
+				e.type = EVENT_FRAMESERVER_GOTFRAME;
 				if (internal->event_target_callback){
 					internal->event_target_callback(internal->event_target_instance,e);
 				}

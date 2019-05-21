@@ -5,6 +5,9 @@ typedef struct tracker3D_sphere_mono_instance {
 	bool configured;
 	measurement_consumer_callback_func measurement_target_callback;
 	void* measurement_target_instance; //where we send our measurements
+	event_consumer_callback_func event_target_callback;
+	void* event_target_instance; //where we send our measurements
+
 	camera_calibration_t calibration;
 	tracked_object_t tracked_object;
 	tracked_blob_t tracked_blob;
@@ -214,4 +217,8 @@ void tracker3D_sphere_mono_register_measurement_callback (tracker_instance_t* in
 	internal->measurement_target_instance = target_instance;
 	internal->measurement_target_callback = target_func;
 }
-
+void tracker3D_sphere_mono_register_event_callback (tracker_instance_t* inst, void* target_instance, event_consumer_callback_func target_func) {
+	tracker3D_sphere_mono_instance_t* internal = (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
+	internal->event_target_instance = target_instance;
+	internal->event_target_callback = target_func;
+}

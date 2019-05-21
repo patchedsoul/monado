@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 typedef enum tracker_calibration_mode {CALIBRATION_MODE_NONE,CALIBRATION_MODE_CHESSBOARD} tracker_calibration_mode_t;
+typedef enum tracker_event_desc {TRACKER_EVENT_NONE,TRACKER_EVENT_RECONFIGURED} tracker_event_desc_t;
 
 typedef struct tracker_measurement {
 	struct xrt_pose pose;
@@ -21,12 +22,22 @@ typedef struct tracker_measurement {
 	timepoint_ns timestamp;
 } tracker_measurement_t;
 
+typedef enum tracker_type {
+	TRACKER_TYPE_NONE,
+	TRACKER_TYPE_SPHERE_STEREO,
+	TRACKER_TYPE_SPHERE_MONO
+} tracker_type_t;
+
+typedef struct tracker_event {
+	tracker_type_t type;
+	tracker_event_desc_t event;
+} tracker_event_t;
+
 typedef void* tracker_instance_ptr;
 typedef void* tracker_internal_instance_ptr;
 typedef void* tracker_configuration_ptr;
 
 typedef void (*measurement_consumer_callback_func)(void* instance, tracker_measurement_t* measurement);
-
 typedef struct tracker_mono_configuration {
 	camera_calibration_t calibration;
 	frame_format_t format;
@@ -48,11 +59,7 @@ typedef struct tracker_stereo_configuration {
 
 } tracker_stereo_configuration_t;
 
-typedef enum tracker_type {
-    TRACKER_TYPE_NONE,
-	TRACKER_TYPE_SPHERE_STEREO,
-    TRACKER_TYPE_SPHERE_MONO
-} tracker_type_t;
+
 
 //tracker interface
 
@@ -64,6 +71,7 @@ typedef struct _tracker_instance {
 	 bool (*tracker_get_poses)(tracker_instance_ptr inst,tracked_object_t* tracked_objects,uint32_t* count);
 	 bool (*tracker_has_new_poses)(tracker_instance_ptr inst);
 	 void (*tracker_register_measurement_callback)(tracker_instance_ptr inst, void* target_instance, measurement_consumer_callback_func target_func);
+	 void (*tracker_register_event_callback)(tracker_instance_ptr inst, void* target_instance, event_consumer_callback_func target_func);
 	 bool (*tracker_configure)(tracker_instance_ptr inst, tracker_configuration_ptr config);
 	 tracker_internal_instance_ptr internal_instance;
      int debug_fd, debug_socket, socket_read;

@@ -8,6 +8,9 @@ typedef struct tracker3D_sphere_stereo_instance {
 	tracker_stereo_configuration_t configuration;
 	measurement_consumer_callback_func measurement_target_callback;
 	void* measurement_target_instance; //where we send our measurements
+	event_consumer_callback_func event_target_callback;
+	void* event_target_instance; //where we send our events
+
 	camera_calibration_t l_calibration;
 	camera_calibration_t r_calibration;
 
@@ -108,9 +111,20 @@ bool tracker3D_sphere_stereo_get_debug_frame(tracker_instance_t* inst,frame_t* f
 	return true;
 }
 capture_parameters_t tracker3D_sphere_stereo_get_capture_params(tracker_instance_t* inst) {
+	tracker3D_sphere_stereo_instance_t* internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	capture_parameters_t cp={};
-	cp.exposure = 0.5f;
-	cp.gain=0.5f;
+	switch (internal->configuration.calibration_mode) {
+	    case CALIBRATION_MODE_CHESSBOARD:
+		    cp.exposure = 0.5f;
+			cp.gain=0.5f;
+		    break;
+	    default:
+		    cp.exposure = 0.1f;
+			cp.gain=0.1f;
+
+		break;
+	}
+
 	return cp;
 }
 
@@ -217,8 +231,6 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
 	cv::KeyPoint blob;
 	tracker_measurement_t m = {};
-	//clear our debug image
-	cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
 
 	//undistort our images
 
@@ -227,6 +239,10 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
 	//cv::undistort(internal->l_frame_gray,l_frame_u_gray,internal->l_intrinsics,internal->l_distortion);
 	//cv::undistort(internal->r_frame_gray,r_frame_u_gray,internal->r_intrinsics,internal->r_distortion);
+
+	cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
+	cv::imwrite("/tmp/r_out.jpg",internal->r_frame_gray);
+
 
 	//do blob detection with our masks
 	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints,internal->l_mask_gray);
@@ -249,8 +265,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		r_blobs.push_back(blob.pt);
 	}
 
-	cv::drawKeypoints(internal->debug_rgb,internal->l_keypoints,internal->debug_rgb,cv::Scalar(128,255,32),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-	cv::drawKeypoints(internal->debug_rgb,internal->r_keypoints,internal->debug_rgb,cv::Scalar(32,128,255),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+	//cv::drawKeypoints(internal->debug_rgb,internal->l_keypoints,internal->debug_rgb,cv::Scalar(128,255,32),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+	//cv::drawKeypoints(internal->debug_rgb,internal->r_keypoints,internal->debug_rgb,cv::Scalar(32,128,255),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 
 
 	    cv::Mat world_points;
@@ -258,10 +274,35 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		cv::Mat l_undistorted,r_undistorted;
 
 		if (l_blobs.size() != 0 && (l_blobs.size() == r_blobs.size()) ) {
+			//clear our debug image
+			cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
 			cv::undistortPoints(l_blobs,l_undistorted,internal->l_intrinsics,internal->l_distortion);
 			cv::undistortPoints(r_blobs,r_undistorted,internal->r_intrinsics,internal->r_distortion);
 			cv::triangulatePoints(internal->l_projection,internal->r_projection,l_undistorted,r_undistorted,world_points);
-			std::cout << "triangulated" << world_points;
+			cv::Point2f img_point;
+			//std::cout << "l_undistorted_p" << l_undistorted;
+			//std::cout << "r_undistorted_p" << r_undistorted;
+
+			for (uint32_t i=0;i<world_points.rows;i++) {
+				img_point.x  = ( (l_undistorted.at<float>(i,0)+2.0) * internal->debug_rgb.cols ) - internal->debug_rgb.cols ;
+				img_point.y  =( (l_undistorted.at<float>(i,1)+2.0) * internal->debug_rgb.rows ) - internal->debug_rgb.rows ;
+				//std::cout << "l_undistorted" << img_point;
+
+				//cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(255,192,0));
+				img_point.x  = ( (r_undistorted.at<float>(i,0)+2.0) * internal->debug_rgb.cols) - internal->debug_rgb.cols ;
+				img_point.y  =( (r_undistorted.at<float>(i,1)+2.0) * internal->debug_rgb.rows) - internal->debug_rgb.rows ;
+				//std::cout << "r_undistorted" << img_point;
+
+				//cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(255,128,0));
+
+				//std::cout << "triangulated" << world_points;
+				img_point.x = ((world_points.at<float>(i,0) + 2.0) * internal->debug_rgb.cols /2 ) - internal->debug_rgb.cols/2 ;
+				img_point.y = ((world_points.at<float>(i,1)+2.0) * internal->debug_rgb.rows /2) - internal->debug_rgb.rows/2 ;
+				std::cout << "world" << img_point;
+				cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(0,255,0));
+
+			}
+
 		} else {
 			printf("mismatched L/R points\n");
 		}
@@ -348,8 +389,8 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	bool found_left = cv::findChessboardCorners(internal->l_frame_gray,board_size,l_chessboard_measured);
 	bool found_right = cv::findChessboardCorners(internal->r_frame_gray,board_size,r_chessboard_measured);
 
-	//cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
-	//cv::imwrite("/tmp/r_out.jpg",internal->r_frame_gray);
+	cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
+	cv::imwrite("/tmp/r_out.jpg",internal->r_frame_gray);
 
 	if ( found_left && found_right ){
 		printf("found chessboard\n");
@@ -370,6 +411,7 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 
 		if (internal->l_chessboards_measured.size() == MAX_CALIBRATION_SAMPLES)
 		{
+			//TODO - run this if coverage test passes
 			cv::Size image_size(internal->l_frame_gray.cols,internal->l_frame_gray.rows);
 			cv::Mat errors;
 
@@ -386,13 +428,21 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 
 			cv::stereoRectify(internal->l_intrinsics,internal->l_distortion,internal->r_intrinsics,internal->r_distortion,image_size,camera_rotation,camera_translation,internal->l_rotation,internal->r_rotation,internal->l_projection,internal->r_projection,internal->disparity_to_depth);
 
-			//cv::Mat rmap[2][2];
-			//cv::initUndistortRectifyMap(internal->l_intrinsics, internal->l_distortion, R1, P1, imageSize, CV_16SC2, rmap[0][0], rmap[0][1]);
-			//cv::initUndistortRectifyMap(internal->r_intrinsics, internal->r_distortion, R2, P2, imageSize, CV_16SC2, rmap[1][0], rmap[1][1]);
+			std::cout << "l_rotation" << internal->l_rotation;
+			std::cout << "l_projection" << internal->l_rotation;
 
+			std::cout << "r_rotation" << internal->r_rotation;
+			std::cout << "r_projection" << internal->r_rotation;
+
+
+			std::cout << "camera_translation" << camera_translation;
 			printf("calibrated cameras! setting tracking mode\n");
 			internal->calibrated=true;
 			internal->configuration.calibration_mode = CALIBRATION_MODE_NONE;
+			//send an event to notify our driver of the switch into tracking mode.
+			driver_event_t e ={};
+			e.type = EVENT_TRACKER_RECONFIGURED;
+			internal->event_target_callback(internal->event_target_instance,e);
 		}
 	}
 
@@ -457,3 +507,8 @@ void tracker3D_sphere_stereo_register_measurement_callback (tracker_instance_t* 
 	internal->measurement_target_callback = target_func;
 }
 
+void tracker3D_sphere_stereo_register_event_callback (tracker_instance_t* inst, void* target_instance, event_consumer_callback_func target_func) {
+	tracker3D_sphere_stereo_instance_t* internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
+	internal->event_target_instance = target_instance;
+	internal->event_target_callback = target_func;
+}

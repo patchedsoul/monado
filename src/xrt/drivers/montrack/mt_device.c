@@ -253,6 +253,7 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 	md->filter->filter_configure(md->filter,&filter_config);
 	//connect our tracker to our filter
 	md->tracker->tracker_register_measurement_callback(md->tracker,md->filter,md->filter->filter_queue);
+	md->tracker->tracker_register_event_callback(md->tracker,md,mt_handle_event);
 
 	// now we can configure our frameserver and start the stream
 
@@ -265,7 +266,24 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 }
 
 
+void mt_handle_event(mt_device_t* md, driver_event_t e){
+	switch (e.type){
+	case EVENT_TRACKER_RECONFIGURED:
+		switch (md->tracker->tracker_type){
+		    //TODO: handle reconfiguring multiple devices for stereo tracker
+		    case TRACKER_TYPE_SPHERE_STEREO:
+		    case TRACKER_TYPE_SPHERE_MONO:
+			    md->frameservers[0]->frameserver_configure_capture(md->frameservers[0],md->tracker->tracker_get_capture_params(md->tracker));
+			    break;
+		    default:
+			    break;
 
+		}
+		break;
+	default:
+		break;
+	}
+}
 
 void dummy_init_mt_device(mt_device_t* md){
 	//if this stuff isn't filled in we crash.

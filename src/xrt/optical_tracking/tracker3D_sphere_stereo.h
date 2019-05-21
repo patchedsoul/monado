@@ -29,6 +29,7 @@ bool tracker3D_sphere_stereo_get_poses(tracker_instance_t* inst,tracked_object_t
 bool tracker3D_sphere_stereo_new_poses(tracker_instance_t* inst);
 bool tracker3D_sphere_stereo_configure(tracker_instance_t* inst, tracker_stereo_configuration_t* config);
 void tracker3D_sphere_stereo_register_measurement_callback (tracker_instance_t* inst, void* target_instance, measurement_consumer_callback_func target_func);
+void tracker3D_sphere_stereo_register_event_callback (tracker_instance_t* inst, void* target_instance, event_consumer_callback_func target_func);
 
 static bool tracker3D_sphere_stereo_track(tracker_instance_t* inst);
 static bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst);
