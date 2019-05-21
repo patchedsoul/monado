@@ -25,7 +25,6 @@ typedef struct tracker3D_sphere_stereo_instance {
 	//these components hold no state so we can use a single instance for l and r ?
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
 	cv::Ptr<cv::BackgroundSubtractorMOG2> background_subtractor;
-	bool split_left;
 	cv::Mat l_frame_gray;
 	cv::Mat r_frame_gray;
 	cv::Mat l_mask_gray;
@@ -119,10 +118,9 @@ capture_parameters_t tracker3D_sphere_stereo_get_capture_params(tracker_instance
 			cp.gain=0.5f;
 		    break;
 	    default:
-		    cp.exposure = 0.1f;
-			cp.gain=0.1f;
-
-		break;
+		    cp.exposure = 0.01f;
+			cp.gain=0.01f;
+		    break;
 	}
 
 	return cp;
@@ -184,11 +182,10 @@ bool tracker3D_sphere_stereo_queue(tracker_instance_t* inst,frame_t* frame) {
 
 
 	}
-	if (frame->source_id == internal->configuration.r_source_id) {
+	if (frame->source_id == internal->configuration.r_source_id && internal->configuration.split_left ==false) {
 		internal->r_keypoints.clear();
 		internal->got_right=true;
 		memcpy(internal->r_frame_gray.data,frame->data,frame->size_bytes);
-
 	}
 
 	//we have our pair of frames, now we can process them - we should do this async, rather than in queue
@@ -210,7 +207,7 @@ bool tracker3D_sphere_stereo_queue(tracker_instance_t* inst,frame_t* frame) {
 
 bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
-	printf("tracking...\n");
+	//printf("tracking...\n");
 	tracker3D_sphere_stereo_instance_t* internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
@@ -232,17 +229,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	cv::KeyPoint blob;
 	tracker_measurement_t m = {};
 
-	//undistort our images
-
-	//cv::Mat l_frame_u_gray(internal->l_frame_gray.rows,internal->l_frame_gray.cols,internal->l_frame_gray.type());
-	//cv::Mat r_frame_u_gray(internal->r_frame_gray.rows,internal->r_frame_gray.cols,internal->r_frame_gray.type());
-
-	//cv::undistort(internal->l_frame_gray,l_frame_u_gray,internal->l_intrinsics,internal->l_distortion);
-	//cv::undistort(internal->r_frame_gray,r_frame_u_gray,internal->r_intrinsics,internal->r_distortion);
-
 	cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out.jpg",internal->r_frame_gray);
-
 
 	//do blob detection with our masks
 	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints,internal->l_mask_gray);
@@ -276,35 +264,27 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		if (l_blobs.size() != 0 && (l_blobs.size() == r_blobs.size()) ) {
 			//clear our debug image
 			cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
-			cv::undistortPoints(l_blobs,l_undistorted,internal->l_intrinsics,internal->l_distortion);
-			cv::undistortPoints(r_blobs,r_undistorted,internal->r_intrinsics,internal->r_distortion);
+			cv::undistortPoints(l_blobs,l_undistorted,internal->l_intrinsics,internal->l_distortion,cv::noArray(),internal->l_intrinsics);
+			cv::undistortPoints(r_blobs,r_undistorted,internal->r_intrinsics,internal->r_distortion,cv::noArray(),internal->r_intrinsics);
 			cv::triangulatePoints(internal->l_projection,internal->r_projection,l_undistorted,r_undistorted,world_points);
 			cv::Point2f img_point;
-			//std::cout << "l_undistorted_p" << l_undistorted;
-			//std::cout << "r_undistorted_p" << r_undistorted;
+			std::cout << "l_undistorted" << l_undistorted;
+			std::cout << "r_undistorted" << r_undistorted;
 
-			for (uint32_t i=0;i<world_points.rows;i++) {
-				img_point.x  = ( (l_undistorted.at<float>(i,0)+2.0) * internal->debug_rgb.cols ) - internal->debug_rgb.cols ;
-				img_point.y  =( (l_undistorted.at<float>(i,1)+2.0) * internal->debug_rgb.rows ) - internal->debug_rgb.rows ;
-				//std::cout << "l_undistorted" << img_point;
-
-				//cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(255,192,0));
-				img_point.x  = ( (r_undistorted.at<float>(i,0)+2.0) * internal->debug_rgb.cols) - internal->debug_rgb.cols ;
-				img_point.y  =( (r_undistorted.at<float>(i,1)+2.0) * internal->debug_rgb.rows) - internal->debug_rgb.rows ;
-				//std::cout << "r_undistorted" << img_point;
-
-				//cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(255,128,0));
+			for (uint32_t i=0;i<world_points.cols;i++) {
+				cv::circle(internal->debug_rgb,l_undistorted.at<cv::Point2f>(0,i),3,cv::Scalar(255,192,0));
+				cv::circle(internal->debug_rgb,r_undistorted.at<cv::Point2f>(0,i),3,cv::Scalar(255,128,0));
 
 				//std::cout << "triangulated" << world_points;
-				img_point.x = ((world_points.at<float>(i,0) + 2.0) * internal->debug_rgb.cols /2 ) - internal->debug_rgb.cols/2 ;
-				img_point.y = ((world_points.at<float>(i,1)+2.0) * internal->debug_rgb.rows /2) - internal->debug_rgb.rows/2 ;
+				img_point.x = ((world_points.at<float>(0,i) + 2.0) * internal->debug_rgb.cols /2 ) - internal->debug_rgb.cols/2 ;
+				img_point.y = ((world_points.at<float>(1,i)+2.0) * internal->debug_rgb.rows /2) - internal->debug_rgb.rows/2 ;
 				std::cout << "world" << img_point;
 				cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(0,255,0));
 
 			}
 
 		} else {
-			printf("mismatched L/R points\n");
+			//printf("mismatched L/R points\n");
 		}
 	/*
 	if (internal->keypoints.size() > 0) {
@@ -386,11 +366,13 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	//while the system calibrates.. TODO: we need a coverage measurement and an accuracy measurement,
 	// so we can converge to something that is as complete and correct as possible.
 
-	bool found_left = cv::findChessboardCorners(internal->l_frame_gray,board_size,l_chessboard_measured);
-	bool found_right = cv::findChessboardCorners(internal->r_frame_gray,board_size,r_chessboard_measured);
 
 	cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out.jpg",internal->r_frame_gray);
+
+	bool found_left = cv::findChessboardCorners(internal->l_frame_gray,board_size,l_chessboard_measured);
+	bool found_right = cv::findChessboardCorners(internal->r_frame_gray,board_size,r_chessboard_measured);
+
 
 	if ( found_left && found_right ){
 		printf("found chessboard\n");

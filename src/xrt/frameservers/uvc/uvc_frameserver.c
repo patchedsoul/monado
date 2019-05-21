@@ -241,14 +241,14 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	uvc_frame_t* frame = uvc_allocate_frame(internal->stream_ctrl.dwMaxVideoFrameSize);
 	while (internal->is_running) {
 
-		//if our config is invalidated at runtime, recofigure
+		//if our config is invalidated at runtime, reconfigure
 		if (! internal->is_configured) {
 			//defaults - auto-anything off
 			uvc_set_ae_mode(internal->device_handle, 1);
 			uvc_set_ae_priority(internal->device_handle,0);
-			//we may need to enumerate the control range.. assume 0-100
-			uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 100);
-			uvc_set_gain(internal->device_handle,internal->capture_params.gain * 100);
+			//we may need to enumerate the control range..
+			uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 2048);
+			uvc_set_gain(internal->device_handle,internal->capture_params.gain * 10);
 			internal->is_configured = true;
 		}
 
@@ -257,7 +257,7 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 			printf("ERROR: stream_get_frame %s\n",uvc_strerror(res));
 		} else {
 			if (frame) {
-				printf("got frame\n");
+				//printf("got frame\n");
 
 				f.width = frame->width;
 				f.height = frame->height;

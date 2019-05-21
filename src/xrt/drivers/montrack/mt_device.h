@@ -50,7 +50,6 @@ bool mt_create_stereo_elp(mt_device_t* md); //stereo tracker, ELP 60fps stereo c
 
 void mt_handle_event(mt_device_t* md, driver_event_t e);
 
-
 void dummy_init_mt_device(mt_device_t* md);
 
 
