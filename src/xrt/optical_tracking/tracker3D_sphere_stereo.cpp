@@ -115,7 +115,7 @@ capture_parameters_t tracker3D_sphere_stereo_get_capture_params(tracker_instance
 	switch (internal->configuration.calibration_mode) {
 	    case CALIBRATION_MODE_CHESSBOARD:
 		    cp.exposure = 0.5f;
-			cp.gain=0.5f;
+			cp.gain=0.01f;
 		    break;
 	    default:
 		    cp.exposure = 0.01f;
@@ -243,13 +243,13 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	for (uint32_t i=0;i<internal->l_keypoints.size();i++)
 	{
 		blob = internal->l_keypoints.at(i);
-		printf ("LEFT 2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
+		//printf ("LEFT 2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
 		l_blobs.push_back(blob.pt);
 	}
 	for (uint32_t i=0;i<internal->r_keypoints.size();i++)
 	{
 		blob = internal->r_keypoints.at(i);
-		printf ("RIGHT 2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
+		//printf ("RIGHT 2D blob X: %f Y: %f D:%f\n",blob.pt.x,blob.pt.y,blob.size);
 		r_blobs.push_back(blob.pt);
 	}
 
@@ -268,8 +268,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 			cv::undistortPoints(r_blobs,r_undistorted,internal->r_intrinsics,internal->r_distortion,cv::noArray(),internal->r_intrinsics);
 			cv::triangulatePoints(internal->l_projection,internal->r_projection,l_undistorted,r_undistorted,world_points);
 			cv::Point2f img_point;
-			std::cout << "l_undistorted" << l_undistorted;
-			std::cout << "r_undistorted" << r_undistorted;
+			//std::cout << "l_undistorted" << l_undistorted;
+			//std::cout << "r_undistorted" << r_undistorted;
 
 			for (uint32_t i=0;i<world_points.cols;i++) {
 				cv::circle(internal->debug_rgb,l_undistorted.at<cv::Point2f>(0,i),3,cv::Scalar(255,192,0));
@@ -282,6 +282,10 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 				cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(0,255,0));
 
 			}
+			char message[128];
+			snprintf(message,128,"X: %f Y: %f Z: %f",world_points.at<float>(0,0),world_points.at<float>(1,0),world_points.at<float>(2,0));
+
+			cv::putText(internal->debug_rgb,message,cv::Point2i(10,50),0,0.5f,cv::Scalar(96,128,192));
 
 		} else {
 			//printf("mismatched L/R points\n");
@@ -372,10 +376,11 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 
 	bool found_left = cv::findChessboardCorners(internal->l_frame_gray,board_size,l_chessboard_measured);
 	bool found_right = cv::findChessboardCorners(internal->r_frame_gray,board_size,r_chessboard_measured);
+	char message[128];
+	message[0]=0x0;
 
 
 	if ( found_left && found_right ){
-		printf("found chessboard\n");
 		//we will use the last n samples to calculate our calibration
 		if (internal->l_chessboards_measured.size() > MAX_CALIBRATION_SAMPLES)
 		{
@@ -397,27 +402,27 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 			cv::Size image_size(internal->l_frame_gray.cols,internal->l_frame_gray.rows);
 			cv::Mat errors;
 
-			cv::stereoCalibrate(internal->chessboards_model,internal->l_chessboards_measured,internal->r_chessboards_measured,internal->l_intrinsics,internal->l_distortion,internal->r_intrinsics,internal->r_distortion,image_size,camera_rotation,camera_translation,camera_essential,camera_fundamental,errors,0);
-
-			std::cout << "l_intrinsics" << internal->l_intrinsics;
-			std::cout << "l_distortion" << internal->l_distortion;
-			std::cout << "r_intrinsics" << internal->r_intrinsics;
-			std::cout << "r_distortion" << internal->r_distortion;
-			std::cout << "image_size" << image_size;
-			std::cout << "camera_rotation" << camera_rotation;
-			std::cout << "camera_translation" << camera_translation;
+			float rp_error = cv::stereoCalibrate(internal->chessboards_model,internal->l_chessboards_measured,internal->r_chessboards_measured,internal->l_intrinsics,internal->l_distortion,internal->r_intrinsics,internal->r_distortion,image_size,camera_rotation,camera_translation,camera_essential,camera_fundamental,errors,0);
+			std::cout << "rp_error" << rp_error << "\n";
+			std::cout << "l_intrinsics" << internal->l_intrinsics << "\n";
+			std::cout << "l_distortion" << internal->l_distortion << "\n";
+			std::cout << "r_intrinsics" << internal->r_intrinsics << "\n";
+			std::cout << "r_distortion" << internal->r_distortion << "\n";
+			std::cout << "image_size" << image_size << "\n";
+			std::cout << "camera_rotation" << camera_rotation << "\n";
+			std::cout << "camera_translation" << camera_translation << "\n";
 
 
 			cv::stereoRectify(internal->l_intrinsics,internal->l_distortion,internal->r_intrinsics,internal->r_distortion,image_size,camera_rotation,camera_translation,internal->l_rotation,internal->r_rotation,internal->l_projection,internal->r_projection,internal->disparity_to_depth);
 
-			std::cout << "l_rotation" << internal->l_rotation;
-			std::cout << "l_projection" << internal->l_rotation;
+			std::cout << "l_rotation" << internal->l_rotation << "\n";
+			std::cout << "l_projection" << internal->l_projection << "\n";
 
-			std::cout << "r_rotation" << internal->r_rotation;
-			std::cout << "r_projection" << internal->r_rotation;
+			std::cout << "r_rotation" << internal->r_rotation << "\n";
+			std::cout << "r_projection" << internal->r_projection << "\n";
 
 
-			std::cout << "camera_translation" << camera_translation;
+			std::cout << "camera_translation" << camera_translation << "\n";
 			printf("calibrated cameras! setting tracking mode\n");
 			internal->calibrated=true;
 			internal->configuration.calibration_mode = CALIBRATION_MODE_NONE;
@@ -426,12 +431,15 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 			e.type = EVENT_TRACKER_RECONFIGURED;
 			internal->event_target_callback(internal->event_target_instance,e);
 		}
-	}
 
+		    snprintf(message,128,"COLLECTING SAMPLE: %d/%d",internal->l_chessboards_measured.size() +1,MAX_CALIBRATION_SAMPLES);
+	}
 
 
 	cv::drawChessboardCorners(internal->debug_rgb,board_size,l_chessboard_measured,found_left);
 	cv::drawChessboardCorners(internal->debug_rgb,board_size,r_chessboard_measured,found_right);
+	cv::putText(internal->debug_rgb,"CALIBRATION MODE",cv::Point2i(160,240),0,1.0f,cv::Scalar(192,192,192));
+	cv::putText(internal->debug_rgb,message,cv::Point2i(160,460),0,0.5f,cv::Scalar(192,192,192));
 
 	tracker_send_debug_frame(inst);
 	printf("calibrating f end\n");

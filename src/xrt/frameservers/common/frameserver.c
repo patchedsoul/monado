@@ -21,7 +21,7 @@ float format_bytes_per_pixel(frame_format_t f){
 	case FORMAT_RAW:
 	case FORMAT_JPG:
 	default:
-		printf("cannot compute format size\n");
+		printf("cannot compute format bytes per pixel\n");
 		return -1.0f;
 	}
 	return -1.0f;
