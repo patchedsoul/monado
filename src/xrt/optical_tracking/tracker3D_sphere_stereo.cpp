@@ -263,8 +263,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
 	//disp8.copyTo(internal->debug_rgb);
 
-	//internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
-	//internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
+	internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
+	internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
 
 	xrt_vec2 lastPos = internal->l_tracked_blob.center;
 	float offset = ROI_OFFSET;
@@ -284,8 +284,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	cv::imwrite("/tmp/r_out.jpg",internal->l_frame_gray);
 
 	//do blob detection with our masks
-	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints);//,internal->l_mask_gray);
-	internal->sbd->detect(internal->r_frame_gray, internal->r_keypoints);//,internal->r_mask_gray);
+	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints,internal->l_mask_gray);
+	internal->sbd->detect(internal->r_frame_gray, internal->r_keypoints,internal->r_mask_gray);
 
 	//do some basic matching to come up with likely disparity-pairs
 	cv::Mat l_blobs_mat,r_blobs_mat;
@@ -315,7 +315,7 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		}
 	}
 	cv::Mat world_points;
-	if (l_blobs.size() > 0)
+	if (l_blobs_mat.rows > 0)
 	{
 		cv::triangulatePoints(internal->l_projection,internal->r_projection,l_blobs_mat,r_blobs_mat,world_points);
 	}
@@ -334,8 +334,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	//cv::drawKeypoints(internal->debug_rgb,internal->r_keypoints,internal->debug_rgb,cv::Scalar(32,128,128),cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 
 
-	for (uint32_t i=0;i<l_blobs.size();i++){
-		cv::line(internal->debug_rgb,l_blobs[i],r_blobs[i],cv::Scalar(255,0,0));
+	for (uint32_t i=0;i<l_blobs_mat.rows;i++){
+		cv::line(internal->debug_rgb,l_blobs_mat.at<cv::Point2f>(i,0),r_blobs_mat.at<cv::Point2f>(i,0),cv::Scalar(255,0,0));
 	}
 
 
