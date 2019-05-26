@@ -51,6 +51,8 @@ mt_prober_autoprobe(struct xrt_prober* p)
 
 	//mt_device_t* mtd = mt_device_create("MONO_LOGITECH_C270",true,true);
 	mt_device_t* mtd = mt_device_create("STEREO_ELP_60FPS",true,true);
+	//mt_device_t* mtd = mt_device_create("STEREO_LOGITECH_C270",true,true);
+
 
 	return &mtd->base;
 }

@@ -39,13 +39,16 @@ typedef void* tracker_configuration_ptr;
 
 typedef void (*measurement_consumer_callback_func)(void* instance, tracker_measurement_t* measurement);
 typedef struct tracker_mono_configuration {
+	char configuration_filename[128];
+	tracker_calibration_mode_t calibration_mode;
 	camera_calibration_t calibration;
 	frame_format_t format;
 	uint64_t source_id;
-	tracker_calibration_mode_t calibration_mode; // our tracker can run in calibration mode.
     } tracker_mono_configuration_t;
 
 typedef struct tracker_stereo_configuration {
+	char configuration_filename[128];
+	tracker_calibration_mode_t calibration_mode;
 	camera_calibration_t l_calibration;
 	frame_format_t l_format;
 	uint64_t l_source_id;
@@ -55,7 +58,7 @@ typedef struct tracker_stereo_configuration {
     bool split_left; // single-frame stereo will split the left frame
     frame_rect_t l_rect;
     frame_rect_t r_rect;
-	tracker_calibration_mode_t calibration_mode; // our tracker can run in calibration mode.
+
 
 } tracker_stereo_configuration_t;
 

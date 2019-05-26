@@ -2,14 +2,18 @@
 #define CALIBRATION_H
 #include <xrt/xrt_defines.h>
 
+typedef enum camera_lens_type {CAMERA_LENS_NORMAL,CAMERA_LENS_FISHEYE} camera_lens_type_t;
+
 #define INTRINSICS_SIZE 9
 #define DISTORTION_SIZE 5
 #define DISTORTION_FISHEYE_SIZE 4
 
 typedef struct camera_calibration {
+	camera_lens_type_t lens_type;
      float intrinsics[INTRINSICS_SIZE];
      float distortion[DISTORTION_SIZE];
-     float calib_capture_size[2];
+	 float distortion_fisheye[DISTORTION_FISHEYE_SIZE];
+	 float calib_capture_size[2]; //frame size at calibration time
 	 struct xrt_pose pose; //camera position
      float reprojection_error;
 } camera_calibration_t;

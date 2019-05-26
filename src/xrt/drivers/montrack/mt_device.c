@@ -128,6 +128,10 @@ bool mt_create_mono_c270(mt_device_t* md) {
 	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
 	tracker_mono_configuration_t tracker_config = {};
 
+	//start in calibration mode
+	tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
+
+
 	// configure our logitech c270 when we find it during enumeration
 	uint32_t source_index; //our frameserver config descriptor index
 	for (uint32_t i=0; i< source_count;i++){
@@ -141,6 +145,7 @@ bool mt_create_mono_c270(mt_device_t* md) {
 
 				tracker_config.calibration.calib_capture_size[0]=camera_size[0];
 				tracker_config.calibration.calib_capture_size[1]=camera_size[1];
+				snprintf(tracker_config.configuration_filename,128,"logitech_C270_mono");
 				memcpy(tracker_config.calibration.intrinsics,camera_intr,sizeof(tracker_config.calibration.intrinsics));
 				memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
 				source_index =i;
@@ -201,19 +206,19 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 	tracker_stereo_configuration_t tracker_config = {};
 
 	// configure our ELP camera when we find it during enumeration
-	uint32_t source_index; //our frameserver config descriptor index - we would have an array for multiple devices
+	uint32_t source_index; // our frameserver config descriptor index - we would have an array for multiple devices
 	for (uint32_t i=0; i< source_count;i++){
 		uvc_source_descriptor_t s = descriptors[i];
 		if (descriptors[i].product_id == 0x9750 && descriptors[i].vendor_id == 0x05a3 && descriptors[i].format == FORMAT_Y_UINT8) {
 			if (descriptors[i].width == 1280 && descriptors[i].height == 480 && descriptors[i].rate == 166666) {
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =descriptors[i].source_id;
+				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo");
 
-				//TODO: check if we have saved calibration data for this device
-				//if not, we need to set the tracker to calibration mode
+				//start in calibration mode
 				tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
 
-				//50/50 horizontal split - may need to put this in calibration data
+				// set up 50/50 horizontal stereo split - may need to put this in calibration data
 
 				struct xrt_vec2 ltl = {0.0f,0.0f};
 				struct xrt_vec2 lbr = {descriptors[i].width / 2.0f,descriptors[i].height};
@@ -233,8 +238,7 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 
 	}
 	// configure our tracker for this frame source
-	bool configured = false;
-	configured = md->tracker->tracker_configure(md->tracker,&tracker_config);
+	bool configured = md->tracker->tracker_configure(md->tracker,&tracker_config);
 
 	if (! configured) {
 		printf("ERROR: tracker rejected frameserver configuration!\n");
@@ -251,14 +255,15 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 
 	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
 	md->filter->filter_configure(md->filter,&filter_config);
+
 	//connect our tracker to our filter
 	md->tracker->tracker_register_measurement_callback(md->tracker,md->filter,md->filter->filter_queue);
 	md->tracker->tracker_register_event_callback(md->tracker,md,mt_handle_event);
 
+	//nw our chain is setup up we can start streaming data through it
 	printf("INFO: frame source path: %s %d x %d interval: %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format,descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(md->frameservers[0],md->tracker->tracker_get_capture_params(md->tracker));
 	md->frameservers[0]->frameserver_stream_start(md->frameservers[0],&(descriptors[source_index]));
-
 
 	return true;
 }
