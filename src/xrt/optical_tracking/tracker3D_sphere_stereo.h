@@ -7,6 +7,7 @@
 #include "common/tracker.h"
 
 
+
 #define TRACKED_POINTS 1
 #define ROI_OFFSET 32.0f
 

@@ -215,7 +215,9 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 				tracker_config.l_source_id =descriptors[i].source_id;
 				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo");
 
-				//start in calibration mode
+
+                //start in calibration mode
+
 				tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
 
 				// set up 50/50 horizontal stereo split - may need to put this in calibration data
