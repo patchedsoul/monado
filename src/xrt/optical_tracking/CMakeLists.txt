@@ -14,6 +14,7 @@ set(OPTICAL_TRACKING_SOURCE_FILES
         common/tracked_object.c
         common/tracker.h
         common/tracker.c
+		common/opencv_utils.hpp
 		tracker3D_sphere_stereo.cpp
 		tracker3D_sphere_stereo.h
         tracker3D_sphere_mono.cpp

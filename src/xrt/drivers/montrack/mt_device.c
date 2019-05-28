@@ -139,20 +139,13 @@ bool mt_create_mono_c270(mt_device_t* md) {
 			if (descriptors[i].width == 640 && descriptors[i].height == 480 && descriptors[i].rate == 333333) {
 				tracker_config.format = descriptors[i].format;
 				tracker_config.source_id =descriptors[i].source_id;
-				float camera_size[2] = LOGITECH_C270_SIZE;
-				float camera_intr[INTRINSICS_SIZE] = LOGITECH_C270_INTR;
-				float camera_dist[DISTORTION_SIZE] = LOGITECH_C270_DIST;
-
-				tracker_config.calibration.calib_capture_size[0]=camera_size[0];
-				tracker_config.calibration.calib_capture_size[1]=camera_size[1];
-				snprintf(tracker_config.configuration_filename,128,"logitech_C270_mono");
-				memcpy(tracker_config.calibration.intrinsics,camera_intr,sizeof(tracker_config.calibration.intrinsics));
-				memcpy(tracker_config.calibration.distortion,camera_dist,sizeof(tracker_config.calibration.distortion));
 				source_index =i;
 			}
 		}
 
 	}
+	snprintf(tracker_config.configuration_filename,128,"C270_mono");
+
 	// configure our tracker for this frame source
 	bool configured = false;
 	configured = md->tracker->tracker_configure(md->tracker,&tracker_config);
@@ -174,6 +167,8 @@ bool mt_create_mono_c270(mt_device_t* md) {
 	md->filter->filter_configure(md->filter,&filter_config);
 	//connect our tracker to our filter
 	md->tracker->tracker_register_measurement_callback(md->tracker,md->filter,md->filter->filter_queue);
+	//and our driver to tracker events
+	md->tracker->tracker_register_event_callback(md->tracker,md,mt_handle_event);
 
 	// now we can configure our frameserver and start the stream
 

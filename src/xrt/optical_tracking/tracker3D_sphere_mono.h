@@ -31,6 +31,9 @@ bool tracker3D_sphere_mono_configure(tracker_instance_t* inst, tracker_mono_conf
 void tracker3D_sphere_mono_register_measurement_callback (tracker_instance_t* inst, void* target_instance, measurement_consumer_callback_func target_func);
 void tracker3D_sphere_mono_register_event_callback (tracker_instance_t* inst, void* target_instance, event_consumer_callback_func target_func);
 
+static bool tracker3D_sphere_mono_track(tracker_instance_t* inst);
+static bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
+
 #ifdef __cplusplus
 } //extern "C"
 #endif
