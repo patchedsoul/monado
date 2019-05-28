@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <../auxiliary/math/m_api.h>
 
-#include "../../drivers/montrack/mt_events.h"
+#include "../mt_events.h"
 
 #ifdef __cplusplus
 extern "C" {

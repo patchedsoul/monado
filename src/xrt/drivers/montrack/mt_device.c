@@ -22,12 +22,12 @@
 
 #include "mt_device.h"
 
-#include "../optical_tracking/tracker3D_sphere_mono.h"
+#include "optical_tracking/tracker3D_sphere_mono.h"
 
 //#IFDEF have_opencv
-#include "../filters/filter_opencv_kalman.h"
+#include "filters/filter_opencv_kalman.h"
 //#IFDEF have_uvc
-#include "../frameservers/uvc/uvc_frameserver.h"
+#include "frameservers/uvc/uvc_frameserver.h"
 
 
 static void

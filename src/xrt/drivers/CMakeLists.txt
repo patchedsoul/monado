@@ -20,19 +20,7 @@ target_include_directories(drv_ohmd SYSTEM
 	PRIVATE ${OPENHMD_INCLUDE_DIRS}
 	)
 
-set (MONTRACK_SOURCE_FILES
-	montrack/mt_device.c
-	montrack/mt_device.h
-	montrack/mt_interface.h
-	montrack/mt_prober.c
-	montrack/mt_events.h
-	)
-# Use OBJECT to not create a archive, since it just gets in the way.
-add_library(drv_montrack OBJECT ${MONTRACK_SOURCE_FILES})
-set_property(TARGET drv_montrack PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(drv_montrack SYSTEM
-	PRIVATE ${OPENHMD_INCLUDE_DIRS}
-	)
+add_subdirectory(montrack)
 
 if(HIDAPI_FOUND)
 	set(HDK_SOURCE_FILES

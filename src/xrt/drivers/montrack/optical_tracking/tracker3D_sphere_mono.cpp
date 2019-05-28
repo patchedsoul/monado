@@ -167,7 +167,6 @@ bool tracker3D_sphere_mono_track(tracker_instance_t* inst)
 		internal->tracked_blob.center = {blob.pt.x,blob.pt.y};
 		internal->tracked_blob.diameter=blob.size;
 
-
 		float cx = internal->intrinsics.at<double>(0,2);
 		float cy = internal->intrinsics.at<double>(1,2);
 		float focalx=internal->intrinsics.at<double>(0,0);
@@ -188,7 +187,7 @@ bool tracker3D_sphere_mono_track(tracker_instance_t* inst)
 
 		cv::circle(internal->debug_rgb,cv::Point2f(x*focalx + cx,y *focaly +cy),3,cv::Scalar(32,32,192));
 
-		printf("%f %f %f\n",x,y,z);
+		//printf("%f %f %f\n",x,y,z);
 
 		m.has_position = true;
 		m.timestamp =0;
@@ -244,7 +243,7 @@ bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 
 	//no saved file - perform interactive calibration.
 	//try and find a chessboard in the image, and run the calibration.
-	// - we need to define some mechanism for UI/user interaction.
+	//TODO: we need to define some mechanism for UI/user interaction.
 
 	// TODO: initialise this on construction and move this to internal state
 	cv::Size board_size(8,6);
@@ -256,16 +255,14 @@ bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 	}
 
 	cv::Mat chessboard_measured;
-	/*cv::Mat camera_rotation;
-	cv::Mat camera_translation;
-	cv::Mat camera_essential;
-	cv::Mat camera_fundamental;
-*/
+
 	//clear our debug image
 	cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
 
 	//we will collect samples continuously - the user should be able to wave a chessboard around randomly
-	//while the system calibrates.. TODO: we need a coverage measurement and an accuracy measurement,
+	//while the system calibrates..
+
+	//TODO: we need a coverage measurement and an accuracy measurement,
 	// so we can converge to something that is as complete and correct as possible.
 
 	bool found_board = cv::findChessboardCorners(internal->frame_gray,board_size,chessboard_measured);
@@ -304,7 +301,6 @@ bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 			printf("TRY WRITING CONFIG TO %s\n",file_string);
 			FILE* calib_file = fopen(file_string,"wb");
 			if (! calib_file) {
-				//try creating it
 				mkpath(path_string);
 			}
 			calib_file = fopen(file_string,"wb");
@@ -324,11 +320,10 @@ bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 			driver_event_t e ={};
 			e.type = EVENT_TRACKER_RECONFIGURED;
 			internal->event_target_callback(internal->event_target_instance,e);
+		} else {
+			snprintf(message,128,"COLLECTING SAMPLE: %d/%d",internal->chessboards_measured.size() +1,MAX_CALIBRATION_SAMPLES);
 		}
-
-		    snprintf(message,128,"COLLECTING SAMPLE: %d/%d",internal->chessboards_measured.size() +1,MAX_CALIBRATION_SAMPLES);
 	}
-
 
 	cv::drawChessboardCorners(internal->debug_rgb,board_size,chessboard_measured,found_board);
 

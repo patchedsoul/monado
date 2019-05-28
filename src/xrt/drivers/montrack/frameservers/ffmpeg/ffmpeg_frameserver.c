@@ -1,4 +1,4 @@
-#include <common/frameserver.h>
+#include "../common/frameserver.h"
 #include "ffmpeg_frameserver.h"
 #include <string.h>
 #include <stdlib.h>

@@ -228,8 +228,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
 
-	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_gray);
-	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_gray);
+	//cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_gray);
+	//cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_gray);
 
 
 	cv::Mat l_frame_undist;
@@ -261,10 +261,7 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 //	cv::normalize(disp, disp8, 0.1, 255, CV_MINMAX, CV_8UC1);
 
 	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
-
 	disp8.copyTo(internal->debug_rgb);
-
-
 
 	internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
 	internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
@@ -283,8 +280,6 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
 
 	tracker_measurement_t m = {};
-	cv::imwrite("/tmp/l_out.jpg",internal->l_frame_gray);
-	cv::imwrite("/tmp/r_out.jpg",internal->l_frame_gray);
 
 	//do blob detection with our masks
 	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints,internal->l_mask_gray);

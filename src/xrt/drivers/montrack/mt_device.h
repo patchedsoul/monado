@@ -11,9 +11,9 @@
 #include "math/m_api.h"
 #include "xrt/xrt_device.h"
 
-#include "../optical_tracking/common/tracker.h"
-#include "../frameservers/common/frameserver.h"
-#include "../filters/common/filter.h"
+#include "optical_tracking/common/tracker.h"
+#include "frameservers/common/frameserver.h"
+#include "filters/common/filter.h"
 
 
 #ifdef __cplusplus
