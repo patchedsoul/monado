@@ -127,7 +127,7 @@ bool mt_create_mono_ps3eye(mt_device_t* md) {
 		//we have no sources, we cannot continue
 		return false;
 	}
-	v4l2_source_descriptor_t* descriptors = calloc(source_count,sizeof(uvc_source_descriptor_t));
+	v4l2_source_descriptor_t* descriptors = calloc(source_count,sizeof(v4l2_source_descriptor_t));
 	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],descriptors,&source_count);
 	// defer further configuration and stream start until the rest of our chain is set up.
 
@@ -141,8 +141,9 @@ bool mt_create_mono_ps3eye(mt_device_t* md) {
 	// configure our ps3 eye when we find it during enumeration
 	uint32_t source_index; //our frameserver config descriptor index
 	for (uint32_t i=0; i< source_count;i++){
-		if (descriptors[i].product_id == 0x0825 && descriptors[i].vendor_id == 0x046d && descriptors[i].format == FORMAT_Y_UINT8) {
-			if (descriptors[i].width == 640 && descriptors[i].height == 480 && descriptors[i].rate == 333333) {
+		v4l2_source_descriptor_t temp = descriptors[i];
+		if (strcmp(descriptors[i].name,"ov534") == 0  && descriptors[i].format == FORMAT_Y_UINT8) {
+			if (descriptors[i].width == 640 && descriptors[i].height == 480 && descriptors[i].rate == 166666) {
 				tracker_config.format = descriptors[i].format;
 				tracker_config.source_id =descriptors[i].source_id;
 				source_index =i;
@@ -150,7 +151,7 @@ bool mt_create_mono_ps3eye(mt_device_t* md) {
 		}
 
 	}
-	snprintf(tracker_config.configuration_filename,128,"C270_mono");
+	snprintf(tracker_config.configuration_filename,128,"PS3eye_mono");
 
 	// configure our tracker for this frame source
 	bool configured = false;
@@ -178,7 +179,7 @@ bool mt_create_mono_ps3eye(mt_device_t* md) {
 
 	// now we can configure our frameserver and start the stream
 
-	printf("INFO: frame source path: %s %d x %d interval: %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format,descriptors[source_index].rate);
+	printf("INFO: frame source path: %s %d x %d %d interval: %d\n",descriptors[source_index].name, descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format,descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(md->frameservers[0],md->tracker->tracker_get_capture_params(md->tracker));
 	md->frameservers[0]->frameserver_stream_start(md->frameservers[0],&(descriptors[source_index]));
 
@@ -220,7 +221,7 @@ bool mt_create_mono_c270(mt_device_t* md) {
 		}
 
 	}
-	snprintf(tracker_config.configuration_filename,128,"C270_mono");
+	snprintf(tracker_config.configuration_filename,128,"C270_mono_%s",descriptors[source_index].serial);
 
 	// configure our tracker for this frame source
 	bool configured = false;
@@ -284,7 +285,7 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 			if (descriptors[i].width == 1280 && descriptors[i].height == 480 && descriptors[i].rate == 166666) {
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =descriptors[i].source_id;
-				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo");
+				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo_%s",descriptors[source_index].serial);
 
 
                 //start in calibration mode

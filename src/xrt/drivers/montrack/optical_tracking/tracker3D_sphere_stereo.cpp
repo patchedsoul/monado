@@ -407,10 +407,10 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
     tracker3D_sphere_stereo_instance_t* internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 
 
-    char path_string[1024];
+	char path_string[256]; //TODO: 256 maybe not enough
 	//TODO: use multiple env vars?
     char* config_path = secure_getenv("HOME");
-    snprintf(path_string,1024,"%s/.config/monado/%s.calibration",config_path,internal->configuration.configuration_filename);
+	snprintf(path_string,256,"%s/.config/monado/%s.calibration",config_path,internal->configuration.configuration_filename); //TODO: hardcoded 256
 
     printf("TRY LOADING CONFIG FROM %s\n",path_string);
 	FILE* calib_file = fopen(path_string,"rb");
