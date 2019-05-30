@@ -28,6 +28,8 @@
 #include "filters/filter_opencv_kalman.h"
 //#IFDEF have_uvc
 #include "frameservers/uvc/uvc_frameserver.h"
+//#IFDEF have_v4l2
+#include "frameservers/v4l2/v4l2_frameserver.h"
 
 
 static void
@@ -92,6 +94,11 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 
 	dummy_init_mt_device(md);
 
+	if (strcmp(device_name,"MONO_PS3EYE") == 0) {
+		if (mt_create_mono_ps3eye(md)) {
+			return md;
+		}
+	}
 	if (strcmp(device_name,"MONO_LOGITECH_C270") == 0) {
 		if (mt_create_mono_c270(md)) {
 			return md;
@@ -108,6 +115,75 @@ mt_device_create(char* device_name,bool log_verbose, bool log_debug) {
 
 
 }
+
+bool mt_create_mono_ps3eye(mt_device_t* md) {
+	md->frameserver_count=1; // this driver uses a single camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_V4L2);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific, FFMPEG-specific.
+	uint32_t source_count=0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],NULL,&source_count);
+	if (source_count == 0){
+		//we have no sources, we cannot continue
+		return false;
+	}
+	v4l2_source_descriptor_t* descriptors = calloc(source_count,sizeof(uvc_source_descriptor_t));
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],descriptors,&source_count);
+	// defer further configuration and stream start until the rest of our chain is set up.
+
+	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
+	tracker_mono_configuration_t tracker_config = {};
+
+	//start in calibration mode
+	tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
+
+
+	// configure our ps3 eye when we find it during enumeration
+	uint32_t source_index; //our frameserver config descriptor index
+	for (uint32_t i=0; i< source_count;i++){
+		if (descriptors[i].product_id == 0x0825 && descriptors[i].vendor_id == 0x046d && descriptors[i].format == FORMAT_Y_UINT8) {
+			if (descriptors[i].width == 640 && descriptors[i].height == 480 && descriptors[i].rate == 333333) {
+				tracker_config.format = descriptors[i].format;
+				tracker_config.source_id =descriptors[i].source_id;
+				source_index =i;
+			}
+		}
+
+	}
+	snprintf(tracker_config.configuration_filename,128,"C270_mono");
+
+	// configure our tracker for this frame source
+	bool configured = false;
+	configured = md->tracker->tracker_configure(md->tracker,&tracker_config);
+
+	if (! configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
+
+	// tracker is happy - connect our frameserver to our tracker
+	md->frameservers[0]->frameserver_register_frame_callback(md->frameservers[0],md->tracker,md->tracker->tracker_queue);
+
+	//create a filter for the trackers output
+	opencv_filter_configuration_t filter_config = {};
+	filter_config.measurement_noise_cov =0.1f;
+	filter_config.process_noise_cov =0.1f;
+
+	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
+	md->filter->filter_configure(md->filter,&filter_config);
+	//connect our tracker to our filter
+	md->tracker->tracker_register_measurement_callback(md->tracker,md->filter,md->filter->filter_queue);
+	//and our driver to tracker events
+	md->tracker->tracker_register_event_callback(md->tracker,md,mt_handle_event);
+
+	// now we can configure our frameserver and start the stream
+
+	printf("INFO: frame source path: %s %d x %d interval: %d\n",&(descriptors[source_index].name), descriptors[source_index].width,descriptors[source_index].height,descriptors[source_index].format,descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(md->frameservers[0],md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(md->frameservers[0],&(descriptors[source_index]));
+
+}
+
 bool mt_create_mono_c270(mt_device_t* md) {
 	// TODO - add IMU input source -> filter
 

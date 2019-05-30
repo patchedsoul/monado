@@ -40,7 +40,7 @@ typedef void* tracker_configuration_ptr;
 typedef void (*measurement_consumer_callback_func)(void* instance, tracker_measurement_t* measurement);
 
 typedef struct tracker_mono_configuration {
-	char configuration_filename[FILENAME_MAX];
+	char configuration_filename[256]; //TODO: maybe too small?
 	tracker_calibration_mode_t calibration_mode;
 	//camera_calibration_t calibration;
 	frame_format_t format;
@@ -48,7 +48,7 @@ typedef struct tracker_mono_configuration {
     } tracker_mono_configuration_t;
 
 typedef struct tracker_stereo_configuration {
-	char configuration_filename[FILENAME_MAX];
+	char configuration_filename[256]; //TODO: maybe too small?
 	tracker_calibration_mode_t calibration_mode;
 	//camera_calibration_t l_calibration;
 	//camera_calibration_t r_calibration;

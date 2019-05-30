@@ -36,7 +36,7 @@ static float dist_3d(cv::Point3f& p, cv::Point3f& q) {
 
 //TODO - move this as it is a generic helper
 static int mkpath(char* path) {
-	char tmp[PATH_MAX];
+	char tmp[PATH_MAX]; //TODO: PATH_MAX probably not strictly correct
 	char* p = NULL;
 	size_t len;
 

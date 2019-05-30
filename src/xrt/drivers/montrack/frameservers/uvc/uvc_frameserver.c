@@ -204,16 +204,6 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 		return;
 	}
 
-	/*if (! internal->is_configured) {
-		//defaults - auto-anything off
-		uvc_set_ae_mode(internal->device_handle, 1);
-		uvc_set_ae_priority(internal->device_handle,0);
-        //we may need to enumerate the control range.. assume 0-100
-		uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 100);
-		uvc_set_gain(internal->device_handle,internal->capture_params.gain * 100);
-		internal->is_configured = true;
-	}*/
-
 	frame_t f = {}; //our buffer
 	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
@@ -407,6 +397,7 @@ bool uvc_frameserver_test(){
     return true;
 }
 
+//TODO: fix this so we dont need to alloc?
 uint32_t uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,uvc_device_t* uvc_device, uint32_t device_index) {
 
 	uint32_t sd_count=0;

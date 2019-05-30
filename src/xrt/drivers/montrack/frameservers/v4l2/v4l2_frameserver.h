@@ -13,16 +13,21 @@ typedef struct v4l2_frameserver_instance {
     uint32_t padding;
     } v4l2_frameserver_instance_t;
 
+
+//TODO: unify device descriptors across apis
 typedef struct v4l2_source_descriptor {
-    char* device_path;
+	char device_path[256]; //TODO: might not be enough
     char name[128];
 	uint16_t vendor_id;
 	uint16_t product_id;
 	char serial[128];
 	uint64_t source_id;
 	frame_format_t format;
+	uint32_t stream_format;
+	sampling_t sampling;
 	uint32_t width;
 	uint32_t height;
+	uint32_t rate;
 } v4l2_source_descriptor_t;
 
 v4l2_frameserver_instance_t* v4l2_frameserver_create(frameserver_instance_t* inst);

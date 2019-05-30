@@ -25,6 +25,7 @@ struct uvc_context {
   int kill_handler_thread;
 };
 
+//TODO: unify device descriptors across apis
 typedef struct uvc_source_descriptor {
 	char name[128];
 	uint16_t vendor_id;
