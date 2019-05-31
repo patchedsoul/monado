@@ -194,6 +194,8 @@ struct device_info
 	float pano_aberration_k[4];
 	float pano_warp_scale;
 
+	size_t num_inputs;
+
 	struct
 	{
 		float fov;
@@ -206,6 +208,7 @@ struct device_info
 
 	struct
 	{
+		bool input_3glasses;
 		bool rotate_lenses_right;
 		bool rotate_lenses_inwards;
 		bool video_see_through;
@@ -217,21 +220,25 @@ struct device_info
 };
 
 static struct device_info
-get_info(struct oh_device *ohd, const char *prod)
+get_info(ohmd_device *dev, const char *prod)
 {
 	struct device_info info = {0};
 
 	// clang-format off
-	ohmd_device_getf(ohd->dev, OHMD_SCREEN_HORIZONTAL_SIZE, &info.display.w_meters);
-	ohmd_device_getf(ohd->dev, OHMD_SCREEN_VERTICAL_SIZE, &info.display.h_meters);
-	ohmd_device_getf(ohd->dev, OHMD_LENS_HORIZONTAL_SEPARATION, &info.lens_horizontal_separation);
-	ohmd_device_getf(ohd->dev, OHMD_LENS_VERTICAL_POSITION, &info.lens_vertical_position);
-	ohmd_device_getf(ohd->dev, OHMD_LEFT_EYE_FOV, &info.views[0].fov);
-	ohmd_device_getf(ohd->dev, OHMD_RIGHT_EYE_FOV, &info.views[1].fov);
-	ohmd_device_geti(ohd->dev, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &info.display.w_pixels);
-	ohmd_device_geti(ohd->dev, OHMD_SCREEN_VERTICAL_RESOLUTION, &info.display.h_pixels);
-	ohmd_device_getf(ohd->dev, OHMD_UNIVERSAL_DISTORTION_K, &info.pano_distortion_k[0]);
-	ohmd_device_getf(ohd->dev, OHMD_UNIVERSAL_ABERRATION_K, &info.pano_aberration_k[0]);
+	ohmd_device_getf(dev, OHMD_SCREEN_HORIZONTAL_SIZE, &info.display.w_meters);
+	ohmd_device_getf(dev, OHMD_SCREEN_VERTICAL_SIZE, &info.display.h_meters);
+	ohmd_device_getf(dev, OHMD_LENS_HORIZONTAL_SEPARATION, &info.lens_horizontal_separation);
+	ohmd_device_getf(dev, OHMD_LENS_VERTICAL_POSITION, &info.lens_vertical_position);
+	ohmd_device_getf(dev, OHMD_LEFT_EYE_FOV, &info.views[0].fov);
+	ohmd_device_getf(dev, OHMD_RIGHT_EYE_FOV, &info.views[1].fov);
+	ohmd_device_geti(dev, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &info.display.w_pixels);
+	ohmd_device_geti(dev, OHMD_SCREEN_VERTICAL_RESOLUTION, &info.display.h_pixels);
+	ohmd_device_getf(dev, OHMD_UNIVERSAL_DISTORTION_K, &info.pano_distortion_k[0]);
+	ohmd_device_getf(dev, OHMD_UNIVERSAL_ABERRATION_K, &info.pano_aberration_k[0]);
+	//ohmd_device_geti(dev, OHMD_)
+
+	// Default the generic head intput.
+	info.num_inputs = 1;
 
 	// Default to 90FPS
 	info.display.nominal_frame_interval_ns =
@@ -242,6 +249,8 @@ get_info(struct oh_device *ohd, const char *prod)
 		info.quirks.rotate_lenses_right = true;
 		info.quirks.rotate_screen_right_after = true;
 		info.quirks.left_center_pano_scale = true;
+		info.quirks.input_3glasses = true;
+		info.num_inputs = 4;
 
 		// 70.43 FPS
 		info.display.nominal_frame_interval_ns =
@@ -321,10 +330,10 @@ get_info(struct oh_device *ohd, const char *prod)
 	if (info.quirks.rotate_screen_right_after) {
 		// OpenHMD describes the logical orintation not the physical.
 		// clang-format off
-		ohmd_device_getf(ohd->dev, OHMD_SCREEN_HORIZONTAL_SIZE, &info.display.h_meters);
-		ohmd_device_getf(ohd->dev, OHMD_SCREEN_VERTICAL_SIZE, &info.display.w_meters);
-		ohmd_device_geti(ohd->dev, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &info.display.h_pixels);
-		ohmd_device_geti(ohd->dev, OHMD_SCREEN_VERTICAL_RESOLUTION, &info.display.w_pixels);
+		ohmd_device_getf(dev, OHMD_SCREEN_HORIZONTAL_SIZE, &info.display.h_meters);
+		ohmd_device_getf(dev, OHMD_SCREEN_VERTICAL_SIZE, &info.display.w_meters);
+		ohmd_device_geti(dev, OHMD_SCREEN_HORIZONTAL_RESOLUTION, &info.display.h_pixels);
+		ohmd_device_geti(dev, OHMD_SCREEN_VERTICAL_RESOLUTION, &info.display.w_pixels);
 		// clang-format on
 	}
 
@@ -338,6 +347,8 @@ oh_device_create(ohmd_context *ctx,
                  bool print_spew,
                  bool print_debug)
 {
+	const struct device_info info = get_info(dev, prod);
+
 	enum u_device_alloc_flags flags =
 	    U_DEVICE_ALLOC_HMD | U_DEVICE_ALLOC_TRACKING_NONE;
 	struct oh_device *ohd =
@@ -355,7 +366,6 @@ oh_device_create(ohmd_context *ctx,
 
 	snprintf(ohd->base.name, XRT_DEVICE_NAME_LEN, "%s", prod);
 
-	const struct device_info info = get_info(ohd, prod);
 
 	{
 		/* right eye */
@@ -524,6 +534,13 @@ oh_device_create(ohmd_context *ctx,
 		ohd->base.hmd->views[1].display.w_pixels = h;
 		ohd->base.hmd->views[1].display.h_pixels = w2;
 		ohd->base.hmd->views[1].rot = u_device_rotation_left;
+	}
+
+	if (info.quirks.input_3glasses) {
+		ohd->base.inputs[0].name = XRT_INPUT_3GLASSES_D3_MENU_CLICK;
+		ohd->base.inputs[1].name = XRT_INPUT_3GLASSES_D3_SYSTEM_CLICK;
+		ohd->base.inputs[2].name = XRT_INPUT_GENERIC_HEAD_DETECT;
+		ohd->base.inputs[3].name = XRT_INPUT_GENERIC_HEAD_RELATION;
 	}
 
 	if (ohd->print_debug) {
