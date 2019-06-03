@@ -1,6 +1,8 @@
 #ifndef VL42_FRAMESERVER_H
 #define Vl42_FRAMESERVER_H
 
+#define NUM_V4L2_BUFFERS 2
+
 #include <stdint.h>
 #include <stdio.h>
 

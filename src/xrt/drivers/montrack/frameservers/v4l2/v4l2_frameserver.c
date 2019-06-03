@@ -3,11 +3,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include "errno.h"
 #include "jpeglib.h"
+#include "unistd.h"
+
+
 uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,char* v4l2_device, uint32_t device_index);
 
 bool v4l2_source_create(v4l2_source_descriptor_t* desc)
@@ -100,7 +104,9 @@ void v4l2_frameserver_register_event_callback(frameserver_instance_t* inst, void
 
 void v4l2_frameserver_register_frame_callback(frameserver_instance_t* inst, void* target_instance,frame_consumer_callback_func target_func)
 {
-	//do nothing
+	v4l2_frameserver_instance_t* internal = inst->internal_instance;
+	internal->frame_target_instance = target_instance;
+	internal->frame_target_callback = target_func;
 }
 
 
@@ -138,49 +144,109 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 		return;
 	}
 
-	/*res = uvc_open(internal->device_list[internal->source_descriptor.uvc_device_index],&internal->device_handle);
-	if (res < 0)
-	{
-		printf("ERROR: %s open %s\n",&internal->source_descriptor.name,uvc_strerror(res));
-		return;
-	}
-	int fps = 1.0 / (internal->source_descriptor.rate/10000000.0f);
-	res = uvc_get_stream_ctrl_format_size(internal->device_handle, &internal->stream_ctrl,internal->source_descriptor.stream_format,internal->source_descriptor.width, internal->source_descriptor.height,fps);
-	if (res < 0)
-	{
-		printf("ERROR: %s get_stream_ctrl_format %s\n",&internal->source_descriptor.name,uvc_strerror(res));
-		return;
-	}
+	//set up our capture format
 
-	uvc_print_stream_ctrl(&internal->stream_ctrl, stdout);
+	struct v4l2_format v_format;
+	memset(&v_format,0,sizeof(v_format));
+	v_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	v_format.fmt.pix.width = internal->source_descriptor.width;
+	v_format.fmt.pix.height = internal->source_descriptor.height;
+	v_format.fmt.pix.pixelformat = internal->source_descriptor.stream_format;
+	v_format.fmt.pix.field = V4L2_FIELD_ANY;
 
-	res = uvc_stream_open_ctrl(internal->device_handle, &internal->stream_handle, &internal->stream_ctrl);
-	if (res < 0)
+	if (ioctl(fd,VIDIOC_S_FMT,&v_format) < 0)
 	{
-		printf("ERROR: stream_open_ctrl %s\n",uvc_strerror(res));
+		printf("ERROR: could not set up format\n");
 		return;
 	}
 
-	res = uvc_stream_start(internal->stream_handle,NULL,NULL,0);
-	if (res < 0)
+	//set up our buffers - prefer userptr (client alloc) vs mmap (kernel alloc)
+	//TODO: using buffer caps may be better than 'fallthrough to mmap'
+
+	bool capture_userptr = true;
+
+	struct v4l2_requestbuffers v_bufrequest;
+	memset(&v_bufrequest,0,sizeof(v_bufrequest));
+	v_bufrequest.count = NUM_V4L2_BUFFERS;
+	v_bufrequest.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	v_bufrequest.memory = V4L2_MEMORY_USERPTR;
+
+	if (ioctl(fd,VIDIOC_REQBUFS,&v_bufrequest) < 0)
 	{
-		printf("ERROR: stream_start %s\n",uvc_strerror(res));
-		return;
+		printf("INFO: driver does not handle userptr buffers\n");
+		v_bufrequest.memory = V4L2_MEMORY_MMAP;
+		capture_userptr=false;
+		if (ioctl(fd,VIDIOC_REQBUFS,&v_bufrequest) < 0)
+		{
+			printf("ERROR: driver does not handle mmap buffers\n");
+			return;
+		}
 	}
 
-	frame_t f = {}; //our buffer
+	//set up our buffers
+
+	void* mem[NUM_V4L2_BUFFERS];
+
+	struct v4l2_buffer v_buf;
+	    for (uint32_t i=0;i<NUM_V4L2_BUFFERS;i++) {
+			v_buf.index =i;
+			v_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+			v_buf.memory = V4L2_MEMORY_USERPTR;
+			if (! capture_userptr) {
+				v_buf.memory = V4L2_MEMORY_MMAP;
+			}
+			if (ioctl(fd,VIDIOC_QUERYBUF,&v_buf) < 0)
+			{
+				printf("ERROR: could not query buffers!\n");
+				return;
+			}
+
+			if (capture_userptr)
+			{
+				mem[i] = aligned_alloc(getpagesize(),v_buf.length); //align this to a memory page, v4l2 likes it that way
+				if (! mem[i]) {
+					printf("ERROR: could not alloc page-aligned memory\n");
+					return;
+				}
+				v_buf.m.userptr = mem[i];
+			}
+			else
+			{
+				mem[i] = mmap(0,v_buf.length,PROT_READ,MAP_SHARED,fd,v_buf.m.offset);
+				if (mem[i] == MAP_FAILED) {
+					printf("ERROR: mmap failed!\n");
+					return;
+				}
+			}
+
+			///queue this buffer
+			if (ioctl(fd,VIDIOC_QBUF,&v_buf)< 0)
+			{
+				printf("ERROR: queueing buffer failed!\n");
+				return;
+			}
+
+		}
+		int start_capture = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		if (ioctl(fd,VIDIOC_STREAMON,&start_capture) < 0) {
+			printf("could not start capture!\n");
+			return;
+		}
+
+
+	frame_t f = {}; //we dequeue buffers into this frame in our main loop
 	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
-		case UVC_FRAME_FORMAT_YUYV:
-			f.format = FORMAT_YUYV_UINT8;
-			break;
-		case UVC_FRAME_FORMAT_MJPEG:
-			f.format = FORMAT_JPG; //this will get reset to YUV444
+	    case V4L2_PIX_FMT_YUYV:
+		    f.format = FORMAT_YUYV_UINT8;
+		    break;
+	    case V4L2_PIX_FMT_JPEG:
+		    f.format = FORMAT_JPG; //this will get reset to YUV444
 			cinfo.err = jpeg_std_error(&jerr);
 			jpeg_create_decompress(&cinfo);
-			break;
-		default:
-			printf("ERROR: unhandled format!\n");
+		    break;
+	    default:
+		    printf("ERROR: unhandled format!\n");
 	}
 
 	frame_t sampled_frame = {};
@@ -192,134 +258,153 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 	uint8_t* temp_data = NULL;
 	uint8_t* data_ptr = NULL;
 
-	uvc_frame_t* frame = uvc_allocate_frame(internal->stream_ctrl.dwMaxVideoFrameSize);
 	while (internal->is_running) {
 
 		//if our config is invalidated at runtime, reconfigure
 		if (! internal->is_configured) {
 			//defaults - auto-anything off
-			uvc_set_ae_mode(internal->device_handle, 1);
-			uvc_set_ae_priority(internal->device_handle,0);
+			//uvc_set_ae_mode(internal->device_handle, 1);
+			//uvc_set_ae_priority(internal->device_handle,0);
 			//we may need to enumerate the control range..
-			uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 2048);
-			uvc_set_gain(internal->device_handle,internal->capture_params.gain * 10);
+			//uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 2048);
+			//uvc_set_gain(internal->device_handle,internal->capture_params.gain * 10);
 			internal->is_configured = true;
 		}
+		//dequeue our frame, process it, requeue it.
 
-		res =  uvc_stream_get_frame	(internal->stream_handle, &frame,0);
+		if (ioctl(fd,VIDIOC_DQBUF,&v_buf) < 0) {
+			printf("dequeue failed\n");
+		} else {
+			printf("dequeue succeeded %d\n",v_buf.index);
+
+			//process frame
+			f.width = internal->source_descriptor.width;
+			f.height = internal->source_descriptor.height;
+			//reasonable default
+			f.stride= internal->source_descriptor.width * format_bytes_per_pixel(internal->source_descriptor.format);
+			f.size_bytes = v_buf.bytesused;
+			f.data = mem[v_buf.index];
+
+			switch (internal->source_descriptor.stream_format) {
+			    case V4L2_PIX_FMT_JPEG:
+				    //immediately set this to YUV444 as this is what we decode to.
+				    f.format = FORMAT_YUV444_UINT8;
+					f.stride = f.width * 3; //jpg format does not supply stride
+					//decode our jpg frame.
+					if (! temp_data) {
+						temp_data=malloc(frame_size_in_bytes(&f));
+					}
+					jpeg_mem_src(&cinfo,mem[v_buf.index],v_buf.bytesused);
+					jpeg_read_header(&cinfo, TRUE);
+					//we will bypass colour conversion as we want YUV
+					cinfo.out_color_space = cinfo.jpeg_color_space;
+					jpeg_start_decompress(&cinfo);
+					uint32_t scanlines_read = 0;
+					data_ptr=temp_data;
+					while (scanlines_read < cinfo.image_height ) {
+						 int read_count = jpeg_read_scanlines(&cinfo,&data_ptr,16);
+						data_ptr += read_count * internal->source_descriptor.width*3;
+						scanlines_read += read_count;
+					}
+					f.data = temp_data;
+					jpeg_finish_decompress(&cinfo);
+
+					switch (internal->source_descriptor.format) {
+					    case FORMAT_Y_UINT8:
+						    //split our Y plane out
+						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.format = FORMAT_Y_UINT8;
+							sampled_frame.stride = f.width;
+							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
+
+							if (! sampled_frame.data) {
+								sampled_frame.data = malloc(sampled_frame.size_bytes);
+							}
+
+							frame_extract_plane(&f,PLANE_Y,&sampled_frame);
+
+							if (internal->frame_target_callback){
+								internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+							}
+						    break;
+					    default:
+						    //supply our YUV444 directly
+						    if (internal->frame_target_callback){
+								internal->frame_target_callback(internal->frame_target_instance,&f);
+							}
+					}
+				    break;
+			    case V4L2_PIX_FMT_YUYV:
+				    f.stride = f.width *2; //2 bytes per pixel for yuyv
+					switch (internal->source_descriptor.format) {
+					    case FORMAT_Y_UINT8:
+						    //split our Y plane out
+						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.format = FORMAT_Y_UINT8;
+							sampled_frame.stride = f.width;
+							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
+
+							if (! sampled_frame.data) {
+								sampled_frame.data = malloc(sampled_frame.size_bytes);
+							}
+
+							frame_extract_plane(&f,PLANE_Y,&sampled_frame);
+
+							if (internal->frame_target_callback){
+								internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+							}
+						    break;
+					    case FORMAT_YUV444_UINT8:
+						    //upsample our YUYV to YUV444
+						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.format = FORMAT_YUV444_UINT8;
+							sampled_frame.stride = f.width * 3;
+							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
+							//allocate on first access
+							if (! sampled_frame.data) {
+								sampled_frame.data = malloc(sampled_frame.size_bytes);
+							}
+							if (frame_resample(&f,&sampled_frame)) {
+								if (internal->frame_target_callback) {
+									internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
+								}
+							break;
+							}
+							printf("ERROR: could not resample frame from %d to %d\n",f.format,sampled_frame.format);
+						    break;
+					    default:
+						    //supply our YUYV directly
+						    if (internal->frame_target_callback){
+								internal->frame_target_callback(internal->frame_target_instance,&f);
+							}
+					    }
+				        break;
+			        default:
+				        printf("ERROR: Unknown stream format\n");
+			    }
+			driver_event_t e ={};
+			e.type =EVENT_FRAMESERVER_GOTFRAME;
+			if (internal->event_target_callback){
+				internal->event_target_callback(internal->event_target_instance,e);
+			}
+
+
+			if (ioctl(fd,VIDIOC_QBUF,&v_buf) < 0) {
+				printf("requeue failed\n");
+			}
+		}
+
+		printf("running v4l2 capture thread\n");
+		sleep(1);
+	}
+	/*	res =  uvc_stream_get_frame	(internal->stream_handle, &frame,0);
 		if (res < 0) {
 			printf("ERROR: stream_get_frame %s\n",uvc_strerror(res));
 		} else {
 			if (frame) {
 				//printf("got frame\n");
 
-				f.width = frame->width;
-				f.height = frame->height;
-				f.stride= frame->step;
-				f.size_bytes = frame->data_bytes;
-				f.data = frame->data;
 
-				switch (internal->source_descriptor.stream_format) {
-					case UVC_FRAME_FORMAT_MJPEG:
-						//immediately set this to YUV444 as this is what we decode to.
-						f.format = FORMAT_YUV444_UINT8;
-						f.stride = f.width * 3; //jpg format does not supply stride
-						//decode our jpg frame.
-						if (! temp_data) {
-							temp_data=malloc(frame_size_in_bytes(&f));
-						}
-						jpeg_mem_src(&cinfo,frame->data,frame->data_bytes);
-						jpeg_read_header(&cinfo, TRUE);
-						//we will bypass colour conversion as we want YUV
-						cinfo.out_color_space = cinfo.jpeg_color_space;
-						jpeg_start_decompress(&cinfo);
-						uint32_t scanlines_read = 0;
-						data_ptr=temp_data;
-						while (scanlines_read < cinfo.image_height ) {
-							 int read_count = jpeg_read_scanlines(&cinfo,&data_ptr,16);
-							data_ptr += read_count * frame->width*3;
-							scanlines_read += read_count;
-						}
-						f.data = temp_data;
-						jpeg_finish_decompress(&cinfo);
-
-						switch (internal->source_descriptor.format) {
-							case FORMAT_Y_UINT8:
-								//split our Y plane out
-								sampled_frame = f; //copy our buffer frames attributes
-								sampled_frame.format = FORMAT_Y_UINT8;
-								sampled_frame.stride = f.width;
-								sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
-
-								if (! sampled_frame.data) {
-									sampled_frame.data = malloc(sampled_frame.size_bytes);
-								}
-
-								frame_extract_plane(&f,PLANE_Y,&sampled_frame);
-
-								if (internal->frame_target_callback){
-									internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
-								}
-								break;
-							default:
-								//supply our YUV444 directly
-								if (internal->frame_target_callback){
-									internal->frame_target_callback(internal->frame_target_instance,&f);
-								}
-						}
-						break;
-					case UVC_FRAME_FORMAT_YUYV:
-						switch (internal->source_descriptor.format) {
-							case FORMAT_Y_UINT8:
-								//split our Y plane out
-								sampled_frame = f; //copy our buffer frames attributes
-								sampled_frame.format = FORMAT_Y_UINT8;
-								sampled_frame.stride = f.width;
-								sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
-
-								if (! sampled_frame.data) {
-									sampled_frame.data = malloc(sampled_frame.size_bytes);
-								}
-
-								frame_extract_plane(&f,PLANE_Y,&sampled_frame);
-
-								if (internal->frame_target_callback){
-									internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
-								}
-								break;
-							case FORMAT_YUV444_UINT8:
-								//upsample our YUYV to YUV444
-								sampled_frame = f; //copy our buffer frames attributes
-								sampled_frame.format = FORMAT_YUV444_UINT8;
-								sampled_frame.stride = f.width * 3;
-								sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
-								//allocate on first access
-								if (! sampled_frame.data) {
-									sampled_frame.data = malloc(sampled_frame.size_bytes);
-								}
-								if (frame_resample(&f,&sampled_frame)) {
-									if (internal->frame_target_callback) {
-										internal->frame_target_callback(internal->frame_target_instance,&sampled_frame);
-									}
-								break;
-								}
-								printf("ERROR: could not resample frame from %d to %d\n",f.format,sampled_frame.format);
-								break;
-							default:
-								//supply our YUYV directly
-								if (internal->frame_target_callback){
-									internal->frame_target_callback(internal->frame_target_instance,&f);
-								}
-							}
-							break;
-						default:
-							printf("ERROR: Unknown stream format\n");
-					}
-				driver_event_t e ={};
-				e.type =EVENT_FRAMESERVER_GOTFRAME;
-				if (internal->event_target_callback){
-					internal->event_target_callback(internal->event_target_instance,e);
-				}
 			}
 		}
 	}
@@ -333,11 +418,6 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 	}
 	return;*/
 
-
-	while(1) {
-		printf("running v4l2 capture thread\n");
-		sleep(1);
-	}
 }
 
 bool v4l2_frameserver_stream_stop(frameserver_instance_t* inst){
@@ -403,7 +483,7 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							//only fill in this struct if we were not passed NULL
 
 							switch(desc.pixelformat){
-							case 0x56595559: //YUYV stream format
+							case V4L2_PIX_FMT_YUYV:
 								descriptor->format = FORMAT_YUYV_UINT8;
 								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
 								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
@@ -441,7 +521,7 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 								descriptor++;
 								sd_count += 3;
 								break;
-							case 0x47504a4d: //MJPEG stream format
+							case V4L2_PIX_FMT_JPEG: //MJPEG stream format
 								descriptor->format = FORMAT_YUV444_UINT8;
 								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
 								descriptor->device_path[255]=0x0; //TODO: hardcoded 256

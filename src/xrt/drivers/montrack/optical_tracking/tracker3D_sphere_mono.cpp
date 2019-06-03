@@ -148,7 +148,7 @@ bool tracker3D_sphere_mono_track(tracker_instance_t* inst)
 
 	//do blob detection with our mask
 	internal->sbd->detect(internal->frame_gray, internal->keypoints,internal->mask_gray);
-	//bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+	bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
 	//ret = cv::imwrite("/tmp/mask.jpg",internal->mask_gray);
 
 	cv::KeyPoint blob;
@@ -211,6 +211,9 @@ bool tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 	printf("calibrating...\n");
 	tracker3D_sphere_mono_instance_t* internal = (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
 	cv::Size image_size(internal->frame_gray.cols,internal->frame_gray.rows);
+
+	bool ret = cv::imwrite("/tmp/out.jpg",internal->frame_gray);
+
 
 	//TODO: use multiple env vars? - centralise this
 	char path_string[1024];
