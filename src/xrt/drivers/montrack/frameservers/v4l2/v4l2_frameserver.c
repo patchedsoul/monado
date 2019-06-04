@@ -249,11 +249,7 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 		    printf("ERROR: unhandled format!\n");
 	}
 
-	frame_t sampled_frame = {};
-
-	//replaced by sampled_frame but may be useful for planar output.
-	frame_t plane_frame = {};
-	uint8_t* plane_data[MAX_PLANES];
+	frame_t sampled_frame;
 
 	uint8_t* temp_data = NULL;
 	uint8_t* data_ptr = NULL;
@@ -393,9 +389,6 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 				printf("requeue failed\n");
 			}
 		}
-
-		printf("running v4l2 capture thread\n");
-		sleep(1);
 	}
 	/*	res =  uvc_stream_get_frame	(internal->stream_handle, &frame,0);
 		if (res < 0) {

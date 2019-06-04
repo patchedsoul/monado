@@ -281,11 +281,11 @@ bool mt_create_stereo_elp(mt_device_t* md) {
 	uint32_t source_index; // our frameserver config descriptor index - we would have an array for multiple devices
 	for (uint32_t i=0; i< source_count;i++){
 		uvc_source_descriptor_t s = descriptors[i];
-		if (descriptors[i].product_id == 0x9750 && descriptors[i].vendor_id == 0x05a3 && descriptors[i].format == FORMAT_Y_UINT8) {
+		if (descriptors[i].product_id == 0x9750 && descriptors[i].vendor_id == 0x05a3 && descriptors[i].format == FORMAT_YUV444_UINT8) {
 			if (descriptors[i].width == 1280 && descriptors[i].height == 480 && descriptors[i].rate == 166666) {
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =descriptors[i].source_id;
-				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo_%s",descriptors[source_index].serial);
+				snprintf(tracker_config.configuration_filename,128,"ELP_60FPS_stereo_%s",descriptors[i].serial);
 
 
                 //start in calibration mode

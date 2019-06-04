@@ -519,6 +519,8 @@ bool source_descriptor_from_uvc_descriptor(uvc_source_descriptor_t* source_descr
 	//TODO check lengths
 	if (uvc_device_descriptor->serialNumber){
 		memcpy(source_descriptor->serial,uvc_device_descriptor->serialNumber,strlen(uvc_device_descriptor->serialNumber)+1);
+	} else {
+		sprintf(source_descriptor->serial,"NONE");
 	}
 	source_descriptor->serial[127]=0;
 	source_descriptor->width = uvc_frame_descriptor->wWidth;

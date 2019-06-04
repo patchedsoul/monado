@@ -31,6 +31,12 @@ typedef struct tracker3D_sphere_stereo_instance {
 	cv::Mat l_mask_gray;
 	cv::Mat r_mask_gray;
 
+	cv::Mat l_frame_u;
+	cv::Mat l_frame_v;
+	cv::Mat r_frame_u;
+	cv::Mat r_frame_v;
+
+
 	cv::Mat debug_rgb;
 	cv::Mat l_intrinsics;
 	cv::Mat l_distortion;
@@ -157,10 +163,15 @@ bool tracker3D_sphere_stereo_queue(tracker_instance_t* inst,frame_t* frame) {
 		if (internal->configuration.split_left == true) {
 			eye_width = frame->width /2;
 			internal->r_frame_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+			internal->r_frame_u = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+			internal->r_frame_v = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
 			internal->r_mask_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
 			internal->r_alloced_frames =true;
 		}
 		internal->l_frame_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+		internal->l_frame_u = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+		internal->l_frame_v = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+
 		internal->l_mask_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
 		internal->l_alloced_frames =true;
 	}
@@ -171,34 +182,50 @@ bool tracker3D_sphere_stereo_queue(tracker_instance_t* inst,frame_t* frame) {
 	{
 		uint16_t eye_width = frame->width/2;
 		internal->r_frame_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+		internal->r_frame_u = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+		internal->r_frame_v = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
+
 		internal->r_mask_gray = cv::Mat(frame->height,eye_width,CV_8UC1,cv::Scalar(0,0,0));
 		internal->r_alloced_frames =true;
 	}
 
 	//copy our data from our video buffer into our cv::Mats
+	//TODO: initialise once
+	cv::Mat l_chans[3];
+	l_chans[0] = internal->l_frame_gray;
+	l_chans[1] = internal->l_frame_u;
+	l_chans[2] = internal->l_frame_v;
+
+	cv::Mat r_chans[3];
+	r_chans[0] = internal->r_frame_gray;
+	r_chans[1] = internal->r_frame_u;
+	r_chans[2] = internal->r_frame_v;
+
 
 	if (frame->source_id == internal->configuration.l_source_id) {
 
 		if (internal->configuration.split_left == true) {
 			internal->got_left=true;
 			internal->got_right=true;
-			cv::Mat tmp(frame->height, frame->width, CV_8UC1, frame->data);
+			cv::Mat tmp(frame->height, frame->width, CV_8UC3, frame->data);
 			cv::Rect lr(internal->configuration.l_rect.tl.x,internal->configuration.l_rect.tl.y,internal->configuration.l_rect.br.x,internal->configuration.l_rect.br.y);
 			cv::Rect rr(internal->configuration.r_rect.tl.x,internal->configuration.r_rect.tl.y,internal->configuration.r_rect.br.x - internal->configuration.r_rect.tl.x,internal->configuration.r_rect.br.y);
-			tmp(lr).copyTo(internal->l_frame_gray);
-			tmp(rr).copyTo(internal->r_frame_gray);
-		}
+			cv::split(tmp(lr),l_chans);
+			cv::split(tmp(rr),r_chans);
+	}
 		else
 		{
 			internal->got_left=true;
-			memcpy(internal->l_frame_gray.data,frame->data,frame->size_bytes);
+			cv::Mat tmp(frame->height, frame->width, CV_8UC3, frame->data);
+			cv::split(tmp,l_chans);
 		}
 
 
 	}
 	if (frame->source_id == internal->configuration.r_source_id && internal->configuration.split_left ==false) {
 		internal->got_right=true;
-		memcpy(internal->r_frame_gray.data,frame->data,frame->size_bytes);
+		cv::Mat tmp(frame->height, frame->width, CV_8UC3, frame->data);
+		cv::split(tmp,r_chans);
 	}
 
 	//we have our pair of frames, now we can process them - we should do this async, rather than in queue
@@ -228,9 +255,12 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
 
-	//cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_gray);
-	//cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_gray);
-
+	cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
+	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
+	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
+	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
+	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
+	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
 
 	cv::Mat l_frame_undist;
 	cv::Mat r_frame_undist;
@@ -608,7 +638,7 @@ bool tracker3D_sphere_stereo_configure(tracker_instance_t* inst,tracker_stereo_c
 	tracker3D_sphere_stereo_instance_t*  internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	//return false if we cannot handle this config
 
-	if (config->l_format != FORMAT_Y_UINT8) {
+	if (config->l_format != FORMAT_YUV444_UINT8) {
 		internal->configured=false;
 		return false;
 	}

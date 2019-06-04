@@ -18,6 +18,8 @@ extern "C" {
 typedef enum frame_format {FORMAT_NONE,FORMAT_RAW,FORMAT_Y_UINT8,FORMAT_Y_UINT16,FORMAT_RGB_UINT8,FORMAT_BGR_UINT8,FORMAT_YUYV_UINT8,FORMAT_YUV444_UINT8,FORMAT_YUV422_UINT8,FORMAT_YUV420_UINT8,FORMAT_JPG} frame_format_t;
 typedef enum stereo_format {STEREO_NONE,STEREO_SBS,STEREO_OAU} stereo_format_t;
 typedef enum plane {PLANE_NONE,PLANE_R,PLANE_G,PLANE_B,PLANE_Y,PLANE_U,PLANE_V} plane_t;
+typedef enum chroma_sampling {CHROMA_SAMP_NONE,CHROMA_SAMP_444,CHROMA_SAMP_422,CHROMA_SAMP_411} chroma_sampling_t;
+typedef enum plane_layout {PLANE_LAYOUT_COMPOSITE,PLANE_LAYOUT_SEPARATE} plane_layout_t;
 typedef enum sampling {SAMPLING_NONE,SAMPLING_UPSAMPLED, SAMPLING_DOWNSAMPLED} sampling_t;
 
 typedef struct frame_rect {
@@ -31,8 +33,12 @@ typedef struct frame {
 	uint16_t stride;
 	frame_format_t format;
 	stereo_format_t stereo_format;
-	uint8_t* data;
 	uint32_t size_bytes;
+	uint8_t* data;
+	chroma_sampling_t chroma_sampling; //unused
+	plane_layout_t plane_layout; //unused
+	uint8_t* u_data; //unused
+	uint8_t* v_data; //unused
 	uint64_t timestamp;
 	uint64_t source_timestamp;
 	uint64_t source_id; //used to tag frames with the source they originated from
