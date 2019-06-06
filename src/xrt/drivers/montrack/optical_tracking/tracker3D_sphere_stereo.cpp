@@ -64,6 +64,10 @@ typedef struct tracker3D_sphere_stereo_instance {
 	cv::Mat l_rectify_map_y;
 	cv::Mat r_rectify_map_x;
 	cv::Mat r_rectify_map_y;
+	cv::Mat l_rev_rectify_map_x;
+	cv::Mat l_rev_rectify_map_y;
+	cv::Mat r_rev_rectify_map_x;
+	cv::Mat r_rev_rectify_map_y;
 
 
 	//calibration data structures
@@ -256,13 +260,13 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	internal->r_keypoints.clear();
 
 
-	cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
+	/*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
 	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
 	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
 	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
 	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
-
+*/
 
 	//combine our yuv channels to isolate blue leds - y channel is all we will use from now on
 	//cv::subtract(internal->l_frame_u,internal->l_frame_v,internal->l_frame_u);
@@ -398,7 +402,7 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
         cv::Point2f img_point;
 		img_point.x = world_point.x * internal->debug_rgb.cols/2 + internal->debug_rgb.cols/2;
 		img_point.y = world_point.y * internal->debug_rgb.rows/2 + internal->debug_rgb.rows/2;
-        cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(0,255,0));
+		cv::circle(internal->debug_rgb,img_point,3,cv::Scalar(0,255,0));
 
         float dist = dist_3d(world_point,last_point);
         if ( dist < lowest_dist) {
@@ -522,7 +526,9 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 
 	//clear our debug image
 	cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
-
+	cv::Mat disp8;
+	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
+	disp8.copyTo(internal->debug_rgb);
 	// we will collect samples continuously - the user should be able to wave a
 	// chessboard around randomly while the system calibrates.. we only add a
 	// sample when it increases the coverage area substantially, to give the solver
@@ -553,7 +559,7 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 
 		cv::rectangle(internal->debug_rgb,post_rect.tl(),post_rect.br(),cv::Scalar(0,255,0));
 
-		if (post_rect.area() > pre_rect.area() + 5000) {
+		if (post_rect.area() > pre_rect.area() + 500) {
 		//we will use the last n samples to calculate our calibration
 
 			if (internal->l_chessboards_measured.size() > MAX_CALIBRATION_SAMPLES)
@@ -591,7 +597,7 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 			cv::fisheye::initUndistortRectifyMap(internal->l_intrinsics, internal->l_distortion_fisheye, cv::noArray(), internal->l_intrinsics, image_size, CV_32FC1, internal->l_undistort_map_x, internal->l_undistort_map_y);
 			cv::fisheye::initUndistortRectifyMap(internal->r_intrinsics, internal->r_distortion_fisheye, cv::noArray(), internal->r_intrinsics, image_size, CV_32FC1, internal->r_undistort_map_x, internal->r_undistort_map_y);
 
-			cv::stereoRectify(internal->l_intrinsics,internal->zero_distortion,internal->r_intrinsics,internal->zero_distortion,image_size,camera_rotation,camera_translation,internal->l_rotation,internal->r_rotation,internal->l_projection,internal->r_projection,internal->disparity_to_depth,0);
+			cv::stereoRectify(internal->l_intrinsics,internal->zero_distortion,internal->r_intrinsics,internal->zero_distortion,image_size,camera_rotation,camera_translation,internal->l_rotation,internal->r_rotation,internal->l_projection,internal->r_projection,internal->disparity_to_depth,cv::CALIB_ZERO_DISPARITY);
 
 			cv::initUndistortRectifyMap(internal->l_intrinsics,internal->zero_distortion,internal->l_rotation,internal->l_projection,image_size,CV_32FC1,internal->l_rectify_map_x,internal->l_rectify_map_y);
 			cv::initUndistortRectifyMap(internal->r_intrinsics,internal->zero_distortion,internal->r_rotation,internal->r_projection,image_size,CV_32FC1,internal->r_rectify_map_x,internal->r_rectify_map_y);
