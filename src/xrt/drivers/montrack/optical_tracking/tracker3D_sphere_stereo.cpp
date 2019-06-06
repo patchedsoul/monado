@@ -136,11 +136,11 @@ capture_parameters_t tracker3D_sphere_stereo_get_capture_params(tracker_instance
 	capture_parameters_t cp={};
 	switch (internal->configuration.calibration_mode) {
 	    case CALIBRATION_MODE_CHESSBOARD:
-            cp.exposure = 0.3f;
+		    cp.exposure = 0.3f;
 			cp.gain=0.01f;
 		    break;
 	    default:
-		    cp.exposure = 0.3f;
+		    cp.exposure = 1.0/2048.0;
 			cp.gain=0.01f;
 		    break;
 	}
@@ -255,12 +255,29 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
 
+
 	cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
 	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
 	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
 	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
 	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
+
+
+	//combine our yuv channels to isolate blue leds - y channel is all we will use from now on
+	//cv::subtract(internal->l_frame_u,internal->l_frame_v,internal->l_frame_u);
+	//cv::subtract(internal->r_frame_u,internal->r_frame_v,internal->r_frame_u);
+
+	//cv::subtract(internal->l_frame_u,internal->l_frame_gray,internal->l_frame_gray);
+	//cv::subtract(internal->r_frame_u,internal->r_frame_gray,internal->r_frame_gray);
+
+	//just use the u plane directly
+	cv::bitwise_not(internal->l_frame_v,internal->l_frame_v);
+	cv::bitwise_not(internal->r_frame_v,internal->r_frame_v);
+
+	cv::threshold(internal->l_frame_v,internal->l_frame_gray,150.0,255.0,0);
+	cv::threshold(internal->r_frame_v,internal->r_frame_gray,150.0,255.0,0);
+
 
 	cv::Mat l_frame_undist;
 	cv::Mat r_frame_undist;
@@ -272,6 +289,12 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	//rectify the whole image
 	cv::remap( l_frame_undist,internal->l_frame_gray, internal->l_rectify_map_x, internal->l_rectify_map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0) );
 	cv::remap( r_frame_undist,internal->r_frame_gray, internal->r_rectify_map_x, internal->r_rectify_map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0) );
+
+
+	//DEBUG: output channels to disk
+	//cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
+	//cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
+
 
 	//block-match for disparity calculation
 
@@ -290,11 +313,9 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 //	sbm->compute(internal->l_frame_gray, internal->r_frame_gray,disp);
 //	cv::normalize(disp, disp8, 0.1, 255, CV_MINMAX, CV_8UC1);
 
-	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
-	disp8.copyTo(internal->debug_rgb);
 
-	internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
-	internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
+	//internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
+	//internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
 
 	xrt_vec2 lastPos = internal->l_tracked_blob.center;
 	float offset = ROI_OFFSET;
@@ -302,18 +323,24 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		offset = internal->l_tracked_blob.diameter;
 	}
 
-    cv::rectangle(internal->l_mask_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
-    lastPos = internal->r_tracked_blob.center;
-    cv::rectangle(internal->r_mask_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
+	//cv::rectangle(internal->l_mask_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
+	//lastPos = internal->r_tracked_blob.center;
+	//cv::rectangle(internal->r_mask_gray, cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar( 255 ),-1,0);
 
 	//cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
+
+	cv::threshold(internal->l_frame_gray,internal->l_frame_gray,32.0,255.0,0);
+	cv::threshold(internal->r_frame_gray,internal->r_frame_gray,32.0,255.0,0);
+
+	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
+	disp8.copyTo(internal->debug_rgb);
 
 
 	tracker_measurement_t m = {};
 
 	//do blob detection with our masks
-	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints,internal->l_mask_gray);
-	internal->sbd->detect(internal->r_frame_gray, internal->r_keypoints,internal->r_mask_gray);
+	internal->sbd->detect(internal->l_frame_gray, internal->l_keypoints);//,internal->l_mask_gray);
+	internal->sbd->detect(internal->r_frame_gray, internal->r_keypoints);//,internal->r_mask_gray);
 
 	//do some basic matching to come up with likely disparity-pairs
     std::vector<cv::KeyPoint> l_blobs,r_blobs;
@@ -346,22 +373,16 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 		cv::line(internal->debug_rgb,l_blobs[i].pt,r_blobs[i].pt,cv::Scalar(255,0,0));
     }
 
+	//convert our 2d point + disparities into 3d points.
 
-    cv::Mat world_points;
-    // convert all our points to 3d - TODO: we could just convert our tracked blob.
-
+	std::vector<cv::Point3f> world_points;
 	if (l_blobs.size() > 0) {
-		cv::Mat l_blobs_mat(2,l_blobs.size(),CV_32F);
-		cv::Mat r_blobs_mat(2,r_blobs.size(),CV_32F);
-
 		for (uint32_t i=0;i < l_blobs.size();i++) {
-            l_blobs_mat.at<float>(0,i) = l_blobs[i].pt.x;
-            l_blobs_mat.at<float>(1,i) = l_blobs[i].pt.y;
-            r_blobs_mat.at<float>(0,i) = r_blobs[i].pt.x;
-            r_blobs_mat.at<float>(1,i) = r_blobs[i].pt.y;
-        }
-
-        cv::triangulatePoints(internal->l_projection,internal->r_projection,l_blobs_mat,r_blobs_mat,world_points);
+			float disp = r_blobs[i].pt.x - l_blobs[i].pt.x;
+			cv::Scalar xydw(l_blobs[i].pt.x,l_blobs[i].pt.y,disp,1.0f);
+			cv::Mat h_world =  internal->disparity_to_depth * xydw;
+			world_points.push_back(cv::Point3f(h_world.at<double>(0,0)/h_world.at<double>(3,0),h_world.at<double>(1,0)/h_world.at<double>(3,0),h_world.at<double>(2,0)/h_world.at<double>(3,0)));
+		}
     }
 
     int tracked_index=-1;
@@ -369,9 +390,9 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
     xrt_vec3 position = internal->tracked_object.pose.position;
     cv::Point3f last_point (position.x,position.y,position.z);
 
-	for (uint32_t i=0; i < world_points.cols; i++) {
+	for (uint32_t i=0; i < world_points.size(); i++) {
 
-        cv::Point3f world_point(world_points.at<float>(0,i),world_points.at<float>(1,i),world_points.at<float>(2,i));
+		cv::Point3f world_point = world_points[i];
 
         //show our tracked world points (just x,y) in our debug output
         cv::Point2f img_point;
@@ -388,7 +409,7 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	}
 
     if (tracked_index != -1) {
-        cv::Point3f world_point(world_points.at<float>(0,tracked_index),world_points.at<float>(1,tracked_index),world_points.at<float>(2,tracked_index));
+		cv::Point3f world_point = world_points[tracked_index];
 
         //create our measurement for the filter
         m.has_position = true;
@@ -458,7 +479,7 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 		read_mat(calib_file,&internal->r_translation);
 		read_mat(calib_file,&internal->l_projection);
 		read_mat(calib_file,&internal->r_projection);
-
+		read_mat(calib_file,&internal->disparity_to_depth);
 		cv::Size image_size(internal->l_frame_gray.cols,internal->l_frame_gray.rows);
 		// TODO: save data indicating calibration image size
 		// and multiply intrinsics accordingly
@@ -502,9 +523,10 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	//clear our debug image
 	cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
 
-	//we will collect samples continuously - the user should be able to wave a chessboard around randomly
-	//while the system calibrates.. TODO: we need a coverage measurement and an accuracy measurement,
-	// so we can converge to something that is as complete and correct as possible.
+	// we will collect samples continuously - the user should be able to wave a
+	// chessboard around randomly while the system calibrates.. we only add a
+	// sample when it increases the coverage area substantially, to give the solver
+	// a decent dataset.
 
 	bool found_left = cv::findChessboardCorners(internal->l_frame_gray,board_size,l_chessboard_measured);
 	bool found_right = cv::findChessboardCorners(internal->r_frame_gray,board_size,r_chessboard_measured);
@@ -512,8 +534,29 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	message[0]=0x0;
 
 	if ( found_left && found_right ){
+		std::vector<cv::Point2f> coverage;
+		for (uint32_t i = 0; i < internal->l_chessboards_measured.size();i++)
+		{
+			cv::Rect brect = cv::boundingRect(internal->l_chessboards_measured[i]);
+			cv::rectangle(internal->debug_rgb,brect.tl(),brect.br(),cv::Scalar(0,64,32));
+
+			coverage.push_back(cv::Point2f(brect.tl()));
+			coverage.push_back(cv::Point2f(brect.br()));
+		}
+		cv::Rect  pre_rect = cv::boundingRect(coverage);
+		cv::Rect brect = cv::boundingRect(l_chessboard_measured);
+		coverage.push_back(cv::Point2f(brect.tl()));
+		coverage.push_back(cv::Point2f(brect.br()));
+		cv::Rect post_rect = cv::boundingRect(coverage);
+
+		//std::cout << "COVERAGE: " << brect.area() << "\n";
+
+		cv::rectangle(internal->debug_rgb,post_rect.tl(),post_rect.br(),cv::Scalar(0,255,0));
+
+		if (post_rect.area() > pre_rect.area() + 5000) {
 		//we will use the last n samples to calculate our calibration
-		if (internal->l_chessboards_measured.size() > MAX_CALIBRATION_SAMPLES)
+
+			if (internal->l_chessboards_measured.size() > MAX_CALIBRATION_SAMPLES)
 		{
 			internal->l_chessboards_measured.erase(internal->l_chessboards_measured.begin());
 			internal->r_chessboards_measured.erase(internal->r_chessboards_measured.begin());
@@ -523,12 +566,13 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 			internal->chessboards_model.push_back(chessboard_model);
 		}
 
-		internal->l_chessboards_measured.push_back(l_chessboard_measured);
-		internal->r_chessboards_measured.push_back(r_chessboard_measured);
+			internal->l_chessboards_measured.push_back(l_chessboard_measured);
+			internal->r_chessboards_measured.push_back(r_chessboard_measured);
 
-		if (internal->l_chessboards_measured.size() == MAX_CALIBRATION_SAMPLES)
+		}
+
+		if (internal->l_chessboards_measured.size() == MAX_CALIBRATION_SAMPLES )
 		{
-			//TODO - run this if coverage test passes
 			cv::Size image_size(internal->l_frame_gray.cols,internal->l_frame_gray.rows);
 			cv::Mat errors;
 
@@ -581,6 +625,8 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 				write_mat(calib_file,&internal->r_translation);
 				write_mat(calib_file,&internal->l_projection);
 				write_mat(calib_file,&internal->r_projection);
+				write_mat(calib_file,&internal->disparity_to_depth);
+
 
 				fclose(calib_file);
 			}

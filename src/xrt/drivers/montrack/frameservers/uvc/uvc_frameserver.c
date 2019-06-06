@@ -237,8 +237,10 @@ void uvc_frameserver_stream_run(frameserver_instance_t* inst)
 			uvc_set_ae_mode(internal->device_handle, 1);
 			uvc_set_ae_priority(internal->device_handle,0);
 			//we may need to enumerate the control range..
-			uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure * 2048);
+			uint32_t exp_time = internal->capture_params.exposure * 2048;
+			uvc_set_exposure_abs(internal->device_handle,50);
 			uvc_set_gain(internal->device_handle,internal->capture_params.gain * 10);
+
 			internal->is_configured = true;
 		}
 
