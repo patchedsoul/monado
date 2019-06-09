@@ -22,11 +22,13 @@ typedef enum chroma_sampling {CHROMA_SAMP_NONE,CHROMA_SAMP_444,CHROMA_SAMP_422,C
 typedef enum plane_layout {PLANE_LAYOUT_COMPOSITE,PLANE_LAYOUT_SEPARATE} plane_layout_t;
 typedef enum sampling {SAMPLING_NONE,SAMPLING_UPSAMPLED, SAMPLING_DOWNSAMPLED} sampling_t;
 
+//unnormalised pixel coordinates for clipping ROIs
 typedef struct frame_rect {
     struct xrt_vec2 tl;
     struct xrt_vec2 br;
 } frame_rect_t;
 
+//basic frame data structure - holds a pointer to buffer.
 typedef struct frame {
 	uint16_t width;
 	uint16_t height;
@@ -86,8 +88,8 @@ typedef struct _frameserver_instance {
 frameserver_instance_t* frameserver_create(frameserver_type_t t);
 bool frameserver_destroy(frameserver_instance_t* inst);
 
-bool frame_data_alloc(frame_t*);
-bool frame_data_free(frame_t*);
+//bool frame_data_alloc(frame_t*);
+//bool frame_data_free(frame_t*);
 int32_t frame_size_in_bytes(frame_t* f);
 int32_t frame_bytes_per_pixel(frame_t* f);
 float format_bytes_per_pixel(frame_format_t f); //this is a float to support e.g. YUV420
