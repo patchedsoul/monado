@@ -1,5 +1,7 @@
+
+#include <opencv2/opencv.hpp>
+
 #include "filter_opencv_kalman.h"
-#include "opencv4/opencv2/opencv.hpp"
 
 
 typedef struct filter_opencv_kalman_instance

@@ -1,7 +1,11 @@
-#ifndef OPENCV_UTILS_H
-#define OPENCV_UTILS_H
+
+#pragma once
+
 #include <sys/stat.h>
-#include <opencv4/opencv2/opencv.hpp>
+#include <opencv2/opencv.hpp>
+
+#include "xrt/xrt_compiler.h"
+
 
 static bool write_mat(FILE* f, cv::Mat* m)
 {
@@ -28,7 +32,7 @@ static bool read_mat(FILE* f, cv::Mat* m)
 	return true;
 }
 
-static float dist_3d(cv::Point3f& p, cv::Point3f& q) {
+XRT_MAYBE_UNUSED static float dist_3d(cv::Point3f& p, cv::Point3f& q) {
 	cv::Point3f d = p - q;
 	return cv::sqrt(d.x*d.x + d.y*d.y + d.z * d.z);
 }
@@ -57,5 +61,3 @@ static int mkpath(char* path) {
 		return -1;
 	return 0;
 }
-
-#endif //OPENCV_UTILS_H
