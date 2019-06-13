@@ -83,20 +83,20 @@ target_link_libraries(${RUNTIME_TARGET}
 	${UDEV_LIBRARIES}
 	${XCB_LIBRARIES}
 	OpenGL::GLX
-	/usr/local/lib/libuvc.so
-	/usr/local/lib/libavformat.so
-	/usr/local/lib/libavcodec.so
-	/usr/local/lib/libavutil.so
-	/usr/local/lib64/libopencv_core.so
-	/usr/local/lib64/libopencv_calib3d.so
-	/usr/local/lib64/libopencv_highgui.so
-	/usr/local/lib64/libopencv_imgproc.so
-	/usr/local/lib64/libopencv_imgcodecs.so
-	/usr/local/lib64/libopencv_features2d.so
-	/usr/local/lib64/libopencv_video.so
-	libjpeg.so
-	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi-core.so
-	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi_plugin_parts.so
+#	/usr/local/lib/libuvc.so
+#	/usr/local/lib/libavformat.so
+#	/usr/local/lib/libavcodec.so
+#	/usr/local/lib/libavutil.so
+#	/usr/local/lib64/libopencv_core.so
+#	/usr/local/lib64/libopencv_calib3d.so
+#	/usr/local/lib64/libopencv_highgui.so
+#	/usr/local/lib64/libopencv_imgproc.so
+#	/usr/local/lib64/libopencv_imgcodecs.so
+#	/usr/local/lib64/libopencv_features2d.so
+#	/usr/local/lib64/libopencv_video.so
+#	libjpeg.so
+#	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi-core.so
+#	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi_plugin_parts.so
 	)
 
 if(DRIVER_OBJECTS)
