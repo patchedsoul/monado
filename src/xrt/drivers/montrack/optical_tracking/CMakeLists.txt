@@ -25,12 +25,10 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	tracker3D_sphere_stereo.h
 	tracker3D_sphere_mono.cpp
 	tracker3D_sphere_mono.h
-	tracker3D_osvr_uvbi.cpp
-	tracker3D_osvr_uvbi.h
+#	tracker3D_osvr_uvbi.cpp
+#	tracker3D_osvr_uvbi.h
 	track_psvr.h
 	track_psvr.cpp
-
-
 	)
 
 # Use OBJECT to not create a archive, since it just gets in the way.
