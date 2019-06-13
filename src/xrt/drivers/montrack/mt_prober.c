@@ -46,15 +46,16 @@ mt_prober_autoprobe(struct xrt_prober* p)
 	struct mt_prober* mp = mt_prober(p);
 
 	// here we would call functions to consult our config, check devices
-	// are present etc. - for now we will attempt to create a mono blob tracker, with any
-	// uvc camera we can use
+	// are present etc. - for now we will attempt to create a mono blob
+	// tracker, with any uvc camera we can use
 
-	//mt_device_t* mtd = mt_device_create("MONO_LOGITECH_C270",true,true);
-	//mt_device_t* mtd = mt_device_create("STEREO_ELP_60FPS",true,true);
-	//mt_device_t* mtd = mt_device_create("MONO_PS3EYE",true,true);
+	// mt_device_t* mtd = mt_device_create("MONO_LOGITECH_C270",true,true);
+	// mt_device_t* mtd = mt_device_create("STEREO_ELP_60FPS",true,true);
+	// mt_device_t* mtd = mt_device_create("MONO_PS3EYE",true,true);
 
-	//mt_device_t* mtd = mt_device_create("STEREO_LOGITECH_C270",true,true);
-	mt_device_t* mtd = mt_device_create("STEREO_PS4_60FPS",true,true);
+	// mt_device_t* mtd =
+	// mt_device_create("STEREO_LOGITECH_C270",true,true);
+	mt_device_t* mtd = mt_device_create("STEREO_PS4_60FPS", true, true);
 
 
 	return &mtd->base;

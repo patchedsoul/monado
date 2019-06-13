@@ -8,7 +8,8 @@
 
 #define NUM_LEDS 9
 
-static const char* LED_LABELS[]={"LU","RU","C","LL","RL","LS","RS","LB","RB"};
+static const char* LED_LABELS[] = {"LU", "RU", "C",  "LL", "RL",
+                                   "LS", "RS", "LB", "RB"};
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,12 +19,15 @@ extern "C" {
 typedef struct psvr_track_data
 {
 	uint64_t timestamp;
-	xrt_vec3 positions_3d[NUM_LEDS]; //x,y,z position for up to (currently) 9 points - LU,RU,C,LL,RL,LS,RS,LB,RB
-	xrt_vec2 l_positions_2d[NUM_LEDS]; //2d positions in left and right images
+	xrt_vec3 positions_3d[NUM_LEDS]; // x,y,z position for up to (currently)
+	                                 // 9 points - LU,RU,C,LL,RL,LS,RS,LB,RB
+	xrt_vec2
+	    l_positions_2d[NUM_LEDS]; // 2d positions in left and right images
 	xrt_vec2 r_positions_2d[NUM_LEDS];
-	int8_t confidence[NUM_LEDS]; //-1 if point is not tracked, TODO: 0-128 for confidence
+	int8_t confidence[NUM_LEDS]; //-1 if point is not tracked, TODO: 0-128
+	                             //for confidence
 	xrt_matrix_4x4 rotation_matrix; // SVD-fitted head rotation matrix
-	xrt_vec3 translation; // head translation
+	xrt_vec3 translation;           // head translation
 } psvr_track_data_t;
 
 
@@ -50,13 +54,14 @@ typedef struct psvr_led
 	int sign_y;
 } psvr_led_t;
 
-bool psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t);
+bool
+psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t);
 
-//bool psvr_computeSVD();
+// bool psvr_computeSVD();
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif //TRACKPSVR_H
+#endif // TRACKPSVR_H
