@@ -1,5 +1,6 @@
+#include <opencv2/opencv.hpp>
+
 #include "tracker3D_sphere_mono.h"
-#include "opencv4/opencv2/opencv.hpp"
 #include "common/opencv_utils.hpp"
 
 
