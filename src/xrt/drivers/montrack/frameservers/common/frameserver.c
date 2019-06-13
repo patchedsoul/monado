@@ -1,7 +1,14 @@
 #include "frameserver.h"
-#include "ffmpeg/ffmpeg_frameserver.h";
-#include "v4l2/v4l2_frameserver.h";
-#include "uvc/uvc_frameserver.h";
+
+#ifdef XRT_HAVE_FFMPEG
+#include "ffmpeg/ffmpeg_frameserver.h"
+#endif // XRT_HAVE_FFMPEG
+
+#ifdef XRT_HAVE_LIBUVC
+#include "uvc/uvc_frameserver.h"
+#endif // XRT_HAVE_LIBUVC
+
+#include "v4l2/v4l2_frameserver.h"
 
 
 float
@@ -182,6 +189,7 @@ frameserver_create(frameserver_type_t t)
 	frameserver_instance_t* i = calloc(1, sizeof(frameserver_instance_t));
 	if (i) {
 		switch (t) {
+#ifdef XRT_HAVE_FFMPEG
 		case FRAMESERVER_TYPE_FFMPEG:
 			i->frameserver_enumerate_sources =
 			    ffmpeg_frameserver_enumerate_sources;
@@ -202,6 +210,9 @@ frameserver_create(frameserver_type_t t)
 			i->internal_instance =
 			    (void*)ffmpeg_frameserver_create(i);
 			break;
+#endif // XRT_HAVE_FFMPEG
+
+#ifdef XRT_HAVE_LIBUVC
 		case FRAMESERVER_TYPE_UVC:
 			i->frameserver_enumerate_sources =
 			    uvc_frameserver_enumerate_sources;
@@ -220,6 +231,8 @@ frameserver_create(frameserver_type_t t)
 			    uvc_frameserver_stream_start;
 			i->internal_instance = (void*)uvc_frameserver_create(i);
 			break;
+#endif // XRT_HAVE_LIBUVC
+
 		case FRAMESERVER_TYPE_V4L2:
 			i->frameserver_enumerate_sources =
 			    v4l2_frameserver_enumerate_sources;

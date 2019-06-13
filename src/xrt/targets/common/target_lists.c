@@ -8,9 +8,6 @@
 
 #include "target_lists.h"
 
-//! @todo HACK
-#define XRT_BUILD_MONTRACK
-
 #ifdef XRT_BUILD_HDK
 #include "hdk/hdk_interface.h"
 #endif

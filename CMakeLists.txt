@@ -24,10 +24,9 @@ find_package(Vulkan REQUIRED)
 find_package(OpenGL REQUIRED COMPONENTS GLX)
 find_package(HIDAPI)
 find_package(OpenHMD)
-find_package(OpenCV)
-
-# @TODO Turn into a find_package LIBUSB-1.0 file.
-pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+find_package(OpenCV COMPONENTS core calib3d highgui imgproc imgcodecs features2d video)
+find_package(Libusb1)
+find_package(JPEG)
 
 # @TODO Turn into a find_package LIBUVC file.
 pkg_check_modules(LIBUVC libuvc)
@@ -51,6 +50,7 @@ cmake_dependent_option(BUILD_WITH_XLIB "Enable xlib support" ON "X11_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENGL "Enable OpenGL Graphics API support" ON "OPENGL_FOUND" OFF)
 
 set(BUILD_WITH_LIBUSB TRUE)
+cmake_dependent_option(BUILD_WITH_JPEG "Enable jpeg code (used for some video drivers)" ON "JPEG_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENCV "Enable OpenCV backend" ON "OpenCV_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_LIBUVC "Enable libuvc video driver" ON "LIBUVC_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_FFMPEG "Enable ffmpeg testing video driver" ON "FFMPEG_FOUND" OFF)
@@ -83,6 +83,10 @@ if(BUILD_WITH_OPENCV)
 	add_definitions(-DXRT_HAVE_OPENCV)
 endif()
 
+if(BUILD_WITH_JPEG)
+	add_definitions(-DXRT_HAVE_JPEG)
+endif()
+
 if(BUILD_WITH_LIBUVC)
 	add_definitions(-DXRT_HAVE_LIBUVC)
 endif()
@@ -113,6 +117,13 @@ if(TRUE)
 	# Uses the Monado internal hid wrapper.
 	add_definitions(-DXRT_BUILD_PSMV)
 	set(BUILD_DRIVER_PSMV TRUE)
+endif()
+
+if(BUILD_WITH_OPENCV AND (BUILD_WITH_FFMPEG OR BUILD_WITH_JPEG))
+	# Condition for enabling the montrack optical tracking driver.
+	# JPEG required for both UVC and v4l2 backends.
+	add_definitions(-DXRT_BUILD_MONTRACK)
+	set(BUILD_DRIVER_MONTRACK TRUE)
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra -Wno-unused-parameter")

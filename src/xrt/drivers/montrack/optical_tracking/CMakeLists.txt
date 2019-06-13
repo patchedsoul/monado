@@ -2,15 +2,7 @@
 # SPDX-License-Identifier: BSL-1.0
 
 include_directories(
-	${CMAKE_CURRENT_SOURCE_DIR}/../include
-	${CMAKE_CURRENT_SOURCE_DIR}/../auxiliary
 	${CMAKE_CURRENT_SOURCE_DIR}
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/plugins/unifiedvideoinertialtracker
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/plugins/videotrackershared
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/inc
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/build/src
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/vendor/util-headers
-	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/vendor/optional-lite-3.2.0/include
 	)
 
 set(OPTICAL_TRACKING_SOURCE_FILES
@@ -35,6 +27,7 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 add_library(optical_tracking OBJECT ${OPTICAL_TRACKING_SOURCE_FILES})
 set_property(TARGET optical_tracking PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(optical_tracking SYSTEM
-	PRIVATE ${OPENCV_INCLUDE_DIRS}
-	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
+	PRIVATE
+	${OPENCV_INCLUDE_DIRS}
+	${CMAKE_CURRENT_SOURCE_DIR}/..
 	)
