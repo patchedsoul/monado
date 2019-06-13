@@ -668,6 +668,7 @@ dummy_init_mt_device(mt_device_t* md)
 	md->base.destroy = mt_device_destroy;
 	md->base.get_view_pose = mt_device_get_view_pose;
 	md->base.get_tracked_pose = mt_device_get_tracked_pose;
+/*
 	md->base.blend_mode = XRT_BLEND_MODE_OPAQUE;
 	md->base.screens[0].w_pixels = 512;
 	md->base.screens[0].h_pixels = 256;
@@ -688,4 +689,5 @@ dummy_init_mt_device(mt_device_t* md)
 	md->base.views[1].display.w_meters = 0.1f;
 	md->base.views[1].display.h_pixels = 256;
 	md->base.views[1].display.h_meters = 0.1f;
+*/
 }
