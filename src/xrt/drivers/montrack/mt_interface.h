@@ -13,8 +13,8 @@ extern "C" {
 #endif
 
 
-struct xrt_prober*
-mt_create_prober();
+struct xrt_auto_prober*
+mt_create_auto_prober();
 
 
 #ifdef __cplusplus
