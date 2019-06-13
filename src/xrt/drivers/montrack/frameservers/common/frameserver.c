@@ -10,6 +10,7 @@
 
 #include "v4l2/v4l2_frameserver.h"
 
+#include <util/u_misc.h>
 
 float
 format_bytes_per_pixel(frame_format_t f)
@@ -187,7 +188,7 @@ frame_resample(frame_t* source, frame_t* out)
 frameserver_instance_t*
 frameserver_create(frameserver_type_t t)
 {
-	frameserver_instance_t* i = calloc(1, sizeof(frameserver_instance_t));
+	frameserver_instance_t* i = U_TYPED_CALLOC(frameserver_instance_t);
 	if (i) {
 		switch (t) {
 #ifdef XRT_HAVE_FFMPEG

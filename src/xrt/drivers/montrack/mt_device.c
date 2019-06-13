@@ -148,7 +148,7 @@ mt_create_mono_ps3eye(mt_device_t* md)
 		return false;
 	}
 	v4l2_source_descriptor_t* descriptors =
-	    calloc(source_count, sizeof(v4l2_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, source_count);
 	md->frameservers[0]->frameserver_enumerate_sources(
 	    md->frameservers[0], descriptors, &source_count);
 	// defer further configuration and stream start until the rest of our
@@ -240,7 +240,7 @@ mt_create_mono_c270(mt_device_t* md)
 		return false;
 	}
 	uvc_source_descriptor_t* descriptors =
-	    calloc(source_count, sizeof(uvc_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
 	md->frameservers[0]->frameserver_enumerate_sources(
 	    md->frameservers[0], descriptors, &source_count);
 	// defer further configuration and stream start until the rest of our
@@ -336,7 +336,7 @@ mt_create_stereo_elp(mt_device_t* md)
 		return false;
 	}
 	uvc_source_descriptor_t* descriptors =
-	    calloc(source_count, sizeof(uvc_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
 	md->frameservers[0]->frameserver_enumerate_sources(
 	    md->frameservers[0], descriptors, &source_count);
 	// defer further configuration and stream start until the rest of our
@@ -455,7 +455,7 @@ mt_create_uvbi_elp(mt_device_t* md)
 		return false;
 	}
 	uvc_source_descriptor_t* descriptors =
-	    calloc(source_count, sizeof(uvc_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
 	md->frameservers[0]->frameserver_enumerate_sources(
 	    md->frameservers[0], descriptors, &source_count);
 	// defer further configuration and stream start until the rest of our
@@ -534,7 +534,7 @@ mt_create_stereo_ps4(mt_device_t* md)
 		return false;
 	}
 	v4l2_source_descriptor_t* descriptors =
-	    calloc(source_count, sizeof(v4l2_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, source_count);
 	md->frameservers[0]->frameserver_enumerate_sources(
 	    md->frameservers[0], descriptors, &source_count);
 	// defer further configuration and stream start until the rest of our
