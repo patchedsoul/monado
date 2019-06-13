@@ -819,7 +819,7 @@ v4l2_frameserver_test()
 		return false;
 	}
 	v4l2_source_descriptor_t* camera_list =
-	    calloc(camera_count, sizeof(v4l2_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, camera_count);
 	if (!v4l2_frameserver_enumerate_devices(&instance, camera_list,
 	                                        &camera_count)) {
 		printf("FAILURE: Could not get camera descriptors\n");

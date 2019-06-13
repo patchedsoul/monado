@@ -166,7 +166,7 @@ ffmpeg_frameserver_test()
 		return false;
 	}
 	ffmpeg_source_descriptor_t* source_list =
-	    calloc(source_count, sizeof(ffmpeg_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(ffmpeg_source_descriptor_t, source_count);
 	if (!ffm_server->frameserver_enumerate_sources(ffm_server, source_list,
 	                                               &source_count)) {
 		printf("FAILURE: Could not get source descriptors\n");
