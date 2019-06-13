@@ -153,6 +153,10 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 	v_format.fmt.pix.height = internal->source_descriptor.height;
 	v_format.fmt.pix.pixelformat = internal->source_descriptor.stream_format;
 	v_format.fmt.pix.field = V4L2_FIELD_ANY;
+	if (internal->source_descriptor.extended_format > 0) {
+		v_format.fmt.pix.priv = V4L2_PIX_FMT_PRIV_MAGIC;
+	}
+
 
 	if (ioctl(fd,VIDIOC_S_FMT,&v_format) < 0)
 	{
@@ -204,6 +208,7 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 			if (capture_userptr)
 			{
 				mem[i] = aligned_alloc(getpagesize(),v_buf.length); //align this to a memory page, v4l2 likes it that way
+				//mem[i] = malloc(v_buf.length);
 				if (! mem[i]) {
 					printf("ERROR: could not alloc page-aligned memory\n");
 					return;
@@ -229,12 +234,20 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 		}
 		int start_capture = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		if (ioctl(fd,VIDIOC_STREAMON,&start_capture) < 0) {
-			printf("could not start capture!\n");
+			printf("ERROR: could not start capture!\n");
 			return;
 		}
 
-
+	uint8_t* cropped_buffer = NULL;
 	frame_t f = {}; //we dequeue buffers into this frame in our main loop
+	if (internal->source_descriptor.crop_scanline_bytes_start > 0) {
+		uint32_t alloc_size = internal->source_descriptor.crop_width * internal->source_descriptor.height * format_bytes_per_pixel(internal->source_descriptor.format);
+		cropped_buffer = malloc(alloc_size);
+		if (! cropped_buffer){
+			printf("ERROR: could not alloc memory!");
+			exit(0);
+		}
+	}
 	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
 	    case V4L2_PIX_FMT_YUYV:
@@ -271,15 +284,44 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 		if (ioctl(fd,VIDIOC_DQBUF,&v_buf) < 0) {
 			printf("dequeue failed\n");
 		} else {
-			printf("dequeue succeeded %d\n",v_buf.index);
+			//printf("dequeue succeeded %d used %d of %d \n",v_buf.index,v_buf.bytesused,v_buf.length);
+			if (internal->source_descriptor.crop_scanline_bytes_start > 0) {
+				//we need to crop our stream frame into a new buffer
+				uint32_t stream_bytes_per_pixel = 0;
+				switch (internal->source_descriptor.stream_format) {
+				    case V4L2_PIX_FMT_YUYV:
+					    stream_bytes_per_pixel = 2;
+					    break;
+				    default:
+					    printf("ERROR: No crop support for non-YUYV stream formats\n");
+						exit(0);
+				}
 
-			//process frame
-			f.width = internal->source_descriptor.width;
-			f.height = internal->source_descriptor.height;
-			//reasonable default
-			f.stride= internal->source_descriptor.width * format_bytes_per_pixel(internal->source_descriptor.format);
-			f.size_bytes = v_buf.bytesused;
-			f.data = mem[v_buf.index];
+				uint32_t raw_stride = internal->source_descriptor.width * stream_bytes_per_pixel;
+				uint32_t cropped_stride = internal->source_descriptor.crop_width * stream_bytes_per_pixel;
+				uint8_t* bufptr = mem[v_buf.index];
+				for (uint32_t i=0;i < internal->source_descriptor.height;i++) {
+					uint8_t* dstptr = cropped_buffer + (i*cropped_stride);
+					uint8_t* srcptr = bufptr + (i* raw_stride) + internal->source_descriptor.crop_scanline_bytes_start;
+					//printf("dstptr %d srcptr %d\n ",(i*cropped_stride),(i* raw_stride) + internal->source_descriptor.crop_scanline_bytes_start);
+					memcpy(dstptr,srcptr,cropped_stride);
+				}
+				//fix up the frame we supply to the consumer
+				f.width = internal->source_descriptor.crop_width;
+				f.height = internal->source_descriptor.height;
+				//reasonable default - will get reset
+				f.stride = internal->source_descriptor.crop_width * format_bytes_per_pixel(internal->source_descriptor.format);
+				f.size_bytes = cropped_stride * f.height;
+				f.data=cropped_buffer;
+			} else {
+				//process frame
+				f.width = internal->source_descriptor.width;
+				f.height = internal->source_descriptor.height;
+				//reasonable default - will get reset
+				f.stride= internal->source_descriptor.width * format_bytes_per_pixel(internal->source_descriptor.format);
+				f.size_bytes = v_buf.bytesused;
+				f.data = mem[v_buf.index];
+			}
 
 			switch (internal->source_descriptor.stream_format) {
 			    case V4L2_PIX_FMT_JPEG:
@@ -309,6 +351,7 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 					    case FORMAT_Y_UINT8:
 						    //split our Y plane out
 						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.data = NULL;
 							sampled_frame.format = FORMAT_Y_UINT8;
 							sampled_frame.stride = f.width;
 							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
@@ -336,6 +379,7 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 					    case FORMAT_Y_UINT8:
 						    //split our Y plane out
 						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.data = NULL;
 							sampled_frame.format = FORMAT_Y_UINT8;
 							sampled_frame.stride = f.width;
 							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
@@ -353,6 +397,7 @@ void v4l2_frameserver_stream_run(frameserver_instance_t* inst) {
 					    case FORMAT_YUV444_UINT8:
 						    //upsample our YUYV to YUV444
 						    sampled_frame = f; //copy our buffer frames attributes
+							sampled_frame.data = NULL;
 							sampled_frame.format = FORMAT_YUV444_UINT8;
 							sampled_frame.stride = f.width * 3;
 							sampled_frame.size_bytes = frame_size_in_bytes(&sampled_frame);
@@ -436,7 +481,8 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 		return 0;
 	}
 
-	if (ioctl(fd, VIDIOC_QUERYCAP, &cap)) {
+	v4l2_source_descriptor_t* descriptor = *sds;
+	if (ioctl(fd, VIDIOC_QUERYCAP, &cap) ==0) {
 		if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 			return 0; //not a video device
 		}
@@ -444,16 +490,20 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 			return 0; //cannot stream
 		}
 		if (!(cap.capabilities & V4L2_CAP_TIMEPERFRAME)) {
-			printf("WARNING: device does not select setting frame intervals\n");
+			printf("WARNING: device does not support setting frame intervals\n");
+		}
+		if (*sds) { //skip this if we are just counting, descriptor will be NULL
+			if ((cap.capabilities & V4L2_CAP_EXT_PIX_FORMAT)) {
+				descriptor->extended_format=1; //need to query for extended format info
+			}
 		}
 	}
-
 	struct v4l2_fmtdesc desc;
 	memset(&desc,0,sizeof(desc));
 	desc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	v4l2_source_descriptor_t* descriptor = *sds;
+	
 	while (ioctl(fd,VIDIOC_ENUM_FMT,&desc) == 0) {
-		//printf("FORMAT: %s %04x\n", desc.description,desc.pixelformat);
+		printf("FORMAT: %s %04x %d\n", desc.description,desc.pixelformat, desc.type);
 		struct v4l2_frmsizeenum frame_size;
 		struct v4l2_frmivalenum frame_interval;
 		memset(&frame_size,0,sizeof(frame_size));
@@ -462,7 +512,7 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 		frame_size.index = 0;
 		while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frame_size) >= 0) {
 			if (frame_size.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-				    //printf("%dx%d\n", frame_size.discrete.width,frame_size.discrete.height);
+				    printf("%dx%d\n", frame_size.discrete.width,frame_size.discrete.height);
 				    frame_interval.pixel_format = frame_size.pixel_format;
 					frame_interval.width = frame_size.discrete.width;
 					frame_interval.height = frame_size.discrete.height;
@@ -478,65 +528,45 @@ uint32_t v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							switch(desc.pixelformat){
 							case V4L2_PIX_FMT_YUYV:
 								descriptor->format = FORMAT_YUYV_UINT8;
-								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
-								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
-								strncpy(descriptor->name,cap.driver,128);
-								descriptor->device_path[127]=0x0;
 								descriptor->width = frame_interval.width;
 								descriptor->height = frame_interval.height;
-								descriptor->stream_format = desc.pixelformat;
 								descriptor->rate = rate;
 								descriptor->sampling = SAMPLING_NONE;
+								source_descriptor_from_v4l2(descriptor,v4l2_device,&cap,&desc);
 								descriptor++;
 
 								descriptor->format = FORMAT_YUV444_UINT8;
-								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
-								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
-								strncpy(descriptor->name,cap.driver,128);
-								descriptor->device_path[127]=0x0;
 								descriptor->width = frame_interval.width;
 								descriptor->height = frame_interval.height;
-								descriptor->stream_format = desc.pixelformat;
 								descriptor->rate = rate;
 								descriptor->sampling = SAMPLING_UPSAMPLED;
+								source_descriptor_from_v4l2(descriptor,v4l2_device,&cap,&desc);
 								descriptor++;
 
 								descriptor->format = FORMAT_Y_UINT8;
-								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
-								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
-								strncpy(descriptor->name,cap.driver,128);
-								descriptor->device_path[127]=0x0;
 								descriptor->width = frame_interval.width;
 								descriptor->height = frame_interval.height;
-								descriptor->stream_format = desc.pixelformat;
 								descriptor->rate = rate;
 								descriptor->sampling = SAMPLING_DOWNSAMPLED;
+								source_descriptor_from_v4l2(descriptor,v4l2_device,&cap,&desc);
 								descriptor++;
 								sd_count += 3;
 								break;
 							case V4L2_PIX_FMT_JPEG: //MJPEG stream format
 								descriptor->format = FORMAT_YUV444_UINT8;
-								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
-								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
-								strncpy(descriptor->name,cap.driver,128);
-								descriptor->device_path[127]=0x0;
 								descriptor->width = frame_interval.width;
 								descriptor->height = frame_interval.height;
-								descriptor->stream_format = desc.pixelformat;
 								descriptor->rate = rate;
 								descriptor->sampling = SAMPLING_UPSAMPLED;
+								source_descriptor_from_v4l2(descriptor,v4l2_device,&cap,&desc);
 								descriptor++;
 
 								descriptor->format = FORMAT_Y_UINT8;
-								strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
-								descriptor->device_path[255]=0x0; //TODO: hardcoded 256
-								strncpy(descriptor->name,cap.driver,128);
-								descriptor->device_path[127]=0x0;
 								descriptor->width = frame_interval.width;
 								descriptor->height = frame_interval.height;
-								descriptor->stream_format = desc.pixelformat;
 								descriptor->rate = rate;
 								descriptor->sampling = SAMPLING_DOWNSAMPLED;
+								source_descriptor_from_v4l2(descriptor,v4l2_device,&cap,&desc);
 								descriptor++;
 								sd_count +=2;
 								break;
@@ -592,3 +622,28 @@ bool v4l2_frameserver_test(){
 	}
 	return true;
 }
+
+static bool source_descriptor_from_v4l2(v4l2_source_descriptor_t* descriptor, char* v4l2_device, struct v4l2_capability* cap,struct v4l2_fmtdesc* desc) {
+
+	strncpy(descriptor->device_path,v4l2_device,256); //TODO: hardcoded 256
+	descriptor->device_path[255]=0x0; //TODO: hardcoded 256
+	strncpy(descriptor->name,cap->driver,32);
+	descriptor->name[127]=0x0;
+	strncpy(descriptor->model,cap->card,32);
+	descriptor->model[127]=0x0;
+	descriptor->stream_format = desc->pixelformat;
+
+	//special-case the PS4 Eye camera  - need to crop the main stereo image out
+	//of the composite (header+audio + main + interlaced) frame the driver
+	//produces
+	if (strcmp(cap->card,"USB Camera-OV580: USB Camera-OV") == 0) {
+		    descriptor->crop_scanline_bytes_start = 96;
+			descriptor->crop_width=2560; //assume highest res
+			if (descriptor->width < 900) {
+				descriptor->crop_width=640;
+			}
+			else if (descriptor->width < 2000) {
+				descriptor->crop_width = 1280;
+			}
+	    }
+    }

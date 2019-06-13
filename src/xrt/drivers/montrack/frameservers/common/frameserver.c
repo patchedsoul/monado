@@ -126,8 +126,8 @@ bool frame_resample(frame_t* source, frame_t* out) {
     uint8_t* dest_ptr;
     uint8_t source_pixel_bytes = format_bytes_per_pixel(source->format);
     uint32_t source_line_bytes = source->stride;
-    uint8_t dest_pixel_bytes= format_bytes_per_pixel(out->format);
-    uint32_t dest_line_bytes = out->width;
+	uint8_t dest_pixel_bytes= format_bytes_per_pixel(out->format);
+	uint32_t dest_line_bytes = out->stride;
 
     if (! out->data)
     {

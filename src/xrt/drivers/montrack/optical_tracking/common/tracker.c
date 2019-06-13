@@ -1,7 +1,8 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
 #include "tracker3D_sphere_stereo.h"
-#include "../frameservers/uvc/uvc_frameserver.h"
+#include "tracker3D_osvr_uvbi.h"
+
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/signal.h>
@@ -35,6 +36,18 @@ tracker_instance_t* tracker_create(tracker_type_t t) {
 				i->tracker_has_new_poses = tracker3D_sphere_stereo_new_poses;
 				i->tracker_configure = tracker3D_sphere_stereo_configure;
 			    break;
+		    case TRACKER_TYPE_OSVR_UVBI:
+			    i->tracker_type = t;
+				i->internal_instance = tracker3D_osvr_uvbi_create(i);
+				i->tracker_get_capture_params = tracker3D_osvr_uvbi_get_capture_params;
+				i->tracker_get_poses = tracker3D_osvr_uvbi_get_poses;
+				i->tracker_get_debug_frame= tracker3D_osvr_uvbi_get_debug_frame;
+				i->tracker_queue = tracker3D_osvr_uvbi_queue;
+				i->tracker_register_measurement_callback = tracker3D_osvr_uvbi_register_measurement_callback;
+				i->tracker_register_event_callback = tracker3D_osvr_uvbi_register_event_callback;
+				i->tracker_has_new_poses = tracker3D_osvr_uvbi_new_poses;
+				i->tracker_configure = tracker3D_osvr_uvbi_configure;
+			break;
 		    case TRACKER_TYPE_NONE:
 		    default:
 			    free(i);

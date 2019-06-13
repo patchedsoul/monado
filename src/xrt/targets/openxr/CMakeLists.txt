@@ -93,6 +93,9 @@ target_link_libraries(${RUNTIME_TARGET}
 	/usr/local/lib64/libopencv_features2d.so
 	/usr/local/lib64/libopencv_video.so
 	libjpeg.so
+	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi-core.so
+	/home/pblack/Documents/gitlab/build-UVBI-and-KalmanFramework-Standalone-Desktop-Debug/plugins/unifiedvideoinertialtracker/libuvbi_plugin_parts.so
+
 	)
 
 target_compile_definitions(${RUNTIME_TARGET} PRIVATE XRT_HAVE_OHMD)

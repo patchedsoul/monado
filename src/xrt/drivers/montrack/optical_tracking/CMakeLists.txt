@@ -5,6 +5,12 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/../include
 	${CMAKE_CURRENT_SOURCE_DIR}/../auxiliary
 	${CMAKE_CURRENT_SOURCE_DIR}
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/plugins/unifiedvideoinertialtracker
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/plugins/videotrackershared
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/inc
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/build/src
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/vendor/util-headers
+	/home/pblack/Documents/gitlab/UVBI-and-KalmanFramework-Standalone/vendor/optional-lite-3.2.0/include
 	)
 
 set(OPTICAL_TRACKING_SOURCE_FILES
@@ -19,6 +25,12 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	tracker3D_sphere_stereo.h
 	tracker3D_sphere_mono.cpp
 	tracker3D_sphere_mono.h
+	tracker3D_osvr_uvbi.cpp
+	tracker3D_osvr_uvbi.h
+	track_psvr.h
+	track_psvr.cpp
+
+
 	)
 
 # Use OBJECT to not create a archive, since it just gets in the way.

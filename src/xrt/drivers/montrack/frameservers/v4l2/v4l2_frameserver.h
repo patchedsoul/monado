@@ -17,6 +17,7 @@
 typedef struct v4l2_source_descriptor {
 	char device_path[256]; //TODO: might not be enough
 	char name[128];
+	char model[128];
 	uint64_t source_id;
 	frame_format_t format;
 	uint32_t stream_format;
@@ -24,6 +25,9 @@ typedef struct v4l2_source_descriptor {
 	uint32_t width;
 	uint32_t height;
 	uint32_t rate;
+	uint8_t extended_format;
+	uint32_t crop_scanline_bytes_start; //byte offset - special case for ps4 camera
+	uint32_t crop_width; // pixels - special case for ps4 camera
 } v4l2_source_descriptor_t;
 
 typedef struct v4l2_frameserver_instance {
@@ -58,6 +62,7 @@ bool v4l2_frameserver_is_running(frameserver_instance_t* inst);
 bool v4l2_frameserver_test();
 
 static void v4l2_frameserver_stream_run(frameserver_instance_t* inst);  //streaming thread entrypoint
+static bool source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor, char* v4l2_device, struct v4l2_capability* cap,struct v4l2_fmtdesc* desc);
 
 
 #endif //V4L2_FRAMESERVER_H

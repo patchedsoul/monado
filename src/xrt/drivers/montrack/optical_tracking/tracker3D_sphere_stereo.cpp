@@ -2,6 +2,8 @@
 #include "opencv4/opencv2/opencv.hpp"
 #include "common/opencv_utils.hpp"
 
+#include "track_psvr.h"
+
 #include <sys/stat.h>
 #include <linux/limits.h>
 
@@ -60,14 +62,11 @@ typedef struct tracker3D_sphere_stereo_instance {
 	cv::Mat l_undistort_map_y;
 	cv::Mat r_undistort_map_x;
 	cv::Mat r_undistort_map_y;
+
 	cv::Mat l_rectify_map_x;
 	cv::Mat l_rectify_map_y;
 	cv::Mat r_rectify_map_x;
 	cv::Mat r_rectify_map_y;
-	cv::Mat l_rev_rectify_map_x;
-	cv::Mat l_rev_rectify_map_y;
-	cv::Mat r_rev_rectify_map_x;
-	cv::Mat r_rev_rectify_map_y;
 
 
 	//calibration data structures
@@ -254,12 +253,12 @@ bool tracker3D_sphere_stereo_queue(tracker_instance_t* inst,frame_t* frame) {
 
 bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 
-	printf("tracking...\n");
+	//printf("tracking...\n");
 	tracker3D_sphere_stereo_instance_t* internal = (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
 
-
+	//DEBUG: dump all our planes out for inspection
 	/*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
 	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
@@ -267,6 +266,9 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
 	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
 */
+
+	//disabled channel combining in favour of using v plane directly - Y is 2x resolution
+	// so we do want to use that eventually
 
 	//combine our yuv channels to isolate blue leds - y channel is all we will use from now on
 	//cv::subtract(internal->l_frame_u,internal->l_frame_v,internal->l_frame_u);
@@ -295,14 +297,9 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	cv::remap( r_frame_undist,internal->r_frame_gray, internal->r_rectify_map_x, internal->r_rectify_map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0) );
 
 
-	//DEBUG: output channels to disk
-	//cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
-	//cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
+	//block-match for disparity calculation - disabled
 
-
-	//block-match for disparity calculation
-
-	cv::Mat disp,disp8;
+	cv::Mat disp;
 	cv::Ptr<cv::StereoBM> sbm = cv::StereoBM::create(128,5);
 	sbm->setNumDisparities(64);
 	   sbm->setBlockSize(5);
@@ -317,6 +314,8 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 //	sbm->compute(internal->l_frame_gray, internal->r_frame_gray,disp);
 //	cv::normalize(disp, disp8, 0.1, 255, CV_MINMAX, CV_8UC1);
 
+
+	//disabled background subtraction for now
 
 	//internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
 	//internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
@@ -336,8 +335,11 @@ bool tracker3D_sphere_stereo_track(tracker_instance_t* inst){
 	cv::threshold(internal->l_frame_gray,internal->l_frame_gray,32.0,255.0,0);
 	cv::threshold(internal->r_frame_gray,internal->r_frame_gray,32.0,255.0,0);
 
-	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
-	disp8.copyTo(internal->debug_rgb);
+	//TODO: handle source images larger than debug_rgb
+	cv::Mat debug_img;
+	cv::cvtColor(internal->l_frame_gray,debug_img,CV_GRAY2BGR);
+	cv::Mat dst_roi = internal->debug_rgb(cv::Rect(0, 0, debug_img.cols, debug_img.rows));
+	debug_img.copyTo(dst_roi);
 
 
 	tracker_measurement_t m = {};
@@ -527,8 +529,8 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	//clear our debug image
 	cv::rectangle(internal->debug_rgb, cv::Point2f(0,0),cv::Point2f(internal->debug_rgb.cols,internal->debug_rgb.rows),cv::Scalar( 0,0,0 ),-1,0);
 	cv::Mat disp8;
-	cv::cvtColor(internal->l_frame_gray,disp8,CV_GRAY2BGR);
-	disp8.copyTo(internal->debug_rgb);
+	cv::cvtColor(internal->r_frame_gray,disp8,CV_GRAY2BGR);
+	//disp8.copyTo(internal->debug_rgb);
 	// we will collect samples continuously - the user should be able to wave a
 	// chessboard around randomly while the system calibrates.. we only add a
 	// sample when it increases the coverage area substantially, to give the solver
@@ -656,6 +658,14 @@ bool tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst){
 	cv::putText(internal->debug_rgb,"CALIBRATION MODE",cv::Point2i(160,240),0,1.0f,cv::Scalar(192,192,192));
 	cv::putText(internal->debug_rgb,message,cv::Point2i(160,460),0,0.5f,cv::Scalar(192,192,192));
 
+	//DEBUG: write out our image planes to confirm imagery is arriving as expected
+	/*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
+	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
+	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
+	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
+	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
+	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
+*/
 	tracker_send_debug_frame(inst);
 	printf("calibrating f end\n");
 	return true;
