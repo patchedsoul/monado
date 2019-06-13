@@ -20,6 +20,7 @@
 #include "main/comp_compositor.h"
 #include "main/comp_client_interface.h"
 
+
 static void
 compositor_destroy(struct xrt_compositor *xc)
 {
