@@ -31,4 +31,4 @@ endif()
 
 add_subdirectory(common)
 add_subdirectory(openxr)
-add_subdirectory(prober)
+#add_subdirectory(prober)
