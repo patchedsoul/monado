@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <linux/limits.h>
 
+#include <util/u_misc.h>
+
 #define MAX_CALIBRATION_SAMPLES                                                \
 	23 // mo' samples, mo' calibration accuracy, at the expense of time.
 
@@ -92,8 +94,7 @@ tracker3D_sphere_stereo_instance_t*
 tracker3D_sphere_stereo_create(tracker_instance_t* inst)
 {
 	tracker3D_sphere_stereo_instance_t* i =
-	    (tracker3D_sphere_stereo_instance_t*)calloc(
-	        1, sizeof(tracker3D_sphere_stereo_instance_t));
+	    U_TYPED_CALLOC(tracker3D_sphere_stereo_instance_t);
 	if (i) {
 		i->blob_params.filterByArea = false;
 		i->blob_params.filterByConvexity = false;

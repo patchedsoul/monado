@@ -5,6 +5,8 @@
 
 #include <jpeglib.h>
 
+#include <util/u_misc.h>
+
 
 
 static uvc_error_t res;
@@ -27,10 +29,9 @@ uvc_source_destroy(uvc_source_descriptor_t* desc)
 uvc_frameserver_instance_t*
 uvc_frameserver_create(frameserver_instance_t* inst)
 {
-	// TODO: calloc macro
 	printf("creating uvc frameserver\n");
 	uvc_frameserver_instance_t* i =
-	    calloc(1, sizeof(uvc_frameserver_instance_t));
+	    U_TYPED_CALLOC(uvc_frameserver_instance_t);
 	if (i) {
 		i->device_list = NULL;
 		res = uvc_init(&(i->context), NULL);
@@ -498,7 +499,7 @@ uvc_frameserver_test()
 		return false;
 	}
 	uvc_source_descriptor_t* source_list =
-	    calloc(source_count, sizeof(uvc_source_descriptor_t));
+	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
 	if (!uvc_frameserver->frameserver_enumerate_sources(
 	        uvc_frameserver, source_list, &source_count)) {
 		printf("FAILURE: Could not get source descriptors\n");
@@ -531,7 +532,7 @@ uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
 		    uvc_get_format_descs(temp_handle);
 		uvc_source_descriptor_t* desc = *sds;
 		uvc_source_descriptor_t* temp_alloc =
-		    calloc(1, sizeof(uvc_device_descriptor_t));
+		    U_TYPED_CALLOC(uvc_device_descriptor_t);
 		while (format_desc != NULL) {
 			printf("Found format: %d FOURCC %c%c%c%c\n",
 			       format_desc->bFormatIndex,

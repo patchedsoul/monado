@@ -2,6 +2,7 @@
 #include "unifiedvideoinertial/TrackingSystem.h"
 #include "unifiedvideoinertial/TrackingDebugDisplay.h"
 #include "opencv2/opencv.hpp"
+#include <util/u_misc.h>
 
 typedef struct tracker3D_uvbi_instance
 {
@@ -36,8 +37,8 @@ tracker3D_uvbi_instance_t*
 tracker3D_uvbi_create(tracker_instance_t* inst)
 {
 
-	tracker3D_uvbi_instance_t* i = (tracker3D_uvbi_instance_t*)calloc(
-	    1, sizeof(tracker3D_uvbi_instance_t));
+	tracker3D_uvbi_instance_t* i =
+	    U_TYPED_CALLOC(tracker3D_uvbi_instance_t);
 	if (i) {
 		videotracker::uvbi::ConfigParams cp;
 		i->system = new videotracker::uvbi::TrackingSystem(cp);

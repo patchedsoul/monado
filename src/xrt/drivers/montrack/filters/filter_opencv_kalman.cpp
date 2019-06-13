@@ -3,6 +3,7 @@
 
 #include "filter_opencv_kalman.h"
 
+#include <util/u_misc.h>
 
 typedef struct filter_opencv_kalman_instance
 {
@@ -89,8 +90,7 @@ filter_opencv_kalman_instance_t*
 filter_opencv_kalman_create(filter_instance_t* inst)
 {
 	filter_opencv_kalman_instance_t* i =
-	    (filter_opencv_kalman_instance_t*)calloc(
-	        1, sizeof(filter_opencv_kalman_instance_t));
+	    U_TYPED_CALLOC(filter_opencv_kalman_instance_t);
 	if (i) {
 		float dt = 1.0;
 		i->kalman_filter.init(6, 3);

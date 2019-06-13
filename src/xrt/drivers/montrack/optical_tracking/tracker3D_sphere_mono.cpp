@@ -3,6 +3,7 @@
 #include "tracker3D_sphere_mono.h"
 #include "common/opencv_utils.hpp"
 
+#include <util/u_misc.h>
 
 #define MAX_CALIBRATION_SAMPLES 23
 
@@ -43,8 +44,7 @@ tracker3D_sphere_mono_instance_t*
 tracker3D_sphere_mono_create(tracker_instance_t* inst)
 {
 	tracker3D_sphere_mono_instance_t* i =
-	    (tracker3D_sphere_mono_instance_t*)calloc(
-	        1, sizeof(tracker3D_sphere_mono_instance_t));
+	    U_TYPED_CALLOC(tracker3D_sphere_mono_instance_t);
 	if (i) {
 		i->params.filterByArea = false;
 		i->params.filterByConvexity = false;
