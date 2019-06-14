@@ -164,7 +164,8 @@ frame_resample(frame_t* source, frame_t* out)
 				           (i * dest_line_bytes);
 				*dest_ptr = *source_ptr; // Y
 				if (j % 2 == 0) {
-					*(dest_ptr + 1) = *(source_ptr + 1); // U
+					*(dest_ptr + 1) =
+					    *(source_ptr + 1); // U
 					*(dest_ptr + 2) =
 					    *(source_ptr +
 					      3); // V from next source pixel
