@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <../auxiliary/math/m_api.h>
+#include <math/m_api.h>
 
 #include "../mt_events.h"
 

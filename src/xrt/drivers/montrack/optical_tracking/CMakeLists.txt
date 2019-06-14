@@ -17,11 +17,15 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	tracker3D_sphere_stereo.h
 	tracker3D_sphere_mono.cpp
 	tracker3D_sphere_mono.h
-#	tracker3D_osvr_uvbi.cpp
-#	tracker3D_osvr_uvbi.h
 	track_psvr.h
 	track_psvr.cpp
 	)
+if(BUILD_WITH_UVBI)
+	list(APPEND OPTICAL_TRACKING_SOURCE_FILES
+		tracker3D_uvbi.cpp
+		tracker3D_uvbi.h
+	)
+endif()
 
 # Use OBJECT to not create a archive, since it just gets in the way.
 add_library(optical_tracking OBJECT ${OPTICAL_TRACKING_SOURCE_FILES})
@@ -31,3 +35,6 @@ target_include_directories(optical_tracking SYSTEM
 	${OPENCV_INCLUDE_DIRS}
 	${CMAKE_CURRENT_SOURCE_DIR}/..
 	)
+if(BUILD_WITH_UVBI)
+	target_link_libraries(optical_tracking PRIVATE uvbi::uvbi_plugin_parts)
+endif()

@@ -37,7 +37,7 @@ typedef enum tracker_type
 	TRACKER_TYPE_NONE,
 	TRACKER_TYPE_SPHERE_STEREO,
 	TRACKER_TYPE_SPHERE_MONO,
-	TRACKER_TYPE_OSVR_UVBI
+	TRACKER_TYPE_UVBI
 } tracker_type_t;
 
 typedef struct tracker_event

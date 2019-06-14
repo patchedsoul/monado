@@ -77,12 +77,19 @@ if(BUILD_DRIVER_MONTRACK)
 	if(BUILD_WITH_FFMPEG)
 		target_link_libraries(${RUNTIME_TARGET}
 			PUBLIC
-			libavformat
-			libavcodec
-			libavutil)
+			avformat # TODO find rather than hard code!
+			avcodec # TODO find rather than hard code!
+			avutil # TODO find rather than hard code!
+		)
+	endif()
+	if(BUILD_WITH_UVBI)
+		target_link_libraries(${RUNTIME_TARGET}
+			PUBLIC
+			uvbi::uvbi_plugin_parts)
 	endif()
 	target_link_libraries(${RUNTIME_TARGET}
 		PUBLIC
+		jpeg # TODO find rather than hard code!
 		opencv_core
 		opencv_calib3d
 		opencv_highgui
