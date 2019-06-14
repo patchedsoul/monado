@@ -60,7 +60,7 @@ typedef struct tracker3D_sphere_stereo_instance
 	cv::Mat zero_distortion;
 	cv::Mat zero_distortion_fisheye;
 
-	cv::Mat disparity_to_depth;
+	cv::Matx44d disparity_to_depth;
 
 	cv::Mat l_undistort_map_x;
 	cv::Mat l_undistort_map_y;
@@ -376,8 +376,8 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	sbm->setUniquenessRatio(10);
 	sbm->setDisp12MaxDiff(0);
 	//	sbm->compute(internal->l_frame_gray,
-	//internal->r_frame_gray,disp); 	cv::normalize(disp, disp8, 0.1, 255,
-	//CV_MINMAX, CV_8UC1);
+	// internal->r_frame_gray,disp); 	cv::normalize(disp, disp8, 0.1,
+	// 255, CV_MINMAX, CV_8UC1);
 
 
 	// disabled background subtraction for now
@@ -460,14 +460,15 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	if (l_blobs.size() > 0) {
 		for (uint32_t i = 0; i < l_blobs.size(); i++) {
 			float disp = r_blobs[i].pt.x - l_blobs[i].pt.x;
-			cv::Scalar xydw(l_blobs[i].pt.x, l_blobs[i].pt.y, disp,
-			                1.0f);
-			cv::Mat h_world = internal->disparity_to_depth * xydw;
+			cv::Vec4d xydw(l_blobs[i].pt.x, l_blobs[i].pt.y, disp,
+			               1.0f);
+			// Transform
+			cv::Vec4d h_world = internal->disparity_to_depth * xydw;
+			// Divide by scale to get 3D vector from homogeneous
+			// coordinate
 			world_points.push_back(cv::Point3f(
-			    h_world.at<double>(0, 0) / h_world.at<double>(3, 0),
-			    h_world.at<double>(1, 0) / h_world.at<double>(3, 0),
-			    h_world.at<double>(2, 0) /
-			        h_world.at<double>(3, 0)));
+			    h_world[0] / h_world[3], h_world[1] / h_world[3],
+			    h_world[2] / h_world[3]));
 		}
 	}
 
@@ -576,7 +577,9 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 		read_mat(calib_file, &internal->r_translation);
 		read_mat(calib_file, &internal->l_projection);
 		read_mat(calib_file, &internal->r_projection);
-		read_mat(calib_file, &internal->disparity_to_depth);
+		cv::Mat disparity_to_depth;
+		read_mat(calib_file, &disparity_to_depth);
+		internal->disparity_to_depth = disparity_to_depth;
 		cv::Size image_size(internal->l_frame_gray.cols,
 		                    internal->l_frame_gray.rows);
 		// TODO: save data indicating calibration image size
@@ -801,8 +804,9 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 				write_mat(calib_file, &internal->r_translation);
 				write_mat(calib_file, &internal->l_projection);
 				write_mat(calib_file, &internal->r_projection);
+				cv::Mat disparity_to_depth(internal->disparity_to_depth);
 				write_mat(calib_file,
-				          &internal->disparity_to_depth);
+				          &disparity_to_depth);
 
 
 				fclose(calib_file);
