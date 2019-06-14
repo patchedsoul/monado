@@ -2,10 +2,12 @@
 #include "filter_opencv_kalman.h"
 #include <string.h>
 
+#include <util/u_misc.h>
+
 filter_instance_t*
 filter_create(filter_type_t t)
 {
-	filter_instance_t* i = calloc(1, sizeof(filter_instance_t));
+	filter_instance_t* i = U_TYPED_CALLOC(filter_instance_t);
 	if (i) {
 		switch (t) {
 		case FILTER_TYPE_OPENCV_KALMAN:
