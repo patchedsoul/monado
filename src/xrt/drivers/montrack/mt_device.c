@@ -121,6 +121,11 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 			return md;
 		}
 	}
+	if (strcmp(device_name, "UVBI_HDK") == 0) {
+		if (mt_create_uvbi_hdk(md)) {
+			return md;
+		}
+	}
 
 	if (strcmp(device_name, "STEREO_PS4_60FPS") == 0) {
 		if (mt_create_stereo_ps4(md)) {
@@ -512,7 +517,77 @@ mt_create_uvbi_elp(mt_device_t* md)
 
 	return true;
 }
+bool
+mt_create_uvbi_hdk(mt_device_t* md)
+{
 
+	// TODO - add IMU input source -> filter
+
+	md->frameserver_count =
+	    1; // this driver uses a single, mono camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	uvc_source_descriptor_t* descriptors =
+	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
+
+	md->tracker = tracker_create(TRACKER_TYPE_UVBI);
+	tracker_mono_configuration_t tracker_config = {};
+
+	uint32_t source_index;
+	for (uint32_t i = 0; i < source_count; i++) {
+		uvc_source_descriptor_t s = descriptors[i];
+
+		if (s.product_id == 0x57e8 && s.vendor_id == 0x0bda &&
+		    s.format == FORMAT_JPG) {
+			if (s.width == 640 && s.height == 480) {
+				tracker_config.format = s.format;
+				tracker_config.source_id = s.source_id;
+				snprintf(tracker_config.configuration_filename,
+				         128, "HDK_uvbi_%s", s.serial);
+				source_index = i;
+			}
+		}
+	}
+	// configure our tracker for this frame source
+	bool configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
+
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
+
+	// tracker is happy - connect our frameserver to our tracker
+	md->frameservers[0]->frameserver_register_frame_callback(
+	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
+
+	// now our chain is setup up we can start streaming data through it
+	printf(
+	    "INFO: frame source path: %s %d x %d interval: %d\n",
+	    &(descriptors[source_index].name), descriptors[source_index].width,
+	    descriptors[source_index].height, descriptors[source_index].format,
+	    descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
+
+	return true;
+}
 
 bool
 mt_create_stereo_ps4(mt_device_t* md)
