@@ -65,11 +65,11 @@ mt_device_get_tracked_pose(struct xrt_device* xdev,
 		md->filter->filter_predict_state(md->filter, &filtered, 0);
 		out_relation->pose = filtered.pose;
 		break;
-	case TRACKER_TYPE_OSVR_UVBI:
+	case TRACKER_TYPE_UVBI:
 		out_relation->relation_flags = (enum xrt_space_relation_flags)(
 		    XRT_SPACE_RELATION_POSITION_VALID_BIT |
 		    XRT_SPACE_RELATION_POSITION_TRACKED_BIT);
-		// TODO: get pose from osvr tracker
+		// TODO: get pose from uvbi tracker
 		// out_relation->pose = filtered.pose;
 		break;
 
@@ -116,8 +116,8 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 			return md;
 		}
 	}
-	if (strcmp(device_name, "OSVR_ELP_60FPS") == 0) {
-		if (mt_create_osvr_elp(md)) {
+	if (strcmp(device_name, "UVBI_ELP_60FPS") == 0) {
+		if (mt_create_uvbi_elp(md)) {
 			return md;
 		}
 	}
@@ -435,7 +435,7 @@ mt_create_stereo_elp(mt_device_t* md)
 
 
 bool
-mt_create_osvr_elp(mt_device_t* md)
+mt_create_uvbi_elp(mt_device_t* md)
 {
 
 	// TODO - add IMU input source -> filter
@@ -460,7 +460,7 @@ mt_create_osvr_elp(mt_device_t* md)
 	// defer further configuration and stream start until the rest of our
 	// chain is set up.
 
-	md->tracker = tracker_create(TRACKER_TYPE_OSVR_UVBI);
+	md->tracker = tracker_create(TRACKER_TYPE_UVBI);
 	tracker_mono_configuration_t tracker_config = {};
 
 	// configure our ELP camera when we find it during enumeration
@@ -478,7 +478,7 @@ mt_create_osvr_elp(mt_device_t* md)
 				tracker_config.source_id =
 				    descriptors[i].source_id;
 				snprintf(tracker_config.configuration_filename,
-				         128, "ELP_60FPS_osvr_%s",
+				         128, "ELP_60FPS_uvbi_%s",
 				         descriptors[i].serial);
 				source_index = i;
 			}
