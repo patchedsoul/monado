@@ -34,6 +34,7 @@ pkg_check_modules(LIBUVC libuvc)
 # @TODO Turn into a find_package FFMPEG file.
 pkg_check_modules(FFMPEG libavcodec)
 
+find_package(uvbi)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	# Compositor backend
@@ -51,6 +52,7 @@ cmake_dependent_option(BUILD_WITH_OPENGL "Enable OpenGL Graphics API support" ON
 
 set(BUILD_WITH_LIBUSB TRUE)
 cmake_dependent_option(BUILD_WITH_JPEG "Enable jpeg code (used for some video drivers)" ON "JPEG_FOUND" OFF)
+cmake_dependent_option(BUILD_WITH_UVBI "Enable UVBI-based optical tracking driver" ON "LIBUVC_FOUND AND uvbi_FOUND AND OPENCV_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENCV "Enable OpenCV backend" ON "OpenCV_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_LIBUVC "Enable libuvc video driver" ON "LIBUVC_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_FFMPEG "Enable ffmpeg testing video driver" ON "FFMPEG_FOUND" OFF)
@@ -117,6 +119,10 @@ if(TRUE)
 	# Uses the Monado internal hid wrapper.
 	add_definitions(-DXRT_BUILD_PSMV)
 	set(BUILD_DRIVER_PSMV TRUE)
+endif()
+
+if(BUILD_WITH_UVBI)
+	add_definitions(-DXRT_HAVE_UVBI)
 endif()
 
 if(BUILD_WITH_OPENCV AND (BUILD_WITH_FFMPEG OR BUILD_WITH_JPEG))
