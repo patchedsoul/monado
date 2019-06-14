@@ -2,6 +2,9 @@
 #include "ffmpeg_frameserver.h"
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
+
+#include <util/u_misc.h>
 
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 
@@ -24,7 +27,7 @@ ffmpeg_frameserver_create(frameserver_instance_t* inst)
 {
 	// TODO use macro here
 	ffmpeg_frameserver_instance_t* i =
-	    calloc(1, sizeof(ffmpeg_frameserver_instance_t));
+	    U_TYPED_CALLOC(ffmpeg_frameserver_instance_t);
 	if (i) {
 		i->is_running = false;
 		return i;
@@ -136,7 +139,7 @@ ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst)
 {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	// TODO: signal shutdown to thread
-	pthread_join(&internal->stream_thread);
+	pthread_join(&internal->stream_thread, NULL);
 	return true;
 }
 bool

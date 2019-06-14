@@ -11,6 +11,8 @@
 #include "jpeglib.h"
 #include "unistd.h"
 
+#include <util/u_misc.h>
+
 
 uint32_t
 v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
@@ -37,11 +39,11 @@ v4l2_frameserver_instance_t*
 v4l2_frameserver_create(frameserver_instance_t* inst)
 {
 	v4l2_frameserver_instance_t* i =
-	    calloc(sizeof(v4l2_frameserver_instance_t), 1);
+	    U_TYPED_CALLOC(v4l2_frameserver_instance_t);
 	if (i) {
 		return i;
 	}
-	return false;
+	return NULL;
 }
 bool
 v4l2_frameserver_destroy(frameserver_instance_t* inst)
@@ -852,4 +854,5 @@ source_descriptor_from_v4l2(v4l2_source_descriptor_t* descriptor,
 			descriptor->crop_width = 1280;
 		}
 	}
+	return true;
 }

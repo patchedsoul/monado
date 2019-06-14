@@ -219,6 +219,7 @@ mt_create_mono_ps3eye(mt_device_t* md)
 	    md->tracker->tracker_get_capture_params(md->tracker));
 	md->frameservers[0]->frameserver_stream_start(
 	    md->frameservers[0], &(descriptors[source_index]));
+	return true;
 }
 
 bool
@@ -624,7 +625,7 @@ mt_create_stereo_ps4(mt_device_t* md)
 
 	// nw our chain is setup up we can start streaming data through it
 	printf(
-	    "INFO: frame source path: %s %d x %d interval: %d\n",
+	    "INFO: frame source path: %s %d x %d format: %d rate: %d\n",
 	    &(descriptors[source_index].name), descriptors[source_index].width,
 	    descriptors[source_index].height, descriptors[source_index].format,
 	    descriptors[source_index].rate);
