@@ -368,9 +368,14 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 					    bufptr + (i * raw_stride) +
 					    internal->source_descriptor
 					        .crop_scanline_bytes_start;
-					// printf("dstptr %d srcptr %d\n
-					// ",(i*cropped_stride),(i* raw_stride) +
-					// internal->source_descriptor.crop_scanline_bytes_start);
+#if 0
+					printf(
+					    "dstptr %d srcptr %d\n",
+					    (i * cropped_stride),
+					    (i * raw_stride) +
+					        internal->source_descriptor
+					            .crop_scanline_bytes_start);
+#endif
 					memcpy(dstptr, srcptr, cropped_stride);
 				}
 				// fix up the frame we supply to the consumer
