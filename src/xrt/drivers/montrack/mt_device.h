@@ -56,6 +56,8 @@ mt_create_stereo_elp(
 bool
 mt_create_uvbi_elp(mt_device_t* md); // uvbi tracker, ELP 60fps stereo camera
 bool
+mt_create_uvbi_hdk(mt_device_t* md); // uvbi tracker, OSVR HDK 100fps IR camera
+bool
 mt_create_stereo_ps4(
     mt_device_t* md); // stereo tracker, PS4 60fps stereo camera
 
