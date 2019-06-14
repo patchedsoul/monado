@@ -54,7 +54,7 @@ bool
 mt_create_stereo_elp(
     mt_device_t* md); // stereo tracker, ELP 60fps stereo camera
 bool
-mt_create_osvr_elp(mt_device_t* md); // osvr tracker, ELP 60fps stereo camera
+mt_create_uvbi_elp(mt_device_t* md); // uvbi tracker, ELP 60fps stereo camera
 bool
 mt_create_stereo_ps4(
     mt_device_t* md); // stereo tracker, PS4 60fps stereo camera

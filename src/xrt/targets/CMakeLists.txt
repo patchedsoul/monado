@@ -39,6 +39,9 @@ if(BUILD_DRIVER_MONTRACK)
 			${libuvc_LIBRARIES}
 			${LIBUSB1_LIBRARIES})
 	endif()
+	if(BUILD_WITH_UVBI)
+		list(APPEND DRIVER_LIBRARIES uvbi::uvbi_plugin_parts)
+	endif()
 	if(BUILD_WITH_JPEG)
 		list(APPEND DRIVER_LIBRARIES ${JPEG_LIBRARIES})
 	endif()
@@ -48,6 +51,8 @@ if(BUILD_DRIVER_MONTRACK)
 			libavcodec
 			libavutil)
 	endif()
+
+
 	list(APPEND DRIVER_LIBRARIES
 		opencv_core
 		opencv_calib3d
