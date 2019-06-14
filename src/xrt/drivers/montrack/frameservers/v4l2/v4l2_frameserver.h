@@ -1,5 +1,4 @@
-#ifndef VL42_FRAMESERVER_H
-#define Vl42_FRAMESERVER_H
+#pragma once
 
 #define NUM_V4L2_BUFFERS 2
 
@@ -95,6 +94,3 @@ source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
                             char* v4l2_device,
                             struct v4l2_capability* cap,
                             struct v4l2_fmtdesc* desc);
-
-
-#endif // V4L2_FRAMESERVER_H

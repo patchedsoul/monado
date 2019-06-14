@@ -1,5 +1,4 @@
-#ifndef TRACK_PSVR_H
-#define TRACKPSVR_H
+#pragma once
 
 #include <xrt/xrt_defines.h>
 #include "common/tracked_object.h"
@@ -25,7 +24,7 @@ typedef struct psvr_track_data
 	    l_positions_2d[NUM_LEDS]; // 2d positions in left and right images
 	xrt_vec2 r_positions_2d[NUM_LEDS];
 	int8_t confidence[NUM_LEDS]; //-1 if point is not tracked, TODO: 0-128
-	                             //for confidence
+	                             // for confidence
 	xrt_matrix_4x4 rotation_matrix; // SVD-fitted head rotation matrix
 	xrt_vec3 translation;           // head translation
 } psvr_track_data_t;
@@ -63,5 +62,3 @@ psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // TRACKPSVR_H
