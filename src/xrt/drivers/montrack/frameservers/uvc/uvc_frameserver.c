@@ -8,6 +8,19 @@
 #include <util/u_misc.h>
 
 
+static void
+uvc_frameserver_stream_run(
+    frameserver_instance_t* inst); // streaming thread entrypoint
+static uint32_t
+uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
+                                       uvc_device_t* device,
+                                       uint32_t uvc_device_index);
+static bool
+source_descriptor_from_uvc_descriptor(
+    uvc_source_descriptor_t* source_descriptor,
+    uvc_device_descriptor_t* uvc_device_descriptor,
+    uvc_frame_desc_t* uvc_frame_descriptor);
+
 
 static uvc_error_t res;
 

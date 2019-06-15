@@ -43,6 +43,7 @@ mt_device_destroy(struct xrt_device* xdev)
 
 static void
 mt_device_get_tracked_pose(struct xrt_device* xdev,
+                           enum xrt_input_name name,
                            struct time_state* timekeeping,
                            int64_t* out_timestamp,
                            struct xrt_space_relation* out_relation)
@@ -308,8 +309,8 @@ mt_create_mono_c270(mt_device_t* md)
 	// now we can configure our frameserver and start the stream
 
 	printf(
-	    "INFO: frame source path: %s %d x %d interval: %d\n",
-	    &(descriptors[source_index].name), descriptors[source_index].width,
+	    "INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	    descriptors[source_index].name, descriptors[source_index].width,
 	    descriptors[source_index].height, descriptors[source_index].format,
 	    descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(
@@ -348,7 +349,7 @@ mt_create_stereo_elp(mt_device_t* md)
 	// chain is set up.
 
 	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
-	tracker_stereo_configuration_t tracker_config = {};
+	tracker_stereo_configuration_t tracker_config = {0};
 
 	// configure our ELP camera when we find it during enumeration
 	uint32_t source_index; // our frameserver config descriptor index - we
@@ -364,9 +365,9 @@ mt_create_stereo_elp(mt_device_t* md)
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =
 				    descriptors[i].source_id;
+				const char *serial = descriptors[i].serial;
 				snprintf(tracker_config.configuration_filename,
-				         128, "ELP_60FPS_stereo_%s",
-				         descriptors[i].serial);
+				         128, "ELP_60FPS_stereo_%s", serial);
 
 
 				// start in calibration mode
@@ -411,7 +412,7 @@ mt_create_stereo_elp(mt_device_t* md)
 	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
 
 	// create a filter for the trackers output
-	opencv_filter_configuration_t filter_config = {};
+	opencv_filter_configuration_t filter_config = {0};
 	filter_config.measurement_noise_cov = 0.1f;
 	filter_config.process_noise_cov = 0.1f;
 
@@ -426,8 +427,8 @@ mt_create_stereo_elp(mt_device_t* md)
 
 	// nw our chain is setup up we can start streaming data through it
 	printf(
-	    "INFO: frame source path: %s %d x %d interval: %d\n",
-	    &(descriptors[source_index].name), descriptors[source_index].width,
+	    "INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	    descriptors[source_index].name, descriptors[source_index].width,
 	    descriptors[source_index].height, descriptors[source_index].format,
 	    descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(
@@ -467,7 +468,7 @@ mt_create_uvbi_elp(mt_device_t* md)
 	// chain is set up.
 
 	md->tracker = tracker_create(TRACKER_TYPE_UVBI);
-	tracker_mono_configuration_t tracker_config = {};
+	tracker_mono_configuration_t tracker_config = {0};
 
 	// configure our ELP camera when we find it during enumeration
 	uint32_t source_index; // our frameserver config descriptor index - we
