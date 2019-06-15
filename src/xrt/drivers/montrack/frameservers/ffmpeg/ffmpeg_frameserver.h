@@ -91,8 +91,5 @@ ffmpeg_frameserver_is_running(frameserver_instance_t* inst);
 bool
 ffmpeg_frameserver_test();
 
-static void
-ffmpeg_stream_run(frameserver_instance_t* inst); // streaming thread entrypoint
-
 
 #endif // UVC_FRAMESERVER_H

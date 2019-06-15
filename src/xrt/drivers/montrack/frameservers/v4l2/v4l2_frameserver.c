@@ -14,6 +14,16 @@
 #include <util/u_misc.h>
 
 
+static void
+v4l2_frameserver_stream_run(
+    frameserver_instance_t* inst); // streaming thread entrypoint
+static bool
+source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
+                            char* v4l2_device,
+                            struct v4l2_capability* cap,
+                            struct v4l2_fmtdesc* desc);
+
+
 uint32_t
 v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
                                         char* v4l2_device,

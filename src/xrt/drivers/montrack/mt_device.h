@@ -36,7 +36,7 @@ typedef struct mt_device
 	bool log_debug;
 } mt_device_t;
 
-static inline mt_device_t*
+XRT_MAYBE_UNUSED static inline mt_device_t*
 mt_device(struct xrt_device* xdev)
 {
 	return (mt_device_t*)xdev;

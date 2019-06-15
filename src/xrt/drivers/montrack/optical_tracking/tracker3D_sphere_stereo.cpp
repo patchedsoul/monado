@@ -13,6 +13,13 @@
 #define MAX_CALIBRATION_SAMPLES                                                \
 	23 // mo' samples, mo' calibration accuracy, at the expense of time.
 
+
+static bool
+tracker3D_sphere_stereo_track(tracker_instance_t* inst);
+static bool
+tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst);
+
+
 typedef struct tracker3D_sphere_stereo_instance
 {
 	bool configured;

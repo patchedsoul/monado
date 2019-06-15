@@ -7,6 +7,11 @@
 
 #define MAX_CALIBRATION_SAMPLES 23
 
+static bool
+tracker3D_sphere_mono_track(tracker_instance_t* inst);
+static bool
+tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
+
 typedef struct tracker3D_sphere_mono_instance
 {
 	bool configured;
