@@ -54,6 +54,7 @@ tracker_create(tracker_type_t t)
 			i->tracker_configure =
 			    tracker3D_sphere_stereo_configure;
 			break;
+#ifdef XRT_HAVE_UVBI
 		case TRACKER_TYPE_UVBI:
 			i->tracker_type = t;
 			i->internal_instance = tracker3D_uvbi_create(i);
@@ -70,6 +71,7 @@ tracker_create(tracker_type_t t)
 			i->tracker_has_new_poses = tracker3D_uvbi_new_poses;
 			i->tracker_configure = tracker3D_uvbi_configure;
 			break;
+#endif
 		case TRACKER_TYPE_NONE:
 		default:
 			free(i);
