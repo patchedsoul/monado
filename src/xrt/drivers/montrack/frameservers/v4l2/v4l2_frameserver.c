@@ -249,6 +249,8 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 	void* mem[NUM_V4L2_BUFFERS];
 
 	struct v4l2_buffer v_buf;
+	memset(&v_buf, 0, sizeof(v_buf));
+
 	for (uint32_t i = 0; i < NUM_V4L2_BUFFERS; i++) {
 		v_buf.index = i;
 		v_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -273,6 +275,10 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 				    "memory\n");
 				return;
 			}
+
+			// Silence valgrind.
+			memset(mem[i], 0, v_buf.length);
+
 			v_buf.m.userptr = mem[i];
 		} else {
 			mem[i] = mmap(0, v_buf.length, PROT_READ, MAP_SHARED,
@@ -647,10 +653,13 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 	while (ioctl(fd, VIDIOC_ENUM_FMT, &desc) == 0) {
 		printf("FORMAT: %s %04x %d\n", desc.description,
 		       desc.pixelformat, desc.type);
+
 		struct v4l2_frmsizeenum frame_size;
-		struct v4l2_frmivalenum frame_interval;
 		memset(&frame_size, 0, sizeof(frame_size));
-		memset(&frame_size, 0, sizeof(frame_interval));
+
+		struct v4l2_frmivalenum frame_interval;
+		memset(&frame_interval, 0, sizeof(frame_interval));
+
 		frame_size.pixel_format = desc.pixelformat;
 		frame_size.index = 0;
 		while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frame_size) >= 0) {
