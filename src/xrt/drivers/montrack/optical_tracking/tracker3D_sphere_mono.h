@@ -50,10 +50,6 @@ tracker3D_sphere_mono_register_event_callback(
     void* target_instance,
     event_consumer_callback_func target_func);
 
-static bool
-tracker3D_sphere_mono_track(tracker_instance_t* inst);
-static bool
-tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
 
 #ifdef __cplusplus
 } // extern "C"

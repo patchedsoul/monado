@@ -46,7 +46,9 @@ typedef struct tracker_event
 	tracker_event_desc_t event;
 } tracker_event_t;
 
-typedef void* tracker_instance_ptr;
+struct _tracker_instance;
+
+typedef struct _tracker_instance* tracker_instance_ptr;
 typedef void* tracker_internal_instance_ptr;
 typedef void* tracker_configuration_ptr;
 

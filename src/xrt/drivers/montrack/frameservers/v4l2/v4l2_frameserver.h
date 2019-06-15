@@ -86,11 +86,3 @@ v4l2_frameserver_is_running(frameserver_instance_t* inst);
 bool
 v4l2_frameserver_test();
 
-static void
-v4l2_frameserver_stream_run(
-    frameserver_instance_t* inst); // streaming thread entrypoint
-static bool
-source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
-                            char* v4l2_device,
-                            struct v4l2_capability* cap,
-                            struct v4l2_fmtdesc* desc);

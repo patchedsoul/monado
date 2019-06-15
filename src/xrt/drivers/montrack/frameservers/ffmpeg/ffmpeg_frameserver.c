@@ -8,6 +8,10 @@
 
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 
+static void
+ffmpeg_stream_run(frameserver_instance_t* inst); // streaming thread entrypoint
+
+
 bool
 ffmpeg_source_create(ffmpeg_source_descriptor_t* desc)
 {
