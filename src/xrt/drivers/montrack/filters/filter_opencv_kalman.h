@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 // forward declare this, as it contains C++ stuff
-typedef struct filter_opencv_kalman_instance filter_opencv_kalman_instance_t;
+typedef struct filter_opencv_kalman_instance_t filter_opencv_kalman_instance_t;
 
 
 filter_opencv_kalman_instance_t*
@@ -41,7 +41,7 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
                                    timepoint_ns time);
 bool
 filter_opencv_kalman_configure(filter_instance_t* inst,
-                               opencv_filter_configuration_t* config);
+                               filter_configuration_ptr config_generic);
 
 #ifdef __cplusplus
 } // extern "C"
