@@ -14,9 +14,12 @@
 #include "util/u_misc.h"
 
 
-static void
-v4l2_frameserver_stream_run(
-    frameserver_instance_t* inst); // streaming thread entrypoint
+/*!
+ * Streaming thread entrypoint
+ */
+static void*
+v4l2_frameserver_stream_run(void* ptr);
+
 static bool
 source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
                             char* v4l2_device,
@@ -55,6 +58,7 @@ v4l2_frameserver_create(frameserver_instance_t* inst)
 	}
 	return NULL;
 }
+
 bool
 v4l2_frameserver_destroy(frameserver_instance_t* inst)
 {
@@ -186,9 +190,10 @@ v4l2_frameserver_stream_start(frameserver_instance_t* inst,
 }
 
 
-void
-v4l2_frameserver_stream_run(frameserver_instance_t* inst)
+void*
+v4l2_frameserver_stream_run(void* ptr)
 {
+	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
 	v4l2_frameserver_instance_t* internal = inst->internal_instance;
 	// our jpeg decoder stuff
 	struct jpeg_decompress_struct cinfo;
@@ -199,7 +204,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 		printf("ERROR Cannot open '%s %d %s\n",
 		       internal->source_descriptor.device_path, errno,
 		       strerror(errno));
-		return;
+		return NULL;
 	}
 
 	// set up our capture format
@@ -219,7 +224,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 
 	if (ioctl(fd, VIDIOC_S_FMT, &v_format) < 0) {
 		printf("ERROR: could not set up format\n");
-		return;
+		return NULL;
 	}
 
 	// set up our buffers - prefer userptr (client alloc) vs mmap (kernel
@@ -240,7 +245,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 		capture_userptr = false;
 		if (ioctl(fd, VIDIOC_REQBUFS, &v_bufrequest) < 0) {
 			printf("ERROR: driver does not handle mmap buffers\n");
-			return;
+			return NULL;
 		}
 	}
 
@@ -260,7 +265,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 		}
 		if (ioctl(fd, VIDIOC_QUERYBUF, &v_buf) < 0) {
 			printf("ERROR: could not query buffers!\n");
-			return;
+			return NULL;
 		}
 
 		if (capture_userptr) {
@@ -273,7 +278,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 				printf(
 				    "ERROR: could not alloc page-aligned "
 				    "memory\n");
-				return;
+				return NULL;
 			}
 
 			// Silence valgrind.
@@ -285,20 +290,20 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 			              fd, v_buf.m.offset);
 			if (mem[i] == MAP_FAILED) {
 				printf("ERROR: mmap failed!\n");
-				return;
+				return NULL;
 			}
 		}
 
 		/// queue this buffer
 		if (ioctl(fd, VIDIOC_QBUF, &v_buf) < 0) {
 			printf("ERROR: queueing buffer failed!\n");
-			return;
+			return NULL;
 		}
 	}
 	int start_capture = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	if (ioctl(fd, VIDIOC_STREAMON, &start_capture) < 0) {
 		printf("ERROR: could not start capture!\n");
-		return;
+		return NULL;
 	}
 
 	uint8_t* cropped_buffer = NULL;
@@ -591,6 +596,7 @@ v4l2_frameserver_stream_run(frameserver_instance_t* inst)
 	        free (sampled_frame.data);
 	}
 	return;*/
+	return NULL;
 }
 
 bool
