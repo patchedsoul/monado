@@ -14,6 +14,15 @@
 static void*
 ffmpeg_stream_run(void* ptr);
 
+/*!
+ * Casts the internal instance pointer from the generic opaque type to our
+ * ffmpeg_frameserver internal type.
+ */
+static inline ffmpeg_frameserver_instance_t*
+ffmpeg_frameserver_instance(frameserver_internal_instance_ptr ptr)
+{
+	return (ffmpeg_frameserver_instance_t*)ptr;
+}
 
 bool
 ffmpeg_source_create(ffmpeg_source_descriptor_t* desc)
@@ -105,7 +114,8 @@ ffmpeg_frameserver_register_frame_callback(
     void* target_instance,
     frame_consumer_callback_func target_func)
 {
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	internal->frame_target_instance = target_instance;
 	internal->frame_target_callback = target_func;
 }
@@ -116,20 +126,24 @@ ffmpeg_frameserver_register_event_callback(
     void* target_instance,
     event_consumer_callback_func target_func)
 {
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	internal->event_target_instance = target_instance;
 	internal->event_target_callback = target_func;
 }
+
 bool
 ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
 {
 	return false;
 }
+
 bool
 ffmpeg_frameserver_stream_start(frameserver_instance_t* inst,
                                 ffmpeg_source_descriptor_t* source)
 {
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	if (pthread_create(&internal->stream_thread, NULL, ffmpeg_stream_run,
 	                   inst)) {
 		printf("ERROR: could not createv thread\n");
@@ -145,15 +159,18 @@ ffmpeg_frameserver_stream_start(frameserver_instance_t* inst,
 bool
 ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst)
 {
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	// TODO: signal shutdown to thread
 	pthread_join(internal->stream_thread, NULL);
 	return true;
 }
+
 bool
 ffmpeg_frameserver_is_running(frameserver_instance_t* inst)
 {
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	return internal->is_running;
 }
 
@@ -191,7 +208,8 @@ void*
 ffmpeg_stream_run(void* ptr)
 {
 	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
+	ffmpeg_frameserver_instance_t* internal =
+	    ffmpeg_frameserver_instance(inst->internal_instance);
 	internal->av_video_streamid = -1;
 	av_register_all();
 	internal->av_format_context = avformat_alloc_context();

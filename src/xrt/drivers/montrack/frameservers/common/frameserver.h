@@ -114,7 +114,7 @@ typedef enum frameserver_type
 } frameserver_type_t;
 
 // Interface types
-typedef void* frameserver_internal_instance_ptr;
+typedef struct frameserver_internal_instance* frameserver_internal_instance_ptr;
 typedef void* frameserver_source_descriptor_ptr;
 typedef void* frameserver_instance_ptr;
 
