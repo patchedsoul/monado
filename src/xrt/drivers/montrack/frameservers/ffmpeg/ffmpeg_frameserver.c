@@ -78,7 +78,7 @@ ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst,
 	memcpy(sources[0].filepath, filepath, strlen(filepath) + 1);
 	sources[0].frame_count = 99;
 	memcpy(sources[0].name, source_name, strlen(source_name) + 1);
-	sources[0].name[127] = 0; // unecessary in this context, but why not?
+	sources[0].name[127] = 0; // unnecessary in this context, but why not?
 	sources[0].format = FORMAT_YUV420_UINT8;
 
 	sources[1].current_frame = 0;
@@ -86,7 +86,7 @@ ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst,
 	memcpy(sources[1].filepath, filepath, strlen(filepath) + 1);
 	sources[1].frame_count = 99;
 	memcpy(sources[1].name, source_name, strlen(source_name) + 1);
-	sources[1].name[127] = 0; // unecessary in this context, but why not?
+	sources[1].name[127] = 0; // unnecessary in this context, but why not?
 	sources[1].format = FORMAT_Y_UINT8;
 	return true;
 }
