@@ -150,11 +150,10 @@ frame_resample(frame_t* source, frame_t* out)
 		printf(
 		    "allocating data for NULL plane - someone needs to free "
 		    "this!\n");
-		out->data = malloc(frame_size_in_bytes(out));
+		out->data = (uint8_t*)malloc(frame_size_in_bytes(out));
 	}
-
+	uint8_t lastU = 0;
 	switch (source->format) {
-		uint8_t lastU = 0;
 	case FORMAT_YUYV_UINT8:
 		for (uint32_t i = 0; i < source->height; i++) {
 			for (uint32_t j = 0; j < source->width; j++) {
