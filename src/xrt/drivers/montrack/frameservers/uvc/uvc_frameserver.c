@@ -545,7 +545,7 @@ uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
 		    uvc_get_format_descs(temp_handle);
 		uvc_source_descriptor_t* desc = *sds;
 		uvc_source_descriptor_t* temp_alloc =
-		    U_TYPED_CALLOC(uvc_device_descriptor_t);
+		    U_TYPED_CALLOC(uvc_source_descriptor_t);
 		while (format_desc != NULL) {
 			printf("Found format: %d FOURCC %c%c%c%c\n",
 			       format_desc->bFormatIndex,
