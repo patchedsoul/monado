@@ -64,7 +64,20 @@ uvc_frameserver_create(frameserver_instance_t* inst)
 			free(i);
 			return NULL;
 		}
-
+		inst->frameserver_enumerate_sources =
+		    uvc_frameserver_enumerate_sources;
+		inst->frameserver_configure_capture =
+		    uvc_frameserver_configure_capture;
+		inst->frameserver_frame_get = uvc_frameserver_get;
+		inst->frameserver_is_running = uvc_frameserver_is_running;
+		inst->frameserver_register_frame_callback =
+		    uvc_frameserver_register_frame_callback;
+		inst->frameserver_register_event_callback =
+		    uvc_frameserver_register_event_callback;
+		inst->frameserver_seek = uvc_frameserver_seek;
+		inst->frameserver_stream_stop = uvc_frameserver_stream_stop;
+		inst->frameserver_stream_start = uvc_frameserver_stream_start;
+		inst->internal_instance = (frameserver_internal_instance_ptr)i;
 		return i;
 	}
 
