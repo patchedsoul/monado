@@ -66,9 +66,10 @@ bool
 ffmpeg_frameserver_configure_capture(frameserver_instance_t* inst,
                                      capture_parameters_t cp);
 bool
-ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst,
-                                     ffmpeg_source_descriptor_t* sources,
-                                     uint32_t* count);
+ffmpeg_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count);
 bool
 ffmpeg_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
 void
@@ -84,8 +85,9 @@ ffmpeg_frameserver_register_event_callback(
 bool
 ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool
-ffmpeg_frameserver_stream_start(frameserver_instance_t* inst,
-                                ffmpeg_source_descriptor_t* source);
+ffmpeg_frameserver_stream_start(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr source_generic);
 bool
 ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst);
 bool

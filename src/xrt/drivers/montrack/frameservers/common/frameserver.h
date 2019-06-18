@@ -116,11 +116,12 @@ typedef enum frameserver_type
 // Interface types
 typedef struct frameserver_internal_instance* frameserver_internal_instance_ptr;
 typedef void* frameserver_source_descriptor_ptr;
-typedef void* frameserver_instance_ptr;
+typedef struct _frameserver_instance frameserver_instance_t;
 
 
 
-typedef void (*frame_consumer_callback_func)(void* instance, frame_t* frame);
+typedef void (*frame_consumer_callback_func)(frameserver_instance_t* instance,
+                                             frame_t* frame);
 
 
 // Frameserver API
@@ -129,28 +130,28 @@ typedef struct _frameserver_instance
 {
 	frameserver_type_t frameserver_type;
 	bool (*frameserver_enumerate_sources)(
-	    frameserver_instance_ptr inst,
+	    frameserver_instance_t* inst,
 	    frameserver_source_descriptor_ptr sources,
 	    uint32_t* count);
-	bool (*frameserver_configure_capture)(frameserver_instance_ptr,
+	bool (*frameserver_configure_capture)(frameserver_instance_t*,
 	                                      capture_parameters_t cp);
-	bool (*frameserver_frame_get)(frameserver_instance_ptr inst,
+	bool (*frameserver_frame_get)(frameserver_instance_t* inst,
 	                              frame_t* _frame);
 	void (*frameserver_register_frame_callback)(
-	    frameserver_instance_ptr inst,
+	    frameserver_instance_t* inst,
 	    void* target_instance,
 	    frame_consumer_callback_func target_func);
 	void (*frameserver_register_event_callback)(
-	    frameserver_instance_ptr inst,
+	    frameserver_instance_t* inst,
 	    void* target_instance,
 	    event_consumer_callback_func target_func);
-	bool (*frameserver_seek)(frameserver_instance_ptr inst,
+	bool (*frameserver_seek)(frameserver_instance_t* inst,
 	                         uint64_t timestamp);
 	bool (*frameserver_stream_start)(
-	    frameserver_instance_ptr inst,
+	    frameserver_instance_t* inst,
 	    frameserver_source_descriptor_ptr source);
-	bool (*frameserver_stream_stop)(frameserver_instance_ptr inst);
-	bool (*frameserver_is_running)(frameserver_instance_ptr inst);
+	bool (*frameserver_stream_stop)(frameserver_instance_t* inst);
+	bool (*frameserver_is_running)(frameserver_instance_t* inst);
 	frameserver_internal_instance_ptr internal_instance;
 } frameserver_instance_t;
 

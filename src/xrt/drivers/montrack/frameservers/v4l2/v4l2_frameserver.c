@@ -80,13 +80,15 @@ v4l2_frameserver_destroy(frameserver_instance_t* inst)
 }
 
 bool
-v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst,
-                                   v4l2_source_descriptor_t* sources,
-                                   uint32_t* count)
+v4l2_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count)
 {
 	v4l2_frameserver_instance_t* internal =
 	    v4l2_frameserver_instance(inst->internal_instance);
-
+	v4l2_source_descriptor_t* sources =
+	    (v4l2_source_descriptor_t*)sources_generic;
 	char device_files[64][256]; // max of 64 video4linux devices supported
 	                            // TODO: maybe 256 too small
 	char* base_path =
@@ -187,10 +189,12 @@ v4l2_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
 
 bool
 v4l2_frameserver_stream_start(frameserver_instance_t* inst,
-                              v4l2_source_descriptor_t* source)
+                              frameserver_source_descriptor_ptr source_generic)
 {
 	v4l2_frameserver_instance_t* internal =
 	    v4l2_frameserver_instance(inst->internal_instance);
+	v4l2_source_descriptor_t* source =
+	    (v4l2_source_descriptor_t*)source_generic;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	if (pthread_create(&internal->stream_thread, NULL,

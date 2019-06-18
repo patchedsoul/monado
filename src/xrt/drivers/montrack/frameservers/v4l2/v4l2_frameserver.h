@@ -59,9 +59,10 @@ bool
 v4l2_frameserver_configure_capture(frameserver_instance_t* inst,
                                    capture_parameters_t cp);
 bool
-v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst,
-                                   v4l2_source_descriptor_t* sources,
-                                   uint32_t* count);
+v4l2_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count);
 bool
 v4l2_frameserver_get(frameserver_instance_t* inst, frame_t* frame);
 void
@@ -78,7 +79,7 @@ bool
 v4l2_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool
 v4l2_frameserver_stream_start(frameserver_instance_t* inst,
-                              v4l2_source_descriptor_t* source);
+                              frameserver_source_descriptor_ptr source_generic);
 bool
 v4l2_frameserver_stream_stop(frameserver_instance_t* inst);
 bool
