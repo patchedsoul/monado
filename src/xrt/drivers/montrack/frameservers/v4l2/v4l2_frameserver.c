@@ -832,21 +832,22 @@ bool
 v4l2_frameserver_test()
 {
 	printf("Running V4L2 Frameserver Test\n");
-	v4l2_frameserver_instance_t instance;
-	if (!v4l2_frameserver_init(&instance)) {
-		printf("FAILURE: Could not init frameserver.\n");
+	frameserver_instance_t* frameserver =
+	    frameserver_create(FRAMESERVER_TYPE_V4L2);
+	if (!frameserver) {
+		printf("FAILURE: Could not create frameserver.\n");
 		return false;
 	}
 	uint32_t camera_count = 0;
-	if (!v4l2_frameserver_enumerate_devices(&instance, NULL,
-	                                        &camera_count)) {
+	if (!frameserver->frameserver_enumerate_sources(frameserver, NULL,
+	                                                &camera_count)) {
 		printf("FAILURE: Could not get camera count.\n");
 		return false;
 	}
 	v4l2_source_descriptor_t* camera_list =
 	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, camera_count);
-	if (!v4l2_frameserver_enumerate_devices(&instance, camera_list,
-	                                        &camera_count)) {
+	if (!frameserver->frameserver_enumerate_sources(
+	        frameserver, camera_list, &camera_count)) {
 		printf("FAILURE: Could not get camera descriptors\n");
 		return false;
 	}
