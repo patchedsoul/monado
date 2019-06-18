@@ -137,7 +137,7 @@ psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t)
 	return true;
 }
 
-/*//TODO: we dont need to pass a TrackData* here
+/*//TODO: we don't need to pass a TrackData* here
 bool psvr_compute_svd()
 {
         //compute SVD for the points we have found, assuming we have at least 3
