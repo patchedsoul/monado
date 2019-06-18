@@ -1,6 +1,8 @@
 #ifndef UVC_FRAMESERVER_H
 #define UVC_FRAMESERVER_H
 
+#ifdef XRT_HAVE_LIBUVC
+
 /* Almost all of the ground covered here would be covered
  * by the v4l2 frameserver on linux, but uvc may be the
  * simplest approach for cross-platform e.g. OS X
@@ -103,5 +105,5 @@ uvc_frameserver_is_running(frameserver_instance_t* inst);
 bool
 uvc_frameserver_test();
 
-
+#endif // XRT_HAVE_LIBUVC
 #endif // UVC_FRAMESERVER_H
