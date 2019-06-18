@@ -5,7 +5,7 @@
 
 #include <jpeglib.h>
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 
 static void
