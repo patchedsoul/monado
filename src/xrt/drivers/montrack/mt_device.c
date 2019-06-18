@@ -577,7 +577,7 @@ mt_create_uvbi_hdk(mt_device_t* md)
 
 	// now our chain is setup up we can start streaming data through it
 	printf(
-	    "INFO: frame source path: %s %d x %d interval: %d\n",
+	    "INFO: frame source path: %s %d x %d format: %d rate: %d\n",
 	    &(descriptors[source_index].name), descriptors[source_index].width,
 	    descriptors[source_index].height, descriptors[source_index].format,
 	    descriptors[source_index].rate);
