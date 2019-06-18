@@ -8,8 +8,11 @@
 
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 
-static void
-ffmpeg_stream_run(frameserver_instance_t* inst); // streaming thread entrypoint
+/*!
+ * Streaming thread entrypoint
+ */
+static void*
+ffmpeg_stream_run(void* ptr);
 
 
 bool
@@ -183,29 +186,29 @@ ffmpeg_frameserver_test()
 }
 
 
-void
-ffmpeg_stream_run(frameserver_instance_t* inst)
+void*
+ffmpeg_stream_run(void* ptr)
 {
-	int ret;
+	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	internal->av_video_streamid = -1;
 	av_register_all();
 	internal->av_format_context = avformat_alloc_context();
 	// TODO: check file exists - avformat_open_input just crashes if it does
 	// not exist
-	ret = avformat_open_input(&(internal->av_format_context),
-	                          internal->source_descriptor.filepath, NULL,
-	                          NULL);
+	int ret = avformat_open_input(&(internal->av_format_context),
+	                              internal->source_descriptor.filepath,
+	                              NULL, NULL);
 	if (ret < 0) {
 		printf("ERROR: could not open file! %s",
 		       internal->source_descriptor.filepath);
-		return;
+		return NULL;
 	}
 	ret = avformat_find_stream_info(internal->av_format_context, NULL);
 	if (ret < 0) {
 		printf("ERROR: could find stream info! %s",
 		       internal->source_descriptor.filepath);
-		return;
+		return NULL;
 	}
 
 	// find our video stream id
@@ -219,7 +222,7 @@ ffmpeg_stream_run(frameserver_instance_t* inst)
 	if (internal->av_video_streamid == -1) {
 		printf("ERROR: could find video stream in source! %s",
 		       internal->source_descriptor.filepath);
-		return;
+		return NULL;
 	}
 
 	internal->av_video_codec = NULL;
@@ -239,7 +242,7 @@ ffmpeg_stream_run(frameserver_instance_t* inst)
 	if (!internal->av_video_codec) {
 		printf("ERROR: unsupported video codec %d\n",
 		       internal->av_codec_context->codec_id);
-		return;
+		return NULL;
 	}
 
 	ret = avcodec_open2(internal->av_codec_context,
@@ -247,7 +250,7 @@ ffmpeg_stream_run(frameserver_instance_t* inst)
 	if (ret < 0) {
 		printf("ERROR: could not open codec %d\n",
 		       internal->av_codec_context->codec_id);
-		return;
+		return NULL;
 	}
 
 	while (1) {
@@ -279,7 +282,7 @@ ffmpeg_stream_run(frameserver_instance_t* inst)
 			                            &packet);
 			if (ret < 0) {
 				printf("ERROR: decode problem!\n");
-				return;
+				return NULL;
 			}
 			if (video_frame_finished > 0) {
 				// we have our frame! w00t!

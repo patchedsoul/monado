@@ -8,9 +8,12 @@
 #include "util/u_misc.h"
 
 
-static void
-uvc_frameserver_stream_run(
-    frameserver_instance_t* inst); // streaming thread entrypoint
+/*!
+ * Streaming thread entrypoint
+ */
+static void*
+uvc_frameserver_stream_run(void* ptr);
+
 static uint32_t
 uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
                                        uvc_device_t* device,
@@ -202,10 +205,10 @@ uvc_frameserver_is_running(frameserver_instance_t* inst)
 	return false;
 }
 
-void
-uvc_frameserver_stream_run(frameserver_instance_t* inst)
+void*
+uvc_frameserver_stream_run(void* ptr)
 {
-	uvc_error_t res;
+	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
 	uvc_frameserver_instance_t* internal = inst->internal_instance;
 	bool split_planes;
 	plane_t planes[MAX_PLANES] = {};
@@ -219,13 +222,13 @@ uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	struct jpeg_error_mgr jerr;
 
 
-	res = uvc_open(
+	uvc_error_t res = uvc_open(
 	    internal->device_list[internal->source_descriptor.uvc_device_index],
 	    &internal->device_handle);
 	if (res < 0) {
 		printf("ERROR: %s open %s\n", &internal->source_descriptor.name,
 		       uvc_strerror(res));
-		return;
+		return NULL;
 	}
 	int fps = 1.0 / (internal->source_descriptor.rate / 10000000.0f);
 	res = uvc_get_stream_ctrl_format_size(
@@ -236,7 +239,7 @@ uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	if (res < 0) {
 		printf("ERROR: %s get_stream_ctrl_format %s\n",
 		       &internal->source_descriptor.name, uvc_strerror(res));
-		return;
+		return NULL;
 	}
 
 	uvc_print_stream_ctrl(&internal->stream_ctrl, stdout);
@@ -246,13 +249,13 @@ uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	                           &internal->stream_ctrl);
 	if (res < 0) {
 		printf("ERROR: stream_open_ctrl %s\n", uvc_strerror(res));
-		return;
+		return NULL;
 	}
 
 	res = uvc_stream_start(internal->stream_handle, NULL, NULL, 0);
 	if (res < 0) {
 		printf("ERROR: stream_start %s\n", uvc_strerror(res));
-		return;
+		return NULL;
 	}
 
 	frame_t f = {}; // our buffer
@@ -491,7 +494,7 @@ uvc_frameserver_stream_run(frameserver_instance_t* inst)
 	if (sampled_frame.data) {
 		free(sampled_frame.data);
 	}
-	return;
+	return NULL;
 }
 
 
