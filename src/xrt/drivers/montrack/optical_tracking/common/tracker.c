@@ -3,13 +3,14 @@
 #include "tracker3D_sphere_stereo.h"
 #include "tracker3D_uvbi.h"
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/signal.h>
+#include <unistd.h>
 
 tracker_instance_t*
 tracker_create(tracker_type_t t)

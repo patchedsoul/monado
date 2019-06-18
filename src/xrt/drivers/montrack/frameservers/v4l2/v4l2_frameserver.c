@@ -11,7 +11,7 @@
 #include "jpeglib.h"
 #include "unistd.h"
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 
 static void

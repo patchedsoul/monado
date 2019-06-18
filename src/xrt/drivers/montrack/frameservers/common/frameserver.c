@@ -10,7 +10,7 @@
 
 #include "v4l2/v4l2_frameserver.h"
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 float
 format_bytes_per_pixel(frame_format_t f)
