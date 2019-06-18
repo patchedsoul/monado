@@ -41,11 +41,26 @@ ffmpeg_source_destroy(ffmpeg_source_descriptor_t* desc)
 ffmpeg_frameserver_instance_t*
 ffmpeg_frameserver_create(frameserver_instance_t* inst)
 {
-	// TODO use macro here
 	ffmpeg_frameserver_instance_t* i =
 	    U_TYPED_CALLOC(ffmpeg_frameserver_instance_t);
 	if (i) {
 		i->is_running = false;
+
+		inst->frameserver_enumerate_sources =
+		    ffmpeg_frameserver_enumerate_sources;
+		inst->frameserver_configure_capture =
+		    ffmpeg_frameserver_configure_capture;
+		inst->frameserver_frame_get = ffmpeg_frameserver_get;
+		inst->frameserver_is_running = ffmpeg_frameserver_is_running;
+		inst->frameserver_register_frame_callback =
+		    ffmpeg_frameserver_register_frame_callback;
+		inst->frameserver_register_event_callback =
+		    ffmpeg_frameserver_register_event_callback;
+		inst->frameserver_seek = ffmpeg_frameserver_seek;
+		inst->frameserver_stream_stop = ffmpeg_frameserver_stream_stop;
+		inst->frameserver_stream_start =
+		    ffmpeg_frameserver_stream_start;
+		inst->internal_instance = (frameserver_internal_instance_ptr)i;
 		return i;
 	}
 	return NULL;
