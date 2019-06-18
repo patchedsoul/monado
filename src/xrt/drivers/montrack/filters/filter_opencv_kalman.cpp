@@ -3,7 +3,7 @@
 
 #include "filter_opencv_kalman.h"
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 typedef struct filter_opencv_kalman_instance
 {
