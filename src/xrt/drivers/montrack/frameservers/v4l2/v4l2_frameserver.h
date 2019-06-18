@@ -85,4 +85,3 @@ bool
 v4l2_frameserver_is_running(frameserver_instance_t* inst);
 bool
 v4l2_frameserver_test();
-
