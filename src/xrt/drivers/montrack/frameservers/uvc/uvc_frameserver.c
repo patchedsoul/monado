@@ -745,4 +745,5 @@ source_descriptor_from_uvc_descriptor(
 	source_descriptor->serial[127] = 0;
 	source_descriptor->width = uvc_frame_descriptor->wWidth;
 	source_descriptor->height = uvc_frame_descriptor->wHeight;
+	return true;
 }
