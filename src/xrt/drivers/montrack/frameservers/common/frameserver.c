@@ -188,80 +188,50 @@ frameserver_instance_t*
 frameserver_create(frameserver_type_t t)
 {
 	frameserver_instance_t* i = U_TYPED_CALLOC(frameserver_instance_t);
-	if (i) {
-		switch (t) {
+	frameserver_internal_instance_ptr internal = NULL;
+	if (i == NULL) {
+		return NULL;
+	}
+	/*
+	 * Each implementation constructor should set up the members of the
+	 * frameserver instance, as well as return a pointer to itself. If it
+	 * fails, it should return NULL without de-allocating the frameserver
+	 * instance: that is the responsibility of this function.
+	 */
+	switch (t) {
 #ifdef XRT_HAVE_FFMPEG
-		case FRAMESERVER_TYPE_FFMPEG:
-			i->frameserver_enumerate_sources =
-			    ffmpeg_frameserver_enumerate_sources;
-			i->frameserver_configure_capture =
-			    ffmpeg_frameserver_configure_capture;
-			i->frameserver_frame_get = ffmpeg_frameserver_get;
-			i->frameserver_is_running =
-			    ffmpeg_frameserver_is_running;
-			i->frameserver_register_frame_callback =
-			    ffmpeg_frameserver_register_frame_callback;
-			i->frameserver_register_event_callback =
-			    ffmpeg_frameserver_register_event_callback;
-			i->frameserver_seek = ffmpeg_frameserver_seek;
-			i->frameserver_stream_stop =
-			    ffmpeg_frameserver_stream_stop;
-			i->frameserver_stream_start =
-			    ffmpeg_frameserver_stream_start;
-			i->internal_instance =
-			    (void*)ffmpeg_frameserver_create(i);
-			break;
+	case FRAMESERVER_TYPE_FFMPEG:
+		internal = (frameserver_internal_instance_ptr)
+		    ffmpeg_frameserver_create(i);
+		break;
 #endif // XRT_HAVE_FFMPEG
 
 #ifdef XRT_HAVE_LIBUVC
-		case FRAMESERVER_TYPE_UVC:
-			i->frameserver_enumerate_sources =
-			    uvc_frameserver_enumerate_sources;
-			i->frameserver_configure_capture =
-			    uvc_frameserver_configure_capture;
-			i->frameserver_frame_get = uvc_frameserver_get;
-			i->frameserver_is_running = uvc_frameserver_is_running;
-			i->frameserver_register_frame_callback =
-			    uvc_frameserver_register_frame_callback;
-			i->frameserver_register_event_callback =
-			    uvc_frameserver_register_event_callback;
-			i->frameserver_seek = uvc_frameserver_seek;
-			i->frameserver_stream_stop =
-			    uvc_frameserver_stream_stop;
-			i->frameserver_stream_start =
-			    uvc_frameserver_stream_start;
-			i->internal_instance = (void*)uvc_frameserver_create(i);
-			break;
+	case FRAMESERVER_TYPE_UVC:
+		internal =
+		    (frameserver_internal_instance_ptr)uvc_frameserver_create(
+		        i);
+		break;
 #endif // XRT_HAVE_LIBUVC
 
-		case FRAMESERVER_TYPE_V4L2:
-			i->frameserver_enumerate_sources =
-			    v4l2_frameserver_enumerate_sources;
-			i->frameserver_configure_capture =
-			    v4l2_frameserver_configure_capture;
-			i->frameserver_frame_get = v4l2_frameserver_get;
-			i->frameserver_is_running = v4l2_frameserver_is_running;
-			i->frameserver_register_frame_callback =
-			    v4l2_frameserver_register_frame_callback;
-			i->frameserver_register_event_callback =
-			    v4l2_frameserver_register_event_callback;
-			i->frameserver_seek = v4l2_frameserver_seek;
-			i->frameserver_stream_stop =
-			    v4l2_frameserver_stream_stop;
-			i->frameserver_stream_start =
-			    v4l2_frameserver_stream_start;
-			i->internal_instance =
-			    (void*)v4l2_frameserver_create(i);
-			break;
-		case FRAMESERVER_TYPE_NONE:
-		default:
-			free(i);
-			return NULL;
-			break;
-		}
-		return i;
+	case FRAMESERVER_TYPE_V4L2:
+		internal =
+		    (frameserver_internal_instance_ptr)v4l2_frameserver_create(
+		        i);
+		break;
+
+	case FRAMESERVER_TYPE_NONE:
+	default:
+		free(i);
+		return NULL;
+		break;
 	}
-	return NULL;
+	if (internal == NULL) {
+		/* Failed to allocate/create internal implementation */
+		free(i);
+		return NULL;
+	}
+	return i;
 }
 
 bool
