@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 

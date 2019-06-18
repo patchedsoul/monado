@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <linux/limits.h>
 
-#include <util/u_misc.h>
+#include "util/u_misc.h"
 
 #define MAX_CALIBRATION_SAMPLES                                                \
 	23 // mo' samples, mo' calibration accuracy, at the expense of time.
