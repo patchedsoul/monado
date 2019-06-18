@@ -18,7 +18,7 @@ struct uvc_context
 {
 	/** Underlying context for USB communication */
 	struct libusb_context* usb_ctx;
-	/** True iff libuvc initialized the underlying USB context */
+	/** True if libuvc initialized the underlying USB context */
 	uint8_t own_usb_ctx;
 	/** List of open devices in this context */
 	uvc_device_handle_t* open_devices;

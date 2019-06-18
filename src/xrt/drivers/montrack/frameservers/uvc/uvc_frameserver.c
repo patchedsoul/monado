@@ -525,7 +525,7 @@ uvc_frameserver_test()
 	return true;
 }
 
-// TODO: fix this so we dont need to alloc?
+// TODO: fix this so we don't need to alloc?
 uint32_t
 uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
                                        uvc_device_t* uvc_device,

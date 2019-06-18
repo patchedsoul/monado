@@ -112,7 +112,7 @@ v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst,
 		return true;
 	}
 
-	// our caller should now have alloced the array of source descriptors,
+	// our caller should now have allocated the array of source descriptors,
 	// fill them out
 
 	for (uint32_t i = 0; i < device_count; i++) {
