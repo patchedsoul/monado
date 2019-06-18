@@ -146,7 +146,7 @@ ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst)
 {
 	ffmpeg_frameserver_instance_t* internal = inst->internal_instance;
 	// TODO: signal shutdown to thread
-	pthread_join(&internal->stream_thread, NULL);
+	pthread_join(internal->stream_thread, NULL);
 	return true;
 }
 bool
