@@ -812,9 +812,9 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 				write_mat(calib_file, &internal->r_translation);
 				write_mat(calib_file, &internal->l_projection);
 				write_mat(calib_file, &internal->r_projection);
-				cv::Mat disparity_to_depth(internal->disparity_to_depth);
-				write_mat(calib_file,
-				          &disparity_to_depth);
+				cv::Mat disparity_to_depth(
+				    internal->disparity_to_depth);
+				write_mat(calib_file, &disparity_to_depth);
 
 
 				fclose(calib_file);

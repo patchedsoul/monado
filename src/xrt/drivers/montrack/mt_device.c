@@ -308,11 +308,11 @@ mt_create_mono_c270(mt_device_t* md)
 
 	// now we can configure our frameserver and start the stream
 
-	printf(
-	    "INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
-	    descriptors[source_index].name, descriptors[source_index].width,
-	    descriptors[source_index].height, descriptors[source_index].format,
-	    descriptors[source_index].rate);
+	printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	       descriptors[source_index].name, descriptors[source_index].width,
+	       descriptors[source_index].height,
+	       descriptors[source_index].format,
+	       descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(
 	    md->frameservers[0],
 	    md->tracker->tracker_get_capture_params(md->tracker));
@@ -365,7 +365,7 @@ mt_create_stereo_elp(mt_device_t* md)
 				tracker_config.l_format = descriptors[i].format;
 				tracker_config.l_source_id =
 				    descriptors[i].source_id;
-				const char *serial = descriptors[i].serial;
+				const char* serial = descriptors[i].serial;
 				snprintf(tracker_config.configuration_filename,
 				         128, "ELP_60FPS_stereo_%s", serial);
 
@@ -426,11 +426,11 @@ mt_create_stereo_elp(mt_device_t* md)
 	                                             mt_handle_event);
 
 	// nw our chain is setup up we can start streaming data through it
-	printf(
-	    "INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
-	    descriptors[source_index].name, descriptors[source_index].width,
-	    descriptors[source_index].height, descriptors[source_index].format,
-	    descriptors[source_index].rate);
+	printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	       descriptors[source_index].name, descriptors[source_index].width,
+	       descriptors[source_index].height,
+	       descriptors[source_index].format,
+	       descriptors[source_index].rate);
 	md->frameservers[0]->frameserver_configure_capture(
 	    md->frameservers[0],
 	    md->tracker->tracker_get_capture_params(md->tracker));
