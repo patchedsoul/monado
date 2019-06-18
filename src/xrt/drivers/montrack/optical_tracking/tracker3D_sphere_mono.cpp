@@ -169,7 +169,7 @@ tracker3D_sphere_mono_track(tracker_instance_t* inst)
 	if (internal->tracked_blob.diameter > ROI_OFFSET) {
 		offset = internal->tracked_blob.diameter;
 	}
-	// ensure we dont mask out our blob
+	// ensure we don't mask out our blob
 	cv::rectangle(internal->mask_gray,
 	              cv::Point2f(lastPos.x - offset, lastPos.y - offset),
 	              cv::Point2f(lastPos.x + offset, lastPos.y + offset),
