@@ -49,10 +49,10 @@ uvc_frameserver_create(frameserver_instance_t* inst)
 	uvc_frameserver_instance_t* i =
 	    U_TYPED_CALLOC(uvc_frameserver_instance_t);
 	if (i) {
-		i->device_list = NULL;
 		res = uvc_init(&(i->context), NULL);
 		if (res < 0) {
 			uvc_perror(res, "UVC Context init failed");
+			free(i);
 			return NULL;
 		}
 
