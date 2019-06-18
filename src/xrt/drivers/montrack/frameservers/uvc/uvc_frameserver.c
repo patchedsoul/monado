@@ -7,12 +7,21 @@
 
 #include "util/u_misc.h"
 
-
 /*!
  * Streaming thread entrypoint
  */
 static void*
 uvc_frameserver_stream_run(void* ptr);
+
+/*!
+ * Casts the internal instance pointer from the generic opaque type to our
+ * uvc_frameserver internal type.
+ */
+static inline uvc_frameserver_instance_t*
+uvc_frameserver_instance(frameserver_internal_instance_ptr ptr)
+{
+	return (uvc_frameserver_instance_t*)ptr;
+}
 
 static uint32_t
 uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
@@ -68,7 +77,8 @@ uvc_frameserver_enumerate_sources(frameserver_instance_t* inst,
                                   uint32_t* count)
 {
 	uvc_error_t res;
-	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	uvc_frameserver_instance_t* internal =
+	    uvc_frameserver_instance(inst->internal_instance);
 	// if (internal->device_list != NULL) {
 	//	uvc_free_device_list(internal->device_list,0);
 	//}
@@ -140,7 +150,8 @@ bool
 uvc_frameserver_configure_capture(frameserver_instance_t* inst,
                                   capture_parameters_t cp)
 {
-	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	uvc_frameserver_instance_t* internal =
+	    uvc_frameserver_instance(inst->internal_instance);
 	internal->capture_params = cp;
 	internal->is_configured = false;
 	return true;
@@ -152,7 +163,8 @@ uvc_frameserver_register_frame_callback(
     void* target_instance,
     frame_consumer_callback_func target_func)
 {
-	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	uvc_frameserver_instance_t* internal =
+	    uvc_frameserver_instance(inst->internal_instance);
 	internal->frame_target_instance = target_instance;
 	internal->frame_target_callback = target_func;
 }
@@ -180,7 +192,8 @@ bool
 uvc_frameserver_stream_start(frameserver_instance_t* inst,
                              uvc_source_descriptor_t* source)
 {
-	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	uvc_frameserver_instance_t* internal =
+	    uvc_frameserver_instance(inst->internal_instance);
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	internal->sequence_counter=0;
@@ -210,7 +223,8 @@ void*
 uvc_frameserver_stream_run(void* ptr)
 {
 	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	uvc_frameserver_instance_t* internal = inst->internal_instance;
+	uvc_frameserver_instance_t* internal =
+	    uvc_frameserver_instance(inst->internal_instance);
 	bool split_planes;
 	plane_t planes[MAX_PLANES] = {};
 

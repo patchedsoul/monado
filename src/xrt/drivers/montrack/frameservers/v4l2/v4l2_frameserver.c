@@ -20,6 +20,16 @@
 static void*
 v4l2_frameserver_stream_run(void* ptr);
 
+/*!
+ * Casts the internal instance pointer from the generic opaque type to our
+ * v4l2_frameserver internal type.
+ */
+static inline v4l2_frameserver_instance_t*
+v4l2_frameserver_instance(frameserver_internal_instance_ptr ptr)
+{
+	return (v4l2_frameserver_instance_t*)ptr;
+}
+
 static bool
 source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
                             char* v4l2_device,
@@ -74,7 +84,8 @@ v4l2_frameserver_enumerate_sources(frameserver_instance_t* inst,
                                    v4l2_source_descriptor_t* sources,
                                    uint32_t* count)
 {
-	v4l2_frameserver_instance_t* internal = inst->internal_instance;
+	v4l2_frameserver_instance_t* internal =
+	    v4l2_frameserver_instance(inst->internal_instance);
 
 	char device_files[64][256]; // max of 64 video4linux devices supported
 	                            // TODO: maybe 256 too small
@@ -154,7 +165,8 @@ v4l2_frameserver_register_frame_callback(
     void* target_instance,
     frame_consumer_callback_func target_func)
 {
-	v4l2_frameserver_instance_t* internal = inst->internal_instance;
+	v4l2_frameserver_instance_t* internal =
+	    v4l2_frameserver_instance(inst->internal_instance);
 	internal->frame_target_instance = target_instance;
 	internal->frame_target_callback = target_func;
 }
@@ -177,7 +189,8 @@ bool
 v4l2_frameserver_stream_start(frameserver_instance_t* inst,
                               v4l2_source_descriptor_t* source)
 {
-	v4l2_frameserver_instance_t* internal = inst->internal_instance;
+	v4l2_frameserver_instance_t* internal =
+	    v4l2_frameserver_instance(inst->internal_instance);
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	if (pthread_create(&internal->stream_thread, NULL,
@@ -194,7 +207,8 @@ void*
 v4l2_frameserver_stream_run(void* ptr)
 {
 	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	v4l2_frameserver_instance_t* internal = inst->internal_instance;
+	v4l2_frameserver_instance_t* internal =
+	    v4l2_frameserver_instance(inst->internal_instance);
 	// our jpeg decoder stuff
 	struct jpeg_decompress_struct cinfo;
 	struct jpeg_error_mgr jerr;
