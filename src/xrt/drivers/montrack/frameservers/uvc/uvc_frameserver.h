@@ -79,9 +79,10 @@ bool
 uvc_frameserver_configure_capture(frameserver_instance_t* inst,
                                   capture_parameters_t cp);
 bool
-uvc_frameserver_enumerate_sources(frameserver_instance_t*,
-                                  uvc_source_descriptor_t* sources,
-                                  uint32_t* count);
+uvc_frameserver_enumerate_sources(
+    frameserver_instance_t*,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count);
 bool
 uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
 void
@@ -98,7 +99,7 @@ bool
 uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool
 uvc_frameserver_stream_start(frameserver_instance_t* inst,
-                             uvc_source_descriptor_t* source);
+                             frameserver_source_descriptor_ptr source_generic);
 bool
 uvc_frameserver_stream_stop(frameserver_instance_t* inst);
 bool
