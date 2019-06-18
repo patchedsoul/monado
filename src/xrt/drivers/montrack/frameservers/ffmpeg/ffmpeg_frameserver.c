@@ -6,13 +6,33 @@
 
 #include "util/u_misc.h"
 
+#include "libavformat/avformat.h"
+#include "libavcodec/avcodec.h"
+#include "libavutil/avutil.h"
+
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 
-/*!
- * Streaming thread entrypoint
- */
-static void*
-ffmpeg_stream_run(void* ptr);
+static const AVPacket empty_packet;
+
+typedef struct ffmpeg_frameserver_instance
+{
+	int64_t videoCodecTimebase;
+	int32_t av_video_streamid;
+	AVFormatContext* av_format_context;
+	AVCodecContext* av_codec_context;
+	AVCodec* av_video_codec;
+	AVFrame* av_current_frame;
+	frame_consumer_callback_func frame_target_callback;
+	event_consumer_callback_func event_target_callback;
+	void* frame_target_instance; // where we send our frames
+	void* event_target_instance; // where we send our events
+	pthread_t stream_thread;
+	bool is_running;
+	ffmpeg_source_descriptor_t source_descriptor;
+	uint32_t sequence_counter;
+
+
+} ffmpeg_frameserver_instance_t;
 
 /*!
  * Casts the internal instance pointer from the generic opaque type to our
@@ -23,6 +43,42 @@ ffmpeg_frameserver_instance(frameserver_internal_instance_ptr ptr)
 {
 	return (ffmpeg_frameserver_instance_t*)ptr;
 }
+
+/*!
+ * Streaming thread entrypoint
+ */
+static void*
+ffmpeg_stream_run(void* ptr);
+static bool
+ffmpeg_frameserver_configure_capture(frameserver_instance_t* inst,
+                                     capture_parameters_t cp);
+static bool
+ffmpeg_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count);
+static bool
+ffmpeg_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
+static void
+ffmpeg_frameserver_register_frame_callback(
+    frameserver_instance_t* inst,
+    void* target_instance,
+    frame_consumer_callback_func target_func);
+static void
+ffmpeg_frameserver_register_event_callback(
+    frameserver_instance_t* inst,
+    void* target_instance,
+    event_consumer_callback_func target_func);
+static bool
+ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
+static bool
+ffmpeg_frameserver_stream_start(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr source_generic);
+static bool
+ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst);
+static bool
+ffmpeg_frameserver_is_running(frameserver_instance_t* inst);
 
 bool
 ffmpeg_source_create(ffmpeg_source_descriptor_t* desc)
