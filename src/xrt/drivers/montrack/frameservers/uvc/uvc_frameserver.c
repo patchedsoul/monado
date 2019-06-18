@@ -72,10 +72,13 @@ uvc_frameserver_create(frameserver_instance_t* inst)
 }
 
 bool
-uvc_frameserver_enumerate_sources(frameserver_instance_t* inst,
-                                  uvc_source_descriptor_t* cameras,
-                                  uint32_t* count)
+uvc_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count)
 {
+	uvc_source_descriptor_t* cameras =
+	    (uvc_source_descriptor_t*)sources_generic;
 	uvc_error_t res;
 	uvc_frameserver_instance_t* internal =
 	    uvc_frameserver_instance(inst->internal_instance);
@@ -190,10 +193,12 @@ uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
 }
 bool
 uvc_frameserver_stream_start(frameserver_instance_t* inst,
-                             uvc_source_descriptor_t* source)
+                             frameserver_source_descriptor_ptr source_generic)
 {
 	uvc_frameserver_instance_t* internal =
 	    uvc_frameserver_instance(inst->internal_instance);
+	uvc_source_descriptor_t* source =
+	    (uvc_source_descriptor_t*)source_generic;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	internal->sequence_counter=0;
