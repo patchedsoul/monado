@@ -68,16 +68,19 @@ ffmpeg_frameserver_destroy(ffmpeg_frameserver_instance_t* inst)
 	return true;
 }
 bool
-ffmpeg_frameserver_enumerate_sources(frameserver_instance_t* inst,
-                                     ffmpeg_source_descriptor_t* sources,
-                                     uint32_t* count)
+ffmpeg_frameserver_enumerate_sources(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr sources_generic,
+    uint32_t* count)
 {
 	// TODO: this is hardcoded, we need to query the source for its
 	// properties
-	if (sources == NULL) {
+	if (sources_generic == NULL) {
 		*count = 2; // we advertise support for YUV420 or just a Y frame
 		return true;
 	}
+	ffmpeg_source_descriptor_t* sources =
+	    (ffmpeg_source_descriptor_t*)sources_generic;
 	char* filepath = DUMMY_FILE;
 	char* source_name = "FFMPEG Test Source";
 	uint32_t source_id = 666;
@@ -139,11 +142,14 @@ ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
 }
 
 bool
-ffmpeg_frameserver_stream_start(frameserver_instance_t* inst,
-                                ffmpeg_source_descriptor_t* source)
+ffmpeg_frameserver_stream_start(
+    frameserver_instance_t* inst,
+    frameserver_source_descriptor_ptr source_generic)
 {
 	ffmpeg_frameserver_instance_t* internal =
 	    ffmpeg_frameserver_instance(inst->internal_instance);
+	ffmpeg_source_descriptor_t* source =
+	    (ffmpeg_source_descriptor_t*)source_generic;
 	if (pthread_create(&internal->stream_thread, NULL, ffmpeg_stream_run,
 	                   inst)) {
 		printf("ERROR: could not createv thread\n");
