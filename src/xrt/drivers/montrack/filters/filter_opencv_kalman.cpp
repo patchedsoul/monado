@@ -5,7 +5,7 @@
 
 #include "util/u_misc.h"
 
-typedef struct filter_opencv_kalman_instance
+struct filter_opencv_kalman_instance_t
 {
 	bool configured;
 	opencv_filter_configuration_t configuration;
@@ -14,9 +14,17 @@ typedef struct filter_opencv_kalman_instance
 	cv::Mat prediction;
 	cv::Mat state;
 	bool running;
+};
 
-} filter_opencv_kalman_instance_t;
-
+/*!
+ * Casts the internal instance pointer from the generic opaque type to our
+ * opencv_kalman internal type.
+ */
+static inline filter_opencv_kalman_instance_t*
+filter_opencv_kalman_instance(filter_internal_instance_ptr ptr)
+{
+	return (filter_opencv_kalman_instance_t*)ptr;
+}
 
 bool
 filter_opencv_kalman__destroy(filter_instance_t* inst)
@@ -30,7 +38,7 @@ filter_opencv_kalman_queue(filter_instance_t* inst,
                            tracker_measurement_t* measurement)
 {
 	filter_opencv_kalman_instance_t* internal =
-	    (filter_opencv_kalman_instance_t*)inst->internal_instance;
+	    filter_opencv_kalman_instance(inst->internal_instance);
 	printf("queueing measurement in filter\n");
 	internal->observation.at<float>(0, 0) = measurement->pose.position.x;
 	internal->observation.at<float>(1, 0) = measurement->pose.position.y;
@@ -55,7 +63,7 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
                                    timepoint_ns time)
 {
 	filter_opencv_kalman_instance_t* internal =
-	    (filter_opencv_kalman_instance_t*)inst->internal_instance;
+	    filter_opencv_kalman_instance(inst->internal_instance);
 	// printf("getting filtered pose\n");
 	if (!internal->running) {
 		return false;
@@ -69,10 +77,12 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
 }
 bool
 filter_opencv_kalman_configure(filter_instance_t* inst,
-                               opencv_filter_configuration_t* config)
+                               filter_configuration_ptr config_generic)
 {
 	filter_opencv_kalman_instance_t* internal =
-	    (filter_opencv_kalman_instance_t*)inst->internal_instance;
+	    filter_opencv_kalman_instance(inst->internal_instance);
+	opencv_filter_configuration_t* config =
+	    (opencv_filter_configuration_t*)config_generic;
 	internal->configuration = *config;
 	cv::setIdentity(
 	    internal->kalman_filter.processNoiseCov,
