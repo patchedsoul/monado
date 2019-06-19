@@ -63,24 +63,24 @@ v4l2_frameserver_create(frameserver_instance_t* inst)
 {
 	v4l2_frameserver_instance_t* i =
 	    U_TYPED_CALLOC(v4l2_frameserver_instance_t);
-	if (i) {
-		inst->frameserver_enumerate_sources =
-		    v4l2_frameserver_enumerate_sources;
-		inst->frameserver_configure_capture =
-		    v4l2_frameserver_configure_capture;
-		inst->frameserver_frame_get = v4l2_frameserver_get;
-		inst->frameserver_is_running = v4l2_frameserver_is_running;
-		inst->frameserver_register_frame_callback =
-		    v4l2_frameserver_register_frame_callback;
-		inst->frameserver_register_event_callback =
-		    v4l2_frameserver_register_event_callback;
-		inst->frameserver_seek = v4l2_frameserver_seek;
-		inst->frameserver_stream_stop = v4l2_frameserver_stream_stop;
-		inst->frameserver_stream_start = v4l2_frameserver_stream_start;
-		inst->internal_instance = (frameserver_internal_instance_ptr)i;
-		return i;
+	if (i == NULL) {
+		return NULL;
 	}
-	return NULL;
+
+	// clang-format off
+	inst->frameserver_enumerate_sources       = v4l2_frameserver_enumerate_sources;
+	inst->frameserver_configure_capture       = v4l2_frameserver_configure_capture;
+	inst->frameserver_frame_get               = v4l2_frameserver_get;
+	inst->frameserver_is_running              = v4l2_frameserver_is_running;
+	inst->frameserver_register_frame_callback = v4l2_frameserver_register_frame_callback;
+	inst->frameserver_register_event_callback = v4l2_frameserver_register_event_callback;
+	inst->frameserver_seek                    = v4l2_frameserver_seek;
+	inst->frameserver_stream_stop             = v4l2_frameserver_stream_stop;
+	inst->frameserver_stream_start            = v4l2_frameserver_stream_start;
+	inst->internal_instance                    = (frameserver_internal_instance_ptr)i;
+	// clang-format on
+
+	return i;
 }
 
 bool
