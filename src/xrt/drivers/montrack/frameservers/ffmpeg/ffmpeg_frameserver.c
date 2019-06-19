@@ -137,6 +137,7 @@ ffmpeg_frameserver_stream_start(frameserver_instance_t* inst,
 	}
 	internal->source_descriptor = *source;
 	internal->is_running = true;
+	internal->sequence_counter=0;
 	// we're off to the races!
 	return true;
 }
@@ -304,6 +305,7 @@ ffmpeg_stream_run(void* ptr)
 				f.data = internal->av_current_frame->data[0];
 				internal->frame_target_callback(
 				    internal->frame_target_instance, &f);
+				f.source_sequence = internal->sequence_counter++;
 				driver_event_t e = {};
 				e.type = EVENT_FRAMESERVER_GOTFRAME;
 				if (internal->event_target_callback) {

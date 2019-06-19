@@ -87,6 +87,7 @@ typedef struct frame
 	uint8_t* v_data;                   // unused
 	uint64_t timestamp;
 	uint64_t source_timestamp;
+	uint64_t source_sequence; //sequence id
 	uint64_t source_id; // used to tag frames with the source they
 	                    // originated from
 } frame_t;

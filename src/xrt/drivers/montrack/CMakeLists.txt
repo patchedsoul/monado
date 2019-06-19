@@ -4,6 +4,8 @@ set (MONTRACK_SOURCE_FILES
 	mt_interface.h
 	mt_prober.c
 	mt_events.h
+	mt_framequeue.h
+	mt_framequeue.c
 	)
 
 

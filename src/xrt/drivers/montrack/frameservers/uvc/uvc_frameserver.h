@@ -62,6 +62,7 @@ typedef struct uvc_frameserver_instance
 	capture_parameters_t capture_params;
 	bool is_configured;
 	bool is_running;
+	uint32_t sequence_counter;
 } uvc_frameserver_instance_t;
 
 
