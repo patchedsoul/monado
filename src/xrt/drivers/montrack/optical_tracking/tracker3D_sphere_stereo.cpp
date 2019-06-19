@@ -415,7 +415,7 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 
 	// TODO: handle source images larger than debug_rgb
 	cv::Mat debug_img;
-	cv::cvtColor(internal->l_frame_gray, debug_img, CV_GRAY2BGR);
+	cv::cvtColor(internal->l_frame_gray, debug_img, cv::COLOR_GRAY2BGR);
 	cv::Mat dst_roi =
 	    internal->debug_rgb(cv::Rect(0, 0, debug_img.cols, debug_img.rows));
 	debug_img.copyTo(dst_roi);
@@ -649,7 +649,7 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 	    cv::Point2f(internal->debug_rgb.cols, internal->debug_rgb.rows),
 	    cv::Scalar(0, 0, 0), -1, 0);
 	cv::Mat disp8;
-	cv::cvtColor(internal->r_frame_gray, disp8, CV_GRAY2BGR);
+	cv::cvtColor(internal->r_frame_gray, disp8, cv::COLOR_GRAY2BGR);
 	// disp8.copyTo(internal->debug_rgb);
 	// we will collect samples continuously - the user should be able to
 	// wave a chessboard around randomly while the system calibrates.. we

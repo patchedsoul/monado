@@ -60,7 +60,7 @@ tracker3D_uvbi_get_debug_frame(tracker_instance_t* inst, struct fs_frame* frame)
 	tracker3D_uvbi_instance_t* internal =
 	    (tracker3D_uvbi_instance_t*)inst->internal_instance;
 	cv::Mat rgbFrame;
-	cv::cvtColor(internal->frame_gray, rgbFrame, CV_GRAY2BGR);
+	cv::cvtColor(internal->frame_gray, rgbFrame, cv::COLOR_GRAY2BGR);
 	cv::Mat uvbi_debug = internal->debug->createStatusImage(
 	    *(internal->system), internal->camera_params, rgbFrame);
 
