@@ -24,12 +24,29 @@
 
 #include "optical_tracking/tracker3D_sphere_mono.h"
 
-//#IFDEF have_opencv
+#if defined(XRT_HAVE_LIBUVC) && defined(XRT_HAVE_JPEG)
+#define XRT_HAVE_UVC_FRAMESERVER
+#endif
+
+#if defined(XRT_HAVE_JPEG) && defined(__linux__)
+#define XRT_HAVE_V4L2_FRAMESERVER
+#endif
+
+#if defined(XRT_HAVE_FFMPEG)
+#define XRT_HAVE_FFMPEG_FRAMESERVER
+#endif
+
+#ifdef XRT_HAVE_OPENCV
 #include "filters/filter_opencv_kalman.h"
-//#IFDEF have_uvc
+#endif // XRT_HAVE_OPENCV
+
+#ifdef XRT_HAVE_UVC_FRAMESERVER
 #include "frameservers/uvc/uvc_frameserver.h"
-//#IFDEF have_v4l2
+#endif // XRT_HAVE_UVC_FRAMESERVER
+
+#ifdef XRT_HAVE_V4L2_FRAMESERVER
 #include "frameservers/v4l2/v4l2_frameserver.h"
+#endif // XRT_HAVE_V4L2_FRAMESERVER
 
 
 static void
@@ -101,12 +118,15 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 	mt_device_t* md = U_TYPED_CALLOC(mt_device_t);
 
 	dummy_init_mt_device(md);
-
+#ifdef XRT_HAVE_V4L2_FRAMESERVER
 	if (strcmp(device_name, "MONO_PS3EYE") == 0) {
 		if (mt_create_mono_ps3eye(md)) {
 			return md;
 		}
 	}
+#endif // XRT_HAVE_V4L2_FRAMESERVER
+
+#ifdef XRT_HAVE_UVC_FRAMESERVER
 	if (strcmp(device_name, "MONO_LOGITECH_C270") == 0) {
 		if (mt_create_mono_c270(md)) {
 			return md;
@@ -127,7 +147,7 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 			return md;
 		}
 	}
-
+#endif // XRT_HAVE_UVC_FRAMESERVER
 	if (strcmp(device_name, "STEREO_PS4_60FPS") == 0) {
 		if (mt_create_stereo_ps4(md)) {
 			return md;
@@ -138,6 +158,7 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 	return NULL;
 }
 
+#ifdef XRT_HAVE_V4L2_FRAMESERVER
 bool
 mt_create_mono_ps3eye(mt_device_t* md)
 {
@@ -227,7 +248,9 @@ mt_create_mono_ps3eye(mt_device_t* md)
 	    md->frameservers[0], &(descriptors[source_index]));
 	return true;
 }
+#endif // XRT_HAVE_V4L2_FRAMESERVER
 
+#ifdef XRT_HAVE_UVC_FRAMESERVER
 bool
 mt_create_mono_c270(mt_device_t* md)
 {
@@ -589,6 +612,7 @@ mt_create_uvbi_hdk(mt_device_t* md)
 
 	return true;
 }
+#endif // XRT_HAVE_UVC_FRAMESERVER
 
 bool
 mt_create_stereo_ps4(mt_device_t* md)
