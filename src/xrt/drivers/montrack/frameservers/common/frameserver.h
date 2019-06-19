@@ -129,29 +129,69 @@ typedef void (*frame_consumer_callback_func)(frameserver_instance_t* instance,
 typedef struct _frameserver_instance
 {
 	frameserver_type_t frameserver_type;
+
+	/*!
+	 * Enumerate all available sources.
+	 */
 	bool (*frameserver_enumerate_sources)(
 	    frameserver_instance_t* inst,
 	    frameserver_source_descriptor_ptr sources,
 	    uint32_t* count);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_configure_capture)(frameserver_instance_t*,
 	                                      capture_parameters_t cp);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_frame_get)(frameserver_instance_t* inst,
 	                              frame_t* _frame);
+
+	/*!
+	 *
+	 */
 	void (*frameserver_register_frame_callback)(
 	    frameserver_instance_t* inst,
 	    void* target_instance,
 	    frame_consumer_callback_func target_func);
+
+	/*!
+	 *
+	 */
 	void (*frameserver_register_event_callback)(
 	    frameserver_instance_t* inst,
 	    void* target_instance,
 	    event_consumer_callback_func target_func);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_seek)(frameserver_instance_t* inst,
 	                         uint64_t timestamp);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_stream_start)(
 	    frameserver_instance_t* inst,
 	    frameserver_source_descriptor_ptr source);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_stream_stop)(frameserver_instance_t* inst);
+
+	/*!
+	 *
+	 */
 	bool (*frameserver_is_running)(frameserver_instance_t* inst);
+
+	/*!
+	 *
+	 */
 	frameserver_internal_instance_ptr internal_instance;
 } frameserver_instance_t;
 
