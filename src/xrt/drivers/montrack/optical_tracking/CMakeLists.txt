@@ -20,6 +20,7 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	track_psvr.h
 	track_psvr.cpp
 	)
+
 if(BUILD_WITH_UVBI)
 	list(APPEND OPTICAL_TRACKING_SOURCE_FILES
 		tracker3D_uvbi.cpp
@@ -32,9 +33,11 @@ add_library(optical_tracking OBJECT ${OPTICAL_TRACKING_SOURCE_FILES})
 set_property(TARGET optical_tracking PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(optical_tracking SYSTEM
 	PRIVATE
+	${OpenCV_INCLUDE_DIRS}
 	${OPENCV_INCLUDE_DIRS}
 	${CMAKE_CURRENT_SOURCE_DIR}/..
 	)
+
 if(BUILD_WITH_UVBI)
 	target_link_libraries(optical_tracking PRIVATE uvbi::uvbi_plugin_parts)
 endif()
