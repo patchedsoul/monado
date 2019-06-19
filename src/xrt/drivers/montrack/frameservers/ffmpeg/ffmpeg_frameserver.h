@@ -45,6 +45,8 @@ typedef struct ffmpeg_frameserver_instance
 	pthread_t stream_thread;
 	bool is_running;
 	ffmpeg_source_descriptor_t source_descriptor;
+	uint32_t sequence_counter;
+
 
 } ffmpeg_frameserver_instance_t;
 

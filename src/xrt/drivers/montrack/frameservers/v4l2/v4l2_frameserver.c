@@ -410,6 +410,7 @@ v4l2_frameserver_stream_run(void* ptr)
 				        internal->source_descriptor.format);
 				f.size_bytes = cropped_stride * f.height;
 				f.data = cropped_buffer;
+				f.source_sequence = v_buf.sequence;
 			} else {
 				// process frame
 				f.width = internal->source_descriptor.width;
@@ -421,6 +422,8 @@ v4l2_frameserver_stream_run(void* ptr)
 				        internal->source_descriptor.format);
 				f.size_bytes = v_buf.bytesused;
 				f.data = mem[v_buf.index];
+				f.source_sequence = v_buf.sequence;
+
 			}
 
 			switch (internal->source_descriptor.stream_format) {

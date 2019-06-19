@@ -183,6 +183,7 @@ uvc_frameserver_stream_start(frameserver_instance_t* inst,
 	uvc_frameserver_instance_t* internal = inst->internal_instance;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
+	internal->sequence_counter=0;
 	if (pthread_create(&internal->stream_thread, NULL,
 	                   uvc_frameserver_stream_run, inst)) {
 		printf("ERROR: could not create thread\n");
@@ -311,6 +312,7 @@ uvc_frameserver_stream_run(void* ptr)
 				f.stride = frame->step;
 				f.size_bytes = frame->data_bytes;
 				f.data = frame->data;
+				f.source_sequence = internal->sequence_counter++;
 
 				switch (
 				    internal->source_descriptor.stream_format) {
