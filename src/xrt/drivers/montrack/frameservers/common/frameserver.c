@@ -227,8 +227,9 @@ fs_frame_resample(struct fs_frame* source, struct fs_frame* out)
 bool
 frameservers_test()
 {
-
+#ifdef XRT_HAVE_FFMPEG
 	ffmpeg_frameserver_test();
+#endif // XRT_HAVE_FFMPEG
 	// uvc_frameserver_test();
 	// v4l2_frameserver_test();
 	return true;
