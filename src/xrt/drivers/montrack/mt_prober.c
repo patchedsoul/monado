@@ -15,6 +15,7 @@
 #include "util/u_debug.h"
 
 #include "mt_device.h"
+#include "mt_interface.h"
 
 DEBUG_GET_ONCE_BOOL_OPTION(mt_verbose, "MT_VERBOSE", false)
 DEBUG_GET_ONCE_BOOL_OPTION(mt_debug, "MT_DEBUG", false)
