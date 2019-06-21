@@ -6,6 +6,7 @@
 #include <jpeglib.h>
 
 #include "util/u_misc.h"
+#include "../mt_framequeue.h"
 
 /*!
  * Streaming thread entrypoint
@@ -70,8 +71,6 @@ uvc_frameserver_create(frameserver_instance_t* inst)
 		    uvc_frameserver_configure_capture;
 		inst->frameserver_frame_get = uvc_frameserver_get;
 		inst->frameserver_is_running = uvc_frameserver_is_running;
-		inst->frameserver_register_frame_callback =
-		    uvc_frameserver_register_frame_callback;
 		inst->frameserver_register_event_callback =
 		    uvc_frameserver_register_event_callback;
 		inst->frameserver_seek = uvc_frameserver_seek;
@@ -173,17 +172,6 @@ uvc_frameserver_configure_capture(frameserver_instance_t* inst,
 	return true;
 }
 
-void
-uvc_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func)
-{
-	uvc_frameserver_instance_t* internal =
-	    uvc_frameserver_instance(inst->internal_instance);
-	internal->frame_target_instance = target_instance;
-	internal->frame_target_callback = target_func;
-}
 
 void
 uvc_frameserver_register_event_callback(
@@ -214,7 +202,7 @@ uvc_frameserver_stream_start(frameserver_instance_t* inst,
 	    (uvc_source_descriptor_t*)source_generic;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
-	internal->sequence_counter=0;
+	internal->sequence_counter = 0;
 	if (pthread_create(&internal->stream_thread, NULL,
 	                   uvc_frameserver_stream_run, inst)) {
 		printf("ERROR: could not create thread\n");
@@ -314,6 +302,11 @@ uvc_frameserver_stream_run(void* ptr)
 
 	uvc_frame_t* frame =
 	    uvc_allocate_frame(internal->stream_ctrl.dwMaxVideoFrameSize);
+
+	frame_queue_t* fq = frame_queue_instance();
+	// we will tag all our frames with this source id.
+	uint64_t source_id = frame_queue_uniq_source_id(fq);
+
 	while (internal->is_running) {
 
 		// if our config is invalidated at runtime, reconfigure
@@ -338,13 +331,14 @@ uvc_frameserver_stream_run(void* ptr)
 		} else {
 			if (frame) {
 				// printf("got frame\n");
-
+				f.source_id = source_id;
 				f.width = frame->width;
 				f.height = frame->height;
 				f.stride = frame->step;
 				f.size_bytes = frame->data_bytes;
 				f.data = frame->data;
-				f.source_sequence = internal->sequence_counter++;
+				f.source_sequence =
+				    internal->sequence_counter++;
 
 				switch (
 				    internal->source_descriptor.stream_format) {
@@ -407,23 +401,12 @@ uvc_frameserver_stream_run(void* ptr)
 						    &f, PLANE_Y,
 						    &sampled_frame);
 
-						if (internal
-						        ->frame_target_callback) {
-							internal->frame_target_callback(
-							    internal
-							        ->frame_target_instance,
-							    &sampled_frame);
-						}
+						frame_queue_add(fq,
+						                &sampled_frame);
 						break;
 					default:
 						// supply our YUV444 directly
-						if (internal
-						        ->frame_target_callback) {
-							internal->frame_target_callback(
-							    internal
-							        ->frame_target_instance,
-							    &f);
-						}
+						frame_queue_add(fq, &f);
 					}
 					break;
 				case UVC_FRAME_FORMAT_YUYV:
@@ -452,13 +435,8 @@ uvc_frameserver_stream_run(void* ptr)
 						    &f, PLANE_Y,
 						    &sampled_frame);
 
-						if (internal
-						        ->frame_target_callback) {
-							internal->frame_target_callback(
-							    internal
-							        ->frame_target_instance,
-							    &sampled_frame);
-						}
+						frame_queue_add(fq,
+						                &sampled_frame);
 						break;
 					case FORMAT_YUV444_UINT8:
 						// upsample our YUYV to YUV444
@@ -481,13 +459,8 @@ uvc_frameserver_stream_run(void* ptr)
 						}
 						if (frame_resample(
 						        &f, &sampled_frame)) {
-							if (internal
-							        ->frame_target_callback) {
-								internal->frame_target_callback(
-								    internal
-								        ->frame_target_instance,
-								    &sampled_frame);
-							}
+							frame_queue_add(
+							    fq, &sampled_frame);
 							break;
 						}
 						printf(
@@ -498,13 +471,7 @@ uvc_frameserver_stream_run(void* ptr)
 						break;
 					default:
 						// supply our YUYV directly
-						if (internal
-						        ->frame_target_callback) {
-							internal->frame_target_callback(
-							    internal
-							        ->frame_target_instance,
-							    &f);
-						}
+						frame_queue_add(fq, &f);
 					}
 					break;
 				default:

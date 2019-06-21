@@ -23,6 +23,7 @@
 #include "psmv_interface.h"
 #include <unistd.h>
 
+#include <optical_tracking/common/tracker.h>
 
 /*
  *
@@ -190,6 +191,10 @@ struct psmv_device
 		uint16_t timestamp;
 		uint8_t seqno;
 	} last;
+
+	tracker_instance_t *tracker;
+	uint32_t tracked_objects;
+	tracked_object_t *tracked_object_array;
 
 	bool print_spew;
 	bool print_debug;
@@ -365,7 +370,8 @@ psmv_device_destroy(struct xrt_device *xdev)
 		os_hid_destroy(psmv->hid);
 		psmv->hid = NULL;
 	}
-
+	tracker_destroy(psmv->tracker);
+	free(psmv->tracked_object_array);
 	free(psmv);
 }
 
@@ -504,6 +510,12 @@ psmv_found(struct xrt_prober *xp,
 
 	// Clear any packets
 	psmv_read_hid(psmv);
+
+	// create our tracker and determine tracked object count
+	psmv->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
+	psmv->tracker->tracker_get_poses(psmv->tracker, NULL,
+	                                 &psmv->tracked_objects);
+
 
 	// And finally done
 	*out_xdevs = &psmv->base;

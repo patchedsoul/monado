@@ -53,9 +53,7 @@ typedef struct uvc_frameserver_instance
 	uvc_device_handle_t* device_handle;
 	uvc_stream_handle_t* stream_handle;
 	uvc_stream_ctrl_t stream_ctrl;
-	frame_consumer_callback_func frame_target_callback;
 	event_consumer_callback_func event_target_callback;
-	void* frame_target_instance; // where we send our frames
 	void* event_target_instance; // where we send our events
 	uvc_source_descriptor_t source_descriptor;
 	pthread_t stream_thread;
@@ -90,11 +88,6 @@ uvc_frameserver_register_event_callback(
     frameserver_instance_t* inst,
     void* target_instance,
     event_consumer_callback_func target_func);
-void
-uvc_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func);
 bool
 uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool

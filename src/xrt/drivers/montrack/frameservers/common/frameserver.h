@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <math/m_api.h>
 
-#include "../mt_events.h"
+#include <mt_events.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,9 +87,9 @@ typedef struct frame
 	uint8_t* v_data;                   // unused
 	uint64_t timestamp;
 	uint64_t source_timestamp;
-	uint64_t source_sequence; //sequence id
-	uint64_t source_id; // used to tag frames with the source they
-	                    // originated from
+	uint64_t source_sequence; // sequence id
+	uint64_t source_id;       // used to tag frames with the source they
+	                          // originated from
 } frame_t;
 
 typedef struct capture_parameters
@@ -149,14 +149,6 @@ typedef struct _frameserver_instance
 	 */
 	bool (*frameserver_frame_get)(frameserver_instance_t* inst,
 	                              frame_t* _frame);
-
-	/*!
-	 *
-	 */
-	void (*frameserver_register_frame_callback)(
-	    frameserver_instance_t* inst,
-	    void* target_instance,
-	    frame_consumer_callback_func target_func);
 
 	/*!
 	 *
