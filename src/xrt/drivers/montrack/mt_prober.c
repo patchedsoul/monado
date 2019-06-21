@@ -72,3 +72,22 @@ mt_create_auto_prober()
 
 	return &mp->base;
 }
+int
+mt_uvc_found(struct xrt_prober* xp,
+             struct xrt_prober_device** devices,
+             size_t index,
+             struct xrt_device** out_xdev)
+{
+	struct xrt_prober_device* device = devices[index];
+	bool log_verbose = debug_get_bool_option_mt_verbose();
+	bool log_debug = debug_get_bool_option_mt_debug();
+	if (device->vendor_id == HDK_CAM_VID &&
+	    device->product_id == HDK_CAM_PID) {
+		mt_device_t* mtd = mt_device_create("UVBI_HDK", true, true);
+		if (mtd != NULL) {
+			*out_xdev = &mtd->base;
+			return 1;
+		}
+	}
+	return 0;
+}

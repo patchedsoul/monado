@@ -49,6 +49,9 @@
  * assign sequential elements of out_xdevs to the created devices.
  */
 struct xrt_prober_entry target_entry_list[] = {
+#ifdef XRT_BUILD_MONTRACK
+    {HDK_CAM_VID, HDK_CAM_PID, mt_uvc_found, "OSVR HDK Tracking Camera"},
+#endif // XRT_BUILD_MONTRACK
 #ifdef XRT_BUILD_PSMV
     {PSMV_VID, PSMV_PID, psmv_found, "PS Move"},
 #endif
