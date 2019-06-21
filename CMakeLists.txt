@@ -60,6 +60,8 @@ cmake_dependent_option(BUILD_WITH_FFMPEG "Enable ffmpeg testing video driver" ON
 cmake_dependent_option(BUILD_WITH_HIDAPI "Enable HIDAPI-based driver(s) (OSVR HDK, PSVR)" ON "HIDAPI_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENHMD "Enable OpenHMD driver" ON "OPENHMD_FOUND" OFF)
 
+option(BUILD_TARGET_OPENXR "Build the OpenXR runtime target" ON)
+option(BUILD_TARGET_CLI "Build the command-line interface target" OFF) # off by default since sometimes harder to build
 
 ###
 # Error checking
