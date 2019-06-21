@@ -195,10 +195,6 @@ mt_create_mono_ps3eye(mt_device_t* md)
 		return false;
 	}
 
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
-
 	// create a filter for the trackers output
 	opencv_filter_configuration_t filter_config = {};
 	filter_config.measurement_noise_cov = 0.1f;
@@ -287,10 +283,6 @@ mt_create_mono_c270(mt_device_t* md)
 		printf("ERROR: tracker rejected frameserver configuration!\n");
 		return false;
 	}
-
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
 
 	// create a filter for the trackers output
 	opencv_filter_configuration_t filter_config = {};
@@ -407,9 +399,6 @@ mt_create_stereo_elp(mt_device_t* md)
 		return false;
 	}
 
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
 
 	// create a filter for the trackers output
 	opencv_filter_configuration_t filter_config = {0};
@@ -500,10 +489,6 @@ mt_create_uvbi_elp(mt_device_t* md)
 		return false;
 	}
 
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
-
 	// now our chain is setup up we can start streaming data through it
 	printf(
 	    "INFO: frame source path: %s %d x %d interval: %d\n",
@@ -571,9 +556,6 @@ mt_create_uvbi_hdk(mt_device_t* md)
 		return false;
 	}
 
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
 
 	// now our chain is setup up we can start streaming data through it
 	printf(
@@ -681,9 +663,6 @@ mt_create_stereo_ps4(mt_device_t* md)
 		return false;
 	}
 
-	// tracker is happy - connect our frameserver to our tracker
-	md->frameservers[0]->frameserver_register_frame_callback(
-	    md->frameservers[0], md->tracker, md->tracker->tracker_queue);
 
 	// create a filter for the trackers output
 	opencv_filter_configuration_t filter_config = {};

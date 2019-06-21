@@ -13,6 +13,7 @@
 
 #include "util/u_misc.h"
 
+#include "../mt_framequeue.h"
 
 /*!
  * Streaming thread entrypoint
@@ -72,7 +73,6 @@ v4l2_frameserver_create(frameserver_instance_t* inst)
 	inst->frameserver_configure_capture       = v4l2_frameserver_configure_capture;
 	inst->frameserver_frame_get               = v4l2_frameserver_get;
 	inst->frameserver_is_running              = v4l2_frameserver_is_running;
-	inst->frameserver_register_frame_callback = v4l2_frameserver_register_frame_callback;
 	inst->frameserver_register_event_callback = v4l2_frameserver_register_event_callback;
 	inst->frameserver_seek                    = v4l2_frameserver_seek;
 	inst->frameserver_stream_stop             = v4l2_frameserver_stream_stop;
@@ -173,20 +173,6 @@ v4l2_frameserver_register_event_callback(
 {
 	// do nothing
 }
-
-
-void
-v4l2_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func)
-{
-	v4l2_frameserver_instance_t* internal =
-	    v4l2_frameserver_instance(inst->internal_instance);
-	internal->frame_target_instance = target_instance;
-	internal->frame_target_callback = target_func;
-}
-
 
 bool
 v4l2_frameserver_get(frameserver_instance_t* inst, frame_t* frame)
@@ -351,7 +337,6 @@ v4l2_frameserver_stream_run(void* ptr)
 			exit(0);
 		}
 	}
-	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
 	case V4L2_PIX_FMT_YUYV: f.format = FORMAT_YUYV_UINT8; break;
 	case V4L2_PIX_FMT_JPEG:
@@ -367,6 +352,8 @@ v4l2_frameserver_stream_run(void* ptr)
 	uint8_t* temp_data = NULL;
 	uint8_t* data_ptr = NULL;
 
+	frame_queue_t* fq = frame_queue_instance();
+	uint64_t source_id = frame_queue_uniq_source_id(fq);
 	while (internal->is_running) {
 
 		// if our config is invalidated at runtime, reconfigure
@@ -388,6 +375,7 @@ v4l2_frameserver_stream_run(void* ptr)
 		} else {
 			// printf("dequeue succeeded %d used %d of %d
 			// \n",v_buf.index,v_buf.bytesused,v_buf.length);
+			f.source_id = source_id; //set this early so it is inherited by sampled or cropped frames
 			if (internal->source_descriptor
 			        .crop_scanline_bytes_start > 0) {
 				// we need to crop our stream frame into a new
@@ -511,21 +499,11 @@ v4l2_frameserver_stream_run(void* ptr)
 					frame_extract_plane(&f, PLANE_Y,
 					                    &sampled_frame);
 
-					if (internal->frame_target_callback) {
-						internal->frame_target_callback(
-						    internal
-						        ->frame_target_instance,
-						    &sampled_frame);
-					}
+					frame_queue_add(fq,&sampled_frame);
 					break;
 				default:
 					// supply our YUV444 directly
-					if (internal->frame_target_callback) {
-						internal->frame_target_callback(
-						    internal
-						        ->frame_target_instance,
-						    &f);
-					}
+					frame_queue_add(fq,&f);
 				}
 				break;
 			case V4L2_PIX_FMT_YUYV:
@@ -550,12 +528,7 @@ v4l2_frameserver_stream_run(void* ptr)
 					frame_extract_plane(&f, PLANE_Y,
 					                    &sampled_frame);
 
-					if (internal->frame_target_callback) {
-						internal->frame_target_callback(
-						    internal
-						        ->frame_target_instance,
-						    &sampled_frame);
-					}
+					frame_queue_add(fq,&sampled_frame);
 					break;
 				case FORMAT_YUV444_UINT8:
 					// upsample our YUYV to YUV444
@@ -574,13 +547,7 @@ v4l2_frameserver_stream_run(void* ptr)
 					}
 					if (frame_resample(&f,
 					                   &sampled_frame)) {
-						if (internal
-						        ->frame_target_callback) {
-							internal->frame_target_callback(
-							    internal
-							        ->frame_target_instance,
-							    &sampled_frame);
-						}
+						frame_queue_add(fq,&sampled_frame);
 						break;
 					}
 					printf(
@@ -590,12 +557,7 @@ v4l2_frameserver_stream_run(void* ptr)
 					break;
 				default:
 					// supply our YUYV directly
-					if (internal->frame_target_callback) {
-						internal->frame_target_callback(
-						    internal
-						        ->frame_target_instance,
-						    &f);
-					}
+					frame_queue_add(fq,&f);
 				}
 				break;
 			default: printf("ERROR: Unknown stream format\n");

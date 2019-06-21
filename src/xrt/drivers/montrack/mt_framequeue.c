@@ -4,7 +4,7 @@
 
 #include "mt_framequeue.h"
 
-frame_queue_t* get_frame_queue()
+frame_queue_t* frame_queue_instance()
 {
 	static frame_queue_t* fq = NULL;
 
@@ -16,8 +16,14 @@ frame_queue_t* get_frame_queue()
 			exit(0);
 		}
 		frame_array_init(&fq->frames);
+		fq->source_id_counter=0;
 	}
 	return fq;
+}
+
+uint64_t frame_queue_uniq_source_id(frame_queue_t* fq) {
+	//TODO: locking
+	return fq->source_id_counter++;
 }
 
 
@@ -65,22 +71,28 @@ void frame_queue_add(frame_queue_t* fq,frame_t* f) {
 	//delete any unrefed frames for this source, then add this new one
 	//TODO: locking
 
+	printf("queue add: existing size: %d\n",fq->frames.size);
 	uint32_t* indices_to_remove = malloc(sizeof(uint32_t) * fq->frames.size);
 	uint32_t c_index=0;
 	for (uint32_t i =0;i<fq->frames.size;i++) {
 		framedata_t* fd = &fq->frames.refdata[i];
+		printf("checking frame - refcount %d\n",fd->refcount);
 		if (fd->refcount == 0) {
 			indices_to_remove[c_index] = i;
 			c_index++;
 		}
 	}
+	printf("queue marking %d indices for removal\n",c_index);
 
 	for (uint32_t i=0;i<c_index;i++)
 	{
 		frame_array_delete(&fq->frames,indices_to_remove[i]);
+		printf("queue deleting frame new size %d\n",fq->frames.size);
 	}
 	free(indices_to_remove);
 	frame_array_add(&fq->frames,f);
+	printf("queue adding frame new size %d\n",fq->frames.size);
+
 }
 
 void frame_array_init(frame_array_t* fa)
@@ -118,13 +130,16 @@ void frame_array_add(frame_array_t* fa, frame_t* f)
 	if (fa->capacity == fa->size) {
 		frame_array_resize(fa, fa->capacity * 2); //alloc double the size on mem exhaustion
 	}
-	frame_t* nf = fa->items+fa->size +1;
+	frame_t* nf = fa->items+fa->size ;
 	memcpy(nf,f,sizeof(frame_t));
-	framedata_t* fd = fa->refdata+fa->size+1;
+	framedata_t* fd = fa->refdata+fa->size;
 	fd->refcount =0;
 	fd->buffer = malloc(f->size_bytes);
 	memcpy(fd->buffer,f->data,f->size_bytes);
 	nf->data = fd->buffer; //point the queued frames data ptr at our refdata
+	fa->size++;
+	//printf("adding - new size: %d\n",fa->size);
+
 }
 
 /*void frame_array_set(frame_array_t* fa, uint32_t index, frame_t* f)
@@ -150,12 +165,14 @@ void frame_array_delete(frame_array_t* fa, uint32_t index)
 
 	framedata_t* fd = &fa->refdata[index];
 	free(fd->buffer);
+	fd->buffer = NULL;
 	for (uint32_t i = index; i < fa->size - 1; i++) {
 		fa->items[i] = fa->items[i+1];
 		fa->refdata[i] = fa->refdata[i+1];
 	}
 
 	fa->size--;
+	//printf("deleting - new size: %d\n",fa->size);
 
 	if (fa->size > 0 && fa->size == fa->capacity / 4) //reclaim memory on major size reduction
 		frame_array_resize(fa, fa->capacity / 2);

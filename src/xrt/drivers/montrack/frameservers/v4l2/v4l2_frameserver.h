@@ -33,16 +33,13 @@ typedef struct v4l2_source_descriptor
 
 typedef struct v4l2_frameserver_instance
 {
-	frame_consumer_callback_func frame_target_callback;
 	event_consumer_callback_func event_target_callback;
-	void* frame_target_instance; // where we send our frames
 	void* event_target_instance; // where we send our events
 	v4l2_source_descriptor_t source_descriptor;
 	pthread_t stream_thread;
 	capture_parameters_t capture_params;
 	bool is_configured;
 	bool is_running;
-
 } v4l2_frameserver_instance_t;
 
 
@@ -70,11 +67,6 @@ v4l2_frameserver_register_event_callback(
     frameserver_instance_t* inst,
     void* target_instance,
     event_consumer_callback_func target_func);
-void
-v4l2_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func);
 bool
 v4l2_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
 bool

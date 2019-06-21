@@ -1,7 +1,7 @@
 #ifndef TRACKER_H
 #define TRACKER_H
 #include <xrt/xrt_defines.h>
-#include "../frameservers/common/frameserver.h"
+#include <frameserver.h>
 #include "calibration.h"
 #include "tracked_object.h"
 #include <sys/socket.h>

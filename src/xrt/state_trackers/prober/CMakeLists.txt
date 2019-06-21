@@ -5,6 +5,8 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/../../include
 	${CMAKE_CURRENT_SOURCE_DIR}/../../auxiliary
 	${CMAKE_CURRENT_SOURCE_DIR}/../../../external
+	${CMAKE_CURRENT_SOURCE_DIR}/../../drivers/montrack
+
 	)
 
 set(PROBER_SOURCE_FILES

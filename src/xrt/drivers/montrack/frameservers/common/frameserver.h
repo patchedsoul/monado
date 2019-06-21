@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <math/m_api.h>
 
-#include "../mt_events.h"
+#include <mt_events.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -149,14 +149,6 @@ typedef struct _frameserver_instance
 	 */
 	bool (*frameserver_frame_get)(frameserver_instance_t* inst,
 	                              frame_t* _frame);
-
-	/*!
-	 *
-	 */
-	void (*frameserver_register_frame_callback)(
-	    frameserver_instance_t* inst,
-	    void* target_instance,
-	    frame_consumer_callback_func target_func);
 
 	/*!
 	 *
