@@ -67,20 +67,20 @@ mt_device_get_tracked_pose(struct xrt_device* xdev,
 {
 	mt_device_t* md = mt_device(xdev);
 	struct xrt_pose pose;
-	filter_state_t filtered;
+	struct filter_state filtered;
 	switch (md->tracker->tracker_type) {
 	case TRACKER_TYPE_SPHERE_MONO:
 		out_relation->relation_flags = (enum xrt_space_relation_flags)(
 		    XRT_SPACE_RELATION_POSITION_VALID_BIT |
 		    XRT_SPACE_RELATION_POSITION_TRACKED_BIT);
-		md->filter->filter_predict_state(md->filter, &filtered, 0);
+		filter_predict_state(md->filter, &filtered, 0);
 		out_relation->pose = filtered.pose;
 		break;
 	case TRACKER_TYPE_SPHERE_STEREO:
 		out_relation->relation_flags = (enum xrt_space_relation_flags)(
 		    XRT_SPACE_RELATION_POSITION_VALID_BIT |
 		    XRT_SPACE_RELATION_POSITION_TRACKED_BIT);
-		md->filter->filter_predict_state(md->filter, &filtered, 0);
+		filter_predict_state(md->filter, &filtered, 0);
 		out_relation->pose = filtered.pose;
 		break;
 	case TRACKER_TYPE_UVBI:
@@ -599,7 +599,7 @@ mt_create_uvbi_hdk(mt_device_t* md)
 	return true;
 }
 #endif // XRT_HAVE_UVC_FRAMESERVER
-#endif 
+#endif
 
 bool
 mt_create_stereo_ps4(mt_device_t* md)
@@ -698,11 +698,11 @@ mt_create_stereo_ps4(mt_device_t* md)
 	filter_config.process_noise_cov = 0.1f;
 
 	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
-	md->filter->filter_configure(md->filter, &filter_config);
+	filter_configure(md->filter, &filter_config);
 
 	// connect our tracker to our filter
 	md->tracker->tracker_register_measurement_callback(
-	    md->tracker, md->filter, md->filter->filter_queue);
+	    md->tracker, md->filter, md->filter->queue);
 	md->tracker->tracker_register_event_callback(md->tracker, md,
 	                                             mt_handle_event);
 

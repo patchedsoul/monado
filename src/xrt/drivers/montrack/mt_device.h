@@ -31,7 +31,7 @@ typedef struct mt_device
 	// n-source trackers
 	tracker_mono_configuration_t config_mono;
 	tracker_stereo_configuration_t config_stereo;
-	filter_instance_t* filter;
+	struct filter_instance* filter;
 	bool log_verbose;
 	bool log_debug;
 } mt_device_t;

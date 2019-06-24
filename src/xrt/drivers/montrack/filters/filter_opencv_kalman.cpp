@@ -1,12 +1,14 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "../optical_tracking/common/tracker.h"
 #include "filter_opencv_kalman.h"
 
 #include "util/u_misc.h"
 
-struct filter_opencv_kalman_instance_t
+struct filter_opencv_kalman
 {
+	struct filter_instance base;
 	bool configured;
 	opencv_filter_configuration_t configuration;
 	cv::KalmanFilter kalman_filter;
@@ -20,25 +22,23 @@ struct filter_opencv_kalman_instance_t
  * Casts the internal instance pointer from the generic opaque type to our
  * opencv_kalman internal type.
  */
-static inline filter_opencv_kalman_instance_t*
-filter_opencv_kalman_instance(filter_internal_instance_ptr ptr)
+static inline struct filter_opencv_kalman*
+filter_opencv_kalman(struct filter_instance* ptr)
 {
-	return (filter_opencv_kalman_instance_t*)ptr;
+	return (struct filter_opencv_kalman*)ptr;
 }
 
-bool
-filter_opencv_kalman__destroy(filter_instance_t* inst)
+static void
+filter_opencv_kalman_destroy(struct filter_instance* inst)
 {
-	// do nothing
-	return false;
+	free(inst);
 }
 
-bool
-filter_opencv_kalman_queue(filter_instance_t* inst,
+static bool
+filter_opencv_kalman_queue(struct filter_instance* inst,
                            tracker_measurement_t* measurement)
 {
-	filter_opencv_kalman_instance_t* internal =
-	    filter_opencv_kalman_instance(inst->internal_instance);
+	struct filter_opencv_kalman* internal = filter_opencv_kalman(inst);
 	printf("queueing measurement in filter\n");
 	internal->observation.at<float>(0, 0) = measurement->pose.position.x;
 	internal->observation.at<float>(1, 0) = measurement->pose.position.y;
@@ -48,22 +48,23 @@ filter_opencv_kalman_queue(filter_instance_t* inst,
 	return false;
 }
 bool
-filter_opencv_kalman_get_state(filter_instance_t* inst, filter_state_t* state)
+filter_opencv_kalman_get_state(struct filter_instance* inst,
+                               struct filter_state* state)
 {
 	return false;
 }
 bool
-filter_opencv_kalman_set_state(filter_instance_t* inst, filter_state_t* state)
+filter_opencv_kalman_set_state(struct filter_instance* inst,
+                               struct filter_state* state)
 {
 	return false;
 }
 bool
-filter_opencv_kalman_predict_state(filter_instance_t* inst,
-                                   filter_state_t* state,
+filter_opencv_kalman_predict_state(struct filter_instance* inst,
+                                   struct filter_state* state,
                                    timepoint_ns time)
 {
-	filter_opencv_kalman_instance_t* internal =
-	    filter_opencv_kalman_instance(inst->internal_instance);
+	struct filter_opencv_kalman* internal = filter_opencv_kalman(inst);
 	// printf("getting filtered pose\n");
 	if (!internal->running) {
 		return false;
@@ -76,11 +77,10 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
 	return true;
 }
 bool
-filter_opencv_kalman_configure(filter_instance_t* inst,
+filter_opencv_kalman_configure(struct filter_instance* inst,
                                filter_configuration_ptr config_generic)
 {
-	filter_opencv_kalman_instance_t* internal =
-	    filter_opencv_kalman_instance(inst->internal_instance);
+	struct filter_opencv_kalman* internal = filter_opencv_kalman(inst);
 	opencv_filter_configuration_t* config =
 	    (opencv_filter_configuration_t*)config_generic;
 	internal->configuration = *config;
@@ -96,40 +96,44 @@ filter_opencv_kalman_configure(filter_instance_t* inst,
 
 
 
-filter_opencv_kalman_instance_t*
-filter_opencv_kalman_create(filter_instance_t* inst)
+struct filter_opencv_kalman*
+filter_opencv_kalman_create()
 {
-	filter_opencv_kalman_instance_t* i =
-	    U_TYPED_CALLOC(filter_opencv_kalman_instance_t);
-	if (i) {
-		float dt = 1.0;
-		i->kalman_filter.init(6, 3);
-		i->observation = cv::Mat(3, 1, CV_32F);
-		i->prediction = cv::Mat(6, 1, CV_32F);
-		i->kalman_filter.transitionMatrix =
-		    (cv::Mat_<float>(6, 6) << 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0,
-		     1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, dt, 0.0,
-		     0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-		     0.0, 0.0, 0.0, 0.0, 1.0);
-
-		cv::setIdentity(i->kalman_filter.measurementMatrix,
-		                cv::Scalar::all(1.0f));
-		cv::setIdentity(i->kalman_filter.errorCovPost,
-		                cv::Scalar::all(0.0f));
-
-		// our filter parameters set the process and measurement noise
-		// covariances.
-
-		cv::setIdentity(
-		    i->kalman_filter.processNoiseCov,
-		    cv::Scalar::all(i->configuration.process_noise_cov));
-		cv::setIdentity(
-		    i->kalman_filter.measurementNoiseCov,
-		    cv::Scalar::all(i->configuration.measurement_noise_cov));
-
-		i->configured = false;
-		i->running = false;
-		return i;
+	struct filter_opencv_kalman* i =
+	    U_TYPED_CALLOC(struct filter_opencv_kalman);
+	if (!i) {
+		return NULL;
 	}
-	return NULL;
+	i->base.queue = filter_opencv_kalman_queue;
+	i->base.set_state = filter_opencv_kalman_set_state;
+	i->base.get_state = filter_opencv_kalman_get_state;
+	i->base.predict_state = filter_opencv_kalman_predict_state;
+	i->base.configure = filter_opencv_kalman_configure;
+	i->base.destroy = filter_opencv_kalman_destroy;
+	float dt = 1.0;
+	i->kalman_filter.init(6, 3);
+	i->observation = cv::Mat(3, 1, CV_32F);
+	i->prediction = cv::Mat(6, 1, CV_32F);
+	i->kalman_filter.transitionMatrix =
+	    (cv::Mat_<float>(6, 6) << 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0,
+	     0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0,
+	     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	     1.0);
+
+	cv::setIdentity(i->kalman_filter.measurementMatrix,
+	                cv::Scalar::all(1.0f));
+	cv::setIdentity(i->kalman_filter.errorCovPost, cv::Scalar::all(0.0f));
+
+	// our filter parameters set the process and measurement noise
+	// covariances.
+
+	cv::setIdentity(i->kalman_filter.processNoiseCov,
+	                cv::Scalar::all(i->configuration.process_noise_cov));
+	cv::setIdentity(
+	    i->kalman_filter.measurementNoiseCov,
+	    cv::Scalar::all(i->configuration.measurement_noise_cov));
+
+	i->configured = false;
+	i->running = false;
+	return i;
 }
