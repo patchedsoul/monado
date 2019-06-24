@@ -251,7 +251,7 @@ v4l2_frameserver_stream_run(void* ptr)
 	// set up our capture format
 
 	struct v4l2_format v_format;
-	memset(&v_format, 0, sizeof(v_format));
+	U_ZERO(&v_format);
 	v_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	v_format.fmt.pix.width = internal->source_descriptor.width;
 	v_format.fmt.pix.height = internal->source_descriptor.height;
@@ -275,7 +275,7 @@ v4l2_frameserver_stream_run(void* ptr)
 	bool capture_userptr = true;
 
 	struct v4l2_requestbuffers v_bufrequest;
-	memset(&v_bufrequest, 0, sizeof(v_bufrequest));
+	U_ZERO(&v_bufrequest);
 	v_bufrequest.count = NUM_V4L2_BUFFERS;
 	v_bufrequest.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	v_bufrequest.memory = V4L2_MEMORY_USERPTR;
@@ -295,7 +295,7 @@ v4l2_frameserver_stream_run(void* ptr)
 	void* mem[NUM_V4L2_BUFFERS];
 
 	struct v4l2_buffer v_buf;
-	memset(&v_buf, 0, sizeof(v_buf));
+	U_ZERO(&v_buf);
 
 	for (uint32_t i = 0; i < NUM_V4L2_BUFFERS; i++) {
 		v_buf.index = i;
@@ -602,7 +602,8 @@ v4l2_frameserver_stream_run(void* ptr)
 				break;
 			default: printf("ERROR: Unknown stream format\n");
 			}
-			driver_event_t e = {};
+			driver_event_t e;
+			U_ZERO(&e);
 			e.type = EVENT_FRAMESERVER_GOTFRAME;
 			if (internal->event_target_callback) {
 				internal->event_target_callback(
@@ -677,7 +678,7 @@ v4l2_frameserver_get_source_descriptors(struct v4l2_source_descriptor** sds,
 		}
 	}
 	struct v4l2_fmtdesc desc;
-	memset(&desc, 0, sizeof(desc));
+	U_ZERO(&desc);
 	desc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
 	while (ioctl(fd, VIDIOC_ENUM_FMT, &desc) == 0) {
@@ -685,10 +686,10 @@ v4l2_frameserver_get_source_descriptors(struct v4l2_source_descriptor** sds,
 		       desc.pixelformat, desc.type);
 
 		struct v4l2_frmsizeenum frame_size;
-		memset(&frame_size, 0, sizeof(frame_size));
+		U_ZERO(&frame_size);
 
 		struct v4l2_frmivalenum frame_interval;
-		memset(&frame_interval, 0, sizeof(frame_interval));
+		U_ZERO(&frame_interval);
 
 		frame_size.pixel_format = desc.pixelformat;
 		frame_size.index = 0;

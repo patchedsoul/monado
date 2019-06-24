@@ -348,8 +348,7 @@ ffmpeg_stream_run(void* ptr)
 				// internal->frame_target_instance, &f);
 				f.source_sequence =
 				    internal->sequence_counter++;
-				driver_event_t e = {};
-				e.type = EVENT_FRAMESERVER_GOTFRAME;
+				driver_event_t e = {EVENT_FRAMESERVER_GOTFRAME};
 				if (internal->event_target_callback) {
 					internal->event_target_callback(
 					    internal->event_target_instance, e);

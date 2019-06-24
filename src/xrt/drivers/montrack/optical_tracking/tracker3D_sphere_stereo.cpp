@@ -617,8 +617,7 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 		    CALIBRATION_MODE_NONE;
 		// send an event to notify our driver of the switch into
 		// tracking mode.
-		driver_event_t e = {};
-		e.type = EVENT_TRACKER_RECONFIGURED;
+		driver_event_t e = {EVENT_TRACKER_RECONFIGURED};
 		internal->event_target_callback(internal->event_target_instance,
 		                                e);
 		return true;
@@ -824,8 +823,7 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 			    CALIBRATION_MODE_NONE;
 			// send an event to notify our driver of the switch into
 			// tracking mode.
-			driver_event_t e = {};
-			e.type = EVENT_TRACKER_RECONFIGURED;
+			driver_event_t e = {EVENT_TRACKER_RECONFIGURED};
 			internal->event_target_callback(
 			    internal->event_target_instance, e);
 		}

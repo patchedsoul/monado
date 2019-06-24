@@ -1,3 +1,5 @@
+#include "util/u_misc.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,16 +16,13 @@ frame_queue_instance()
 
 	// TODO: locking
 	if (fq == NULL) {
-		fq = malloc(sizeof(frame_queue_t));
+		fq = U_TYPED_CALLOC(frame_queue_t);
 		if (!fq) {
 			printf("ERROR: could not malloc!\n");
 			exit(0);
 		}
 		frame_array_init(&fq->frames);
 		fq->source_id_counter = 0;
-		// make sure our source_frames is initialised to NULLs;
-		memset(fq->source_frames, 0,
-		       sizeof(struct fs_frame) * MAX_FRAME_SOURCES);
 	}
 	return fq;
 }

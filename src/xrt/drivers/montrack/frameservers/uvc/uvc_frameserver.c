@@ -470,7 +470,8 @@ uvc_frameserver_stream_run(void* ptr)
 	struct frameserver* inst = (struct frameserver*)ptr;
 	struct uvc_frameserver* internal = uvc_frameserver(inst);
 	bool split_planes;
-	enum fs_plane planes[FS_MAX_PLANES] = {};
+	enum fs_plane planes[FS_MAX_PLANES];
+	U_ZERO_ARRAY(planes);
 
 	// clear our kill_handler_thread flag, likely set when closing
 	// devices during format enumeration
@@ -517,7 +518,8 @@ uvc_frameserver_stream_run(void* ptr)
 		return NULL;
 	}
 
-	struct fs_frame f = {}; // our buffer
+	struct fs_frame f; // our buffer
+	U_ZERO(&f);
 	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
 	case UVC_FRAME_FORMAT_YUYV: f.format = FS_FORMAT_YUYV_UINT8; break;
@@ -529,10 +531,12 @@ uvc_frameserver_stream_run(void* ptr)
 	default: printf("ERROR: unhandled format!\n");
 	}
 
-	struct fs_frame sampled_frame = {};
+	struct fs_frame sampled_frame;
+	U_ZERO(&sampled_frame);
 
 	// replaced by sampled_frame but may be useful for planar output.
-	struct fs_frame plane_frame = {};
+	struct fs_frame plane_frame;
+	U_ZERO(&plane_frame);
 	uint8_t* plane_data[FS_MAX_PLANES];
 
 	uint8_t* temp_data = NULL;
@@ -718,8 +722,7 @@ uvc_frameserver_stream_run(void* ptr)
 					printf(
 					    "ERROR: Unknown stream format\n");
 				}
-				driver_event_t e = {};
-				e.type = EVENT_FRAMESERVER_GOTFRAME;
+				driver_event_t e = {EVENT_FRAMESERVER_GOTFRAME};
 				if (internal->event_target_callback) {
 					internal->event_target_callback(
 					    internal->event_target_instance, e);
