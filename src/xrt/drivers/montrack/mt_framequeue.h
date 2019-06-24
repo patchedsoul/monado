@@ -2,7 +2,8 @@
 #define VECTOR_H
 
 #include "frameservers/common/frameserver.h"
-#define FRAMEQUEUE_INITIAL_CAPACITY 32;
+#define FRAMEQUEUE_INITIAL_CAPACITY 32
+#define MAX_FRAME_SOURCES 32
 
 typedef struct frame_data
 {
@@ -22,6 +23,9 @@ typedef struct frame_queue
 {
 	frame_array_t frames;
 	uint64_t source_id_counter;
+	frame_t
+	    source_frames[MAX_FRAME_SOURCES]; //'empty' frames (NULL data) that
+	                                      //act as a per-source descriptor
 } frame_queue_t;
 
 frame_queue_t*

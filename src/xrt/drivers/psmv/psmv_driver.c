@@ -24,6 +24,8 @@
 #include <unistd.h>
 
 #include <optical_tracking/common/tracker.h>
+#include <mt_framequeue.h>
+
 
 /*
  *
@@ -410,6 +412,34 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 	struct psmv_device *psmv = psmv_device(xdev);
 
 	psmv_read_hid(psmv);
+	if (!psmv->tracker->configured) {
+		// hook up our tracker to an available frame source that will
+		// work
+		// TODO: don't assume a suitable input will be on source id 0
+		frame_queue_t *fq = frame_queue_instance();
+		if (fq->source_frames[0].format == FORMAT_YUV444_UINT8) {
+			frame_t *source = &fq->source_frames[0];
+			tracker_stereo_configuration_t tc;
+			frame_rect_t l_rect;
+			frame_rect_t r_rect;
+			tc.l_format = source->format;
+			tc.r_format = FORMAT_NONE;
+			tc.split_left = true;
+			tc.l_source_id = source->source_id;
+			l_rect.tl.x = 0.0f;
+			l_rect.tl.y = 0.0f;
+			l_rect.br.x = source->width / 2.0f;
+			l_rect.br.y = source->height;
+			r_rect.tl.x = source->width / 2.0f;
+			r_rect.tl.y = 0.0f;
+			r_rect.br.x = source->width;
+			r_rect.br.y = source->height;
+			// TODO: if this fails, we will just keep trying.. not
+			// ideal
+			psmv->tracker->tracker_configure(psmv->tracker, &tc);
+		}
+		// no frames yet, or source not suitable - just carry on.
+	}
 }
 
 static void
@@ -512,9 +542,11 @@ psmv_found(struct xrt_prober *xp,
 	psmv_read_hid(psmv);
 
 	// create our tracker and determine tracked object count
+	// we will defer full configuration until a frame is available
 	psmv->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
 	psmv->tracker->tracker_get_poses(psmv->tracker, NULL,
 	                                 &psmv->tracked_objects);
+
 
 
 	// And finally done

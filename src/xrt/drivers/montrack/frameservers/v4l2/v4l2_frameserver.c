@@ -348,6 +348,7 @@ v4l2_frameserver_stream_run(void* ptr)
 	}
 
 	frame_t sampled_frame;
+	sampled_frame.data = NULL;
 
 	uint8_t* temp_data = NULL;
 	uint8_t* data_ptr = NULL;
@@ -446,7 +447,7 @@ v4l2_frameserver_stream_run(void* ptr)
 				f.data = mem[v_buf.index];
 				f.source_sequence = v_buf.sequence;
 			}
-
+			uint8_t* preserve_sample_data = sampled_frame.data;
 			switch (internal->source_descriptor.stream_format) {
 			case V4L2_PIX_FMT_JPEG:
 				// immediately set this to YUV444 as this is
@@ -484,9 +485,11 @@ v4l2_frameserver_stream_run(void* ptr)
 				switch (internal->source_descriptor.format) {
 				case FORMAT_Y_UINT8:
 					// split our Y plane out
-					sampled_frame = f; // copy our buffer
-					                   // frames attributes
-					sampled_frame.data = NULL;
+					sampled_frame = f;
+					sampled_frame.data =
+					    preserve_sample_data; // put our
+					                          // correct data
+					                          // back
 					sampled_frame.format = FORMAT_Y_UINT8;
 					sampled_frame.stride = f.width;
 					sampled_frame.size_bytes =
@@ -515,7 +518,10 @@ v4l2_frameserver_stream_run(void* ptr)
 					// split our Y plane out
 					sampled_frame = f; // copy our buffer
 					                   // frames attributes
-					sampled_frame.data = NULL;
+					sampled_frame.data =
+					    preserve_sample_data; // put our
+					                          // correct data
+					                          // back
 					sampled_frame.format = FORMAT_Y_UINT8;
 					sampled_frame.stride = f.width;
 					sampled_frame.size_bytes =
@@ -535,7 +541,10 @@ v4l2_frameserver_stream_run(void* ptr)
 					// upsample our YUYV to YUV444
 					sampled_frame = f; // copy our buffer
 					                   // frames attributes
-					sampled_frame.data = NULL;
+					sampled_frame.data =
+					    preserve_sample_data; // put our
+					                          // correct data
+					                          // back
 					sampled_frame.format =
 					    FORMAT_YUV444_UINT8;
 					sampled_frame.stride = f.width * 3;
@@ -871,7 +880,7 @@ source_descriptor_from_v4l2(v4l2_source_descriptor_t* descriptor,
 	strncpy(descriptor->model, cap->card, 32);
 	descriptor->model[127] = 0x0;
 	descriptor->stream_format = desc->pixelformat;
-
+	descriptor->crop_scanline_bytes_start = 0;
 	// special-case the PS4 Eye camera  - need to crop the main stereo image
 	// out of the composite (header+audio + main + interlaced) frame the
 	// driver produces

@@ -18,6 +18,9 @@ frame_queue_instance()
 		}
 		frame_array_init(&fq->frames);
 		fq->source_id_counter = 0;
+		// make sure our source_frames is initialised to NULLs;
+		memset(fq->source_frames, 0,
+		       sizeof(frame_t) * MAX_FRAME_SOURCES);
 	}
 	return fq;
 }
@@ -83,6 +86,11 @@ frame_queue_add(frame_queue_t* fq, frame_t* f)
 	// delete any unrefed frames for this source, then add this new one
 	// TODO: locking
 
+	// update our frame data for this source
+	if (f->source_id < MAX_FRAME_SOURCES) {
+		fq->source_frames[f->source_id] = *f;
+		fq->source_frames[f->source_id].data = NULL;
+	}
 	printf("queue add: existing size: %d\n", fq->frames.size);
 	uint32_t* indices_to_remove =
 	    malloc(sizeof(uint32_t) * fq->frames.size);

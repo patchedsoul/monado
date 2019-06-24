@@ -22,7 +22,6 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst);
 
 typedef struct tracker3D_sphere_stereo_instance
 {
-	bool configured;
 	tracker_stereo_configuration_t configuration;
 	measurement_consumer_callback_func measurement_target_callback;
 	void* measurement_target_instance; // where we send our measurements
@@ -124,7 +123,6 @@ tracker3D_sphere_stereo_create(tracker_instance_t* inst)
 		    cv::createBackgroundSubtractorMOG2(32, 16, false);
 
 		i->poses_consumed = false;
-		i->configured = false;
 		i->l_alloced_frames = false;
 		i->r_alloced_frames = false;
 		i->got_left = false;
@@ -186,7 +184,7 @@ tracker3D_sphere_stereo_queue(tracker_instance_t* inst, frame_t* frame)
 {
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
-	if (!internal->configured) {
+	if (!inst->configured) {
 		printf(
 		    "ERROR: you must configure this tracker before it can "
 		    "accept frames\n");
@@ -901,11 +899,11 @@ tracker3D_sphere_stereo_configure(tracker_instance_t* inst,
 	// return false if we cannot handle this config
 
 	if (config->l_format != FORMAT_YUV444_UINT8) {
-		internal->configured = false;
+		inst->configured = false;
 		return false;
 	}
 	internal->configuration = *config;
-	internal->configured = true;
+	inst->configured = true;
 	return true;
 }
 

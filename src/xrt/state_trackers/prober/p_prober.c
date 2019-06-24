@@ -386,7 +386,7 @@ probe(struct xrt_prober* xp)
 		printf("source width: %d source height %d source rate %d\n",
 		       source.width, source.height, source.rate);
 		if (source.format == FORMAT_YUV444_UINT8 &&
-		    source.rate <= 333333) {
+		    source.rate <= 166666) {
 			fs->frameserver_stream_start(fs, &source);
 			break;
 		}

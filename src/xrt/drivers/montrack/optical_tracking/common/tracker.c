@@ -113,6 +113,7 @@ tracker_create(tracker_type_t t)
 		}
 		signal(SIGPIPE, SIG_IGN); // ignore sigpipe.
 		i->client_connected = false;
+		i->configured = false;
 		return i;
 	}
 	return NULL;
