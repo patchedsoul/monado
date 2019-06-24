@@ -417,13 +417,13 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 		// work
 		// TODO: don't assume a suitable input will be on source id 0
 		frame_queue_t *fq = frame_queue_instance();
-		if (fq->source_frames[0].format == FORMAT_YUV444_UINT8) {
-			frame_t *source = &fq->source_frames[0];
+		if (fq->source_frames[0].format == FS_FORMAT_YUV444_UINT8) {
+			struct fs_frame *source = &fq->source_frames[0];
 			tracker_stereo_configuration_t tc;
-			frame_rect_t l_rect;
-			frame_rect_t r_rect;
+			struct fs_frame_rect l_rect;
+			struct fs_frame_rect r_rect;
 			tc.l_format = source->format;
-			tc.r_format = FORMAT_NONE;
+			tc.r_format = FS_FORMAT_NONE;
 			tc.split_left = true;
 			tc.l_source_id = source->source_id;
 			l_rect.tl.x = 0.0f;

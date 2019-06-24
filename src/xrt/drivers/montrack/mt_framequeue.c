@@ -4,6 +4,9 @@
 
 #include "mt_framequeue.h"
 
+static void
+frame_array_resize(frame_array_t* fa, uint32_t s);
+
 frame_queue_t*
 frame_queue_instance()
 {
@@ -20,7 +23,7 @@ frame_queue_instance()
 		fq->source_id_counter = 0;
 		// make sure our source_frames is initialised to NULLs;
 		memset(fq->source_frames, 0,
-		       sizeof(frame_t) * MAX_FRAME_SOURCES);
+		       sizeof(struct fs_frame) * MAX_FRAME_SOURCES);
 	}
 	return fq;
 }
@@ -33,7 +36,7 @@ frame_queue_uniq_source_id(frame_queue_t* fq)
 }
 
 
-frame_t*
+struct fs_frame*
 frame_queue_ref_latest(frame_queue_t* fq, uint32_t source_id)
 {
 	// find the latest frame from this source, increment its refcount and
@@ -41,9 +44,9 @@ frame_queue_ref_latest(frame_queue_t* fq, uint32_t source_id)
 	// TODO: locking
 	uint64_t highest_seq = 0;
 	uint32_t selected_index = 0;
-	frame_t* ret = NULL;
+	struct fs_frame* ret = NULL;
 	for (uint32_t i = 0; i < fq->frames.size; i++) {
-		frame_t* f = &fq->frames.items[i];
+		struct fs_frame* f = &fq->frames.items[i];
 		if (f->source_id == source_id &&
 		    f->source_sequence > highest_seq) {
 			highest_seq = f->source_sequence;
@@ -60,7 +63,7 @@ frame_queue_ref_latest(frame_queue_t* fq, uint32_t source_id)
 }
 
 void
-frame_queue_unref(frame_queue_t* fq, frame_t* f)
+frame_queue_unref(frame_queue_t* fq, struct fs_frame* f)
 {
 	// find the frame index, based on the source id and sequence id and
 	// decrement the corresponding index
@@ -68,7 +71,7 @@ frame_queue_unref(frame_queue_t* fq, frame_t* f)
 	uint32_t selected_index = 0;
 	bool found = false;
 	for (uint32_t i = 0; i < fq->frames.size; i++) {
-		frame_t* qf = &fq->frames.items[i];
+		struct fs_frame* qf = &fq->frames.items[i];
 		if (qf->source_id == f->source_id &&
 		    qf->source_sequence == f->source_sequence) {
 			selected_index = i;
@@ -81,7 +84,7 @@ frame_queue_unref(frame_queue_t* fq, frame_t* f)
 	}
 }
 void
-frame_queue_add(frame_queue_t* fq, frame_t* f)
+frame_queue_add(frame_queue_t* fq, struct fs_frame* f)
 {
 	// delete any unrefed frames for this source, then add this new one
 	// TODO: locking
@@ -119,7 +122,7 @@ frame_array_init(frame_array_t* fa)
 {
 	fa->capacity = FRAMEQUEUE_INITIAL_CAPACITY;
 	fa->size = 0;
-	fa->items = malloc(sizeof(frame_t) * fa->capacity);
+	fa->items = malloc(sizeof(struct fs_frame) * fa->capacity);
 	fa->refdata = malloc(sizeof(framedata_t) * fa->capacity);
 }
 
@@ -136,26 +139,27 @@ frame_array_resize(frame_array_t* fa, uint32_t capacity)
 	printf("resize: %d to %d\n", fa->capacity, capacity);
 #endif
 
-	void** new_items = realloc(fa->items, sizeof(frame_t) * capacity);
+	void** new_items =
+	    realloc(fa->items, sizeof(struct fs_frame) * capacity);
 	void** new_refdata =
 	    realloc(fa->refdata, sizeof(framedata_t) * capacity);
 	if (new_items && new_refdata) {
-		fa->items = (frame_t*)new_items;
+		fa->items = (struct fs_frame*)new_items;
 		fa->refdata = (framedata_t*)new_refdata;
 		fa->capacity = capacity;
 	}
 }
 
 void
-frame_array_add(frame_array_t* fa, frame_t* f)
+frame_array_add(frame_array_t* fa, struct fs_frame* f)
 {
 	if (fa->capacity == fa->size) {
 		frame_array_resize(
 		    fa, fa->capacity *
 		            2); // alloc double the size on mem exhaustion
 	}
-	frame_t* nf = fa->items + fa->size;
-	memcpy(nf, f, sizeof(frame_t));
+	struct fs_frame* nf = fa->items + fa->size;
+	memcpy(nf, f, sizeof(struct fs_frame));
 	framedata_t* fd = fa->refdata + fa->size;
 	fd->refcount = 0;
 	fd->buffer = malloc(f->size_bytes);
@@ -166,14 +170,14 @@ frame_array_add(frame_array_t* fa, frame_t* f)
 	// printf("adding - new size: %d\n",fa->size);
 }
 
-/*void frame_array_set(frame_array_t* fa, uint32_t index, frame_t* f)
+/*void frame_array_set(frame_array_t* fa, uint32_t index, struct fs_frame* f)
 {
         if (index >= 0 && index < fa->size) {
-                memcpy( fa->items+index,f,sizeof(frame_t));
+                memcpy( fa->items+index,f,sizeof(struct fs_frame));
         }
 }*/
 
-frame_t*
+struct fs_frame*
 frame_array_get(frame_array_t* fa, uint32_t index)
 {
 	if (index < fa->size) {

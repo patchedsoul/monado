@@ -1,98 +1,105 @@
-#ifndef FRAMESERVER_H
-#define FRAMESERVER_H
+// Copyright 2019, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+/*!
+ * @file
+ * @brief  Header for frameserver interface
+ * @author Pete Black <pblack@collabora.com>
+ * @author Ryan Pavlik <ryan.pavlik@collabora.com>
+ */
+
+#pragma once
+
+#include "math/m_api.h"
+#include "mt_events.h"
 
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <math/m_api.h>
-
-#include <mt_events.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAX_PLANES 3 // this is what we see currently in e.g. RGB,YUV
+
+#define FS_MAX_PLANES 3 // this is what we see currently in e.g. RGB,YUV
 
 // frame
-typedef enum frame_format
+enum fs_frame_format
 {
-	FORMAT_NONE,
-	FORMAT_RAW,
-	FORMAT_Y_UINT8,
-	FORMAT_Y_UINT16,
-	FORMAT_RGB_UINT8,
-	FORMAT_BGR_UINT8,
-	FORMAT_YUYV_UINT8,
-	FORMAT_YUV444_UINT8,
-	FORMAT_YUV422_UINT8,
-	FORMAT_YUV420_UINT8,
-	FORMAT_JPG
-} frame_format_t;
-typedef enum stereo_format
+	FS_FORMAT_NONE,
+	FS_FORMAT_RAW,
+	FS_FORMAT_Y_UINT8,
+	FS_FORMAT_Y_UINT16,
+	FS_FORMAT_RGB_UINT8,
+	FS_FORMAT_BGR_UINT8,
+	FS_FORMAT_YUYV_UINT8,
+	FS_FORMAT_YUV444_UINT8,
+	FS_FORMAT_YUV422_UINT8,
+	FS_FORMAT_YUV420_UINT8,
+	FS_FORMAT_JPG
+};
+enum fs_stereo_format
 {
-	STEREO_NONE,
-	STEREO_SBS,
-	STEREO_OAU
-} stereo_format_t;
-typedef enum plane
+	FS_STEREO_NONE,
+	FS_STEREO_SBS,
+	FS_STEREO_OAU
+};
+enum fs_plane
 {
-	PLANE_NONE,
-	PLANE_R,
-	PLANE_G,
-	PLANE_B,
-	PLANE_Y,
-	PLANE_U,
-	PLANE_V
-} plane_t;
-typedef enum chroma_sampling
+	FS_PLANE_NONE,
+	FS_PLANE_R,
+	FS_PLANE_G,
+	FS_PLANE_B,
+	FS_PLANE_Y,
+	FS_PLANE_U,
+	FS_PLANE_V
+};
+enum fs_chroma_sampling
 {
-	CHROMA_SAMP_NONE,
-	CHROMA_SAMP_444,
-	CHROMA_SAMP_422,
-	CHROMA_SAMP_411
-} chroma_sampling_t;
-typedef enum plane_layout
+	FS_CHROMA_SAMP_NONE,
+	FS_CHROMA_SAMP_444,
+	FS_CHROMA_SAMP_422,
+	FS_CHROMA_SAMP_411
+};
+enum fs_plane_layout
 {
-	PLANE_LAYOUT_COMPOSITE,
-	PLANE_LAYOUT_SEPARATE
-} plane_layout_t;
-typedef enum sampling
+	FS_PLANE_LAYOUT_COMPOSITE,
+	FS_PLANE_LAYOUT_SEPARATE
+};
+enum fs_sampling
 {
-	SAMPLING_NONE,
-	SAMPLING_UPSAMPLED,
-	SAMPLING_DOWNSAMPLED
-} sampling_t;
+	FS_SAMPLING_NONE,
+	FS_SAMPLING_UPSAMPLED,
+	FS_SAMPLING_DOWNSAMPLED
+};
 
 // unnormalised pixel coordinates for clipping ROIs
-typedef struct frame_rect
+struct fs_frame_rect
 {
 	struct xrt_vec2 tl;
 	struct xrt_vec2 br;
-} frame_rect_t;
+};
 
 // basic frame data structure - holds a pointer to buffer.
-typedef struct frame
+struct fs_frame
 {
 	uint16_t width;
 	uint16_t height;
 	uint16_t stride;
-	frame_format_t format;
-	stereo_format_t stereo_format;
+	enum fs_frame_format format;
+	enum fs_stereo_format stereo_format;
 	uint32_t size_bytes;
 	uint8_t* data;
-	chroma_sampling_t chroma_sampling; // unused
-	plane_layout_t plane_layout;       // unused
-	uint8_t* u_data;                   // unused
-	uint8_t* v_data;                   // unused
+	enum fs_chroma_sampling chroma_sampling; // unused
+	enum fs_plane_layout plane_layout;       // unused
+	uint8_t* u_data;                         // unused
+	uint8_t* v_data;                         // unused
 	uint64_t timestamp;
 	uint64_t source_timestamp;
 	uint64_t source_sequence; // sequence id
 	uint64_t source_id;       // used to tag frames with the source they
 	                          // originated from
-} frame_t;
+};
 
-typedef struct capture_parameters
+struct fs_capture_parameters
 {
 	// used to configure cameras. since there is no guarantee every
 	// frameserver will support any/all of these params, a 'best effort'
@@ -100,113 +107,162 @@ typedef struct capture_parameters
 	// floats for broad applicability
 	float gain;
 	float exposure;
-} capture_parameters_t;
+};
 
 
 // frameserver
 
-typedef enum frameserver_type
+enum frameserver_type
 {
 	FRAMESERVER_TYPE_NONE,
 	FRAMESERVER_TYPE_FFMPEG,
 	FRAMESERVER_TYPE_UVC,
 	FRAMESERVER_TYPE_V4L2
-} frameserver_type_t;
+};
 
-// Interface types
-typedef struct frameserver_internal_instance* frameserver_internal_instance_ptr;
-typedef void* frameserver_source_descriptor_ptr;
-typedef struct _frameserver_instance frameserver_instance_t;
+typedef void* fs_source_descriptor_ptr;
+struct frameserver;
 
+typedef void (*fs_frame_consumer_callback_func)(struct frameserver* instance,
+                                                struct fs_frame* frame);
 
-
-typedef void (*frame_consumer_callback_func)(frameserver_instance_t* instance,
-                                             frame_t* frame);
-
-
-// Frameserver API
-
-typedef struct _frameserver_instance
+struct frameserver
 {
-	frameserver_type_t frameserver_type;
-
+	enum frameserver_type type;
 	/*!
 	 * Enumerate all available sources.
 	 */
-	bool (*frameserver_enumerate_sources)(
-	    frameserver_instance_t* inst,
-	    frameserver_source_descriptor_ptr sources,
-	    uint32_t* count);
+	bool (*enumerate_sources)(struct frameserver* inst,
+	                          fs_source_descriptor_ptr sources,
+	                          uint32_t* count);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_configure_capture)(frameserver_instance_t*,
-	                                      capture_parameters_t cp);
+	bool (*configure_capture)(struct frameserver* inst,
+	                          struct fs_capture_parameters cp);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_frame_get)(frameserver_instance_t* inst,
-	                              frame_t* _frame);
+	bool (*frame_get)(struct frameserver* inst, struct fs_frame* frame);
 
 	/*!
 	 *
 	 */
-	void (*frameserver_register_event_callback)(
-	    frameserver_instance_t* inst,
+	void (*register_event_callback)(
+	    struct frameserver* inst,
 	    void* target_instance,
 	    event_consumer_callback_func target_func);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_seek)(frameserver_instance_t* inst,
-	                         uint64_t timestamp);
+	bool (*seek)(struct frameserver* inst, uint64_t timestamp);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_stream_start)(
-	    frameserver_instance_t* inst,
-	    frameserver_source_descriptor_ptr source);
+	bool (*stream_start)(struct frameserver* inst,
+	                     fs_source_descriptor_ptr source);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_stream_stop)(frameserver_instance_t* inst);
+	bool (*stream_stop)(struct frameserver* inst);
 
 	/*!
 	 *
 	 */
-	bool (*frameserver_is_running)(frameserver_instance_t* inst);
+	bool (*is_running)(struct frameserver* inst);
+	void (*destroy)(struct frameserver* inst);
+};
 
-	/*!
-	 *
-	 */
-	frameserver_internal_instance_ptr internal_instance;
-} frameserver_instance_t;
+struct frameserver* frameserver_create(enum frameserver_type);
 
-frameserver_instance_t*
-frameserver_create(frameserver_type_t t);
-bool
-frameserver_destroy(frameserver_instance_t* inst);
+static inline bool
+frameserver_enumerate_sources(struct frameserver* inst,
+                              fs_source_descriptor_ptr sources,
+                              uint32_t* count)
+{
+	return inst->enumerate_sources(inst, sources, count);
+}
 
-// bool frame_data_alloc(frame_t*);
-// bool frame_data_free(frame_t*);
+static inline bool
+frameserver_configure_capture(struct frameserver* inst,
+                              struct fs_capture_parameters cp)
+{
+	return inst->configure_capture(inst, cp);
+}
+
+static inline bool
+frameserver_frame_get(struct frameserver* inst, struct fs_frame* _frame)
+{
+	return inst->frame_get(inst, _frame);
+}
+
+
+static inline void
+frameserver_register_event_callback(struct frameserver* inst,
+                                    void* target_instance,
+                                    event_consumer_callback_func target_func)
+{
+	inst->register_event_callback(inst, target_instance, target_func);
+}
+
+static inline bool
+frameserver_seek(struct frameserver* inst, uint64_t timestamp)
+{
+	return inst->seek(inst, timestamp);
+}
+
+static inline bool
+frameserver_stream_start(struct frameserver* inst,
+                         fs_source_descriptor_ptr source)
+{
+	return inst->stream_start(inst, source);
+}
+
+static inline bool
+frameserver_stream_stop(struct frameserver* inst)
+{
+	return inst->stream_stop(inst);
+}
+
+static inline bool
+frameserver_is_running(struct frameserver* inst)
+{
+	return inst->is_running(inst);
+}
+static inline void
+frameserver_destroy(struct frameserver* inst)
+{
+	inst->destroy(inst);
+}
+
+
 int32_t
-frame_size_in_bytes(frame_t* f);
+fs_frame_size_in_bytes(struct fs_frame* f);
+
 int32_t
-frame_bytes_per_pixel(frame_t* f);
+fs_frame_bytes_per_pixel(struct fs_frame* f);
+
 float
-format_bytes_per_pixel(
-    frame_format_t f); // this is a float to support e.g. YUV420
+fs_format_bytes_per_pixel(
+    enum fs_frame_format f); // this is a float to support e.g. YUV420
+
 bool
-frame_split_stereo(frame_t* source, frame_t* left, frame_t* right);
+fs_frame_split_stereo(struct fs_frame* source,
+                      struct fs_frame* left,
+                      struct fs_frame* right);
+
 bool
-frame_extract_plane(frame_t* source, plane_t plane, frame_t* out);
+fs_frame_extract_plane(struct fs_frame* source,
+                       enum fs_plane plane,
+                       struct fs_frame* out);
+
 bool
-frame_resample(frame_t* source, frame_t* out);
+fs_frame_resample(struct fs_frame* source, struct fs_frame* out);
 
 bool
 frameservers_test();
@@ -214,5 +270,3 @@ frameservers_test();
 #ifdef __cplusplus
 }
 #endif
-
-#endif // FRAMESERVER_H

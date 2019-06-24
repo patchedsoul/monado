@@ -24,7 +24,7 @@ extern "C" {
 typedef struct mt_device
 {
 	struct xrt_device base;
-	frameserver_instance_t* frameservers[MAX_FRAMESERVERS];
+	struct frameserver* frameservers[MAX_FRAMESERVERS];
 	uint32_t frameserver_count;
 	tracker_instance_t* tracker;
 	// TODO: merge these configurations to be descriptive of

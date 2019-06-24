@@ -1,12 +1,61 @@
-#include <common/frameserver.h>
+// Copyright 2019, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+/*!
+ * @file
+ * @brief  Implementation
+ * @author Pete Black <pblack@collabora.com>
+ */
+
+
+#include "util/u_misc.h"
+
 #include "uvc_frameserver.h"
+#include "frameserver.h"
+#include "../mt_framequeue.h"
+
+// must precede jpeglib
+#include <stdio.h>
+
+#include <jpeglib.h>
+#include <libuvc/libuvc.h>
+
+#include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
 
-#include <jpeglib.h>
+// we need this to do a bit of hackery with multiple opens/closes
+struct uvc_context
+{
+	/** Underlying context for USB communication */
+	struct libusb_context* usb_ctx;
+	/** True if libuvc initialized the underlying USB context */
+	uint8_t own_usb_ctx;
+	/** List of open devices in this context */
+	uvc_device_handle_t* open_devices;
+	pthread_t handler_thread;
+	int kill_handler_thread;
+};
 
-#include "util/u_misc.h"
-#include "../mt_framequeue.h"
+
+struct uvc_frameserver
+{
+	struct frameserver base;
+
+	uvc_device_t** device_list;
+	uvc_context_t* context;
+	uvc_device_t* device;
+	uvc_device_handle_t* device_handle;
+	uvc_stream_handle_t* stream_handle;
+	uvc_stream_ctrl_t stream_ctrl;
+	event_consumer_callback_func event_target_callback;
+	void* event_target_instance; // where we send our events
+	struct uvc_source_descriptor source_descriptor;
+	pthread_t stream_thread;
+	struct fs_capture_parameters capture_params;
+	bool is_configured;
+	bool is_running;
+	uint32_t sequence_counter;
+};
 
 /*!
  * Streaming thread entrypoint
@@ -15,88 +64,236 @@ static void*
 uvc_frameserver_stream_run(void* ptr);
 
 /*!
- * Casts the internal instance pointer from the generic opaque type to our
- * uvc_frameserver internal type.
+ * Cast to derived type.
  */
-static inline uvc_frameserver_instance_t*
-uvc_frameserver_instance(frameserver_internal_instance_ptr ptr)
+static inline struct uvc_frameserver*
+uvc_frameserver(struct frameserver* inst)
 {
-	return (uvc_frameserver_instance_t*)ptr;
+	return (struct uvc_frameserver*)inst;
 }
 
-static uint32_t
-uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
-                                       uvc_device_t* device,
-                                       uint32_t uvc_device_index);
 static bool
 source_descriptor_from_uvc_descriptor(
-    uvc_source_descriptor_t* source_descriptor,
+    struct uvc_source_descriptor* source_descriptor,
     uvc_device_descriptor_t* uvc_device_descriptor,
-    uvc_frame_desc_t* uvc_frame_descriptor);
-
-
-static uvc_error_t res;
-
-bool
-uvc_source_create(uvc_source_descriptor_t* desc)
+    uvc_frame_desc_t* uvc_frame_descriptor)
 {
-	// do nothing right now
-	return true;
-}
-
-bool
-uvc_source_destroy(uvc_source_descriptor_t* desc)
-{
-	// do nothing right now
-	return true;
-}
-
-
-uvc_frameserver_instance_t*
-uvc_frameserver_create(frameserver_instance_t* inst)
-{
-	printf("creating uvc frameserver\n");
-	uvc_frameserver_instance_t* i =
-	    U_TYPED_CALLOC(uvc_frameserver_instance_t);
-	if (i) {
-		res = uvc_init(&(i->context), NULL);
-		if (res < 0) {
-			uvc_perror(res, "UVC Context init failed");
-			free(i);
-			return NULL;
-		}
-		inst->frameserver_enumerate_sources =
-		    uvc_frameserver_enumerate_sources;
-		inst->frameserver_configure_capture =
-		    uvc_frameserver_configure_capture;
-		inst->frameserver_frame_get = uvc_frameserver_get;
-		inst->frameserver_is_running = uvc_frameserver_is_running;
-		inst->frameserver_register_event_callback =
-		    uvc_frameserver_register_event_callback;
-		inst->frameserver_seek = uvc_frameserver_seek;
-		inst->frameserver_stream_stop = uvc_frameserver_stream_stop;
-		inst->frameserver_stream_start = uvc_frameserver_stream_start;
-		inst->internal_instance = (frameserver_internal_instance_ptr)i;
-		return i;
+	snprintf(
+	    source_descriptor->name, 128, "%s %s %s %04x:%04x",
+	    uvc_device_descriptor->manufacturer, uvc_device_descriptor->product,
+	    uvc_device_descriptor->serialNumber,
+	    uvc_device_descriptor->idProduct, uvc_device_descriptor->idVendor);
+	source_descriptor->name[127] = 0;
+	source_descriptor->product_id = uvc_device_descriptor->idProduct;
+	source_descriptor->vendor_id = uvc_device_descriptor->idVendor;
+	// TODO check lengths
+	if (uvc_device_descriptor->serialNumber) {
+		memcpy(source_descriptor->serial,
+		       uvc_device_descriptor->serialNumber,
+		       strlen(uvc_device_descriptor->serialNumber) + 1);
+	} else {
+		sprintf(source_descriptor->serial, "NONE");
 	}
+	source_descriptor->serial[127] = 0;
+	source_descriptor->width = uvc_frame_descriptor->wWidth;
+	source_descriptor->height = uvc_frame_descriptor->wHeight;
+	return true;
+}
+// TODO: fix this so we don't need to alloc?
+static uint32_t
+uvc_frameserver_get_source_descriptors(struct uvc_source_descriptor** sds,
+                                       uvc_device_t* uvc_device,
+                                       uint32_t device_index)
+{
 
-	return NULL;
+	uint32_t sd_count = 0;
+	uvc_device_descriptor_t* uvc_device_descriptor;
+	uvc_error_t res =
+	    uvc_get_device_descriptor(uvc_device, &uvc_device_descriptor);
+	if (res < 0) {
+		printf("ERROR: %s\n", uvc_strerror(res));
+	}
+	uvc_device_handle_t* temp_handle;
+	res = uvc_open(uvc_device, &temp_handle);
+	if (res != UVC_SUCCESS) {
+		return 0;
+	}
+	const uvc_format_desc_t* format_desc =
+	    uvc_get_format_descs(temp_handle);
+	struct uvc_source_descriptor* desc = *sds;
+	struct uvc_source_descriptor* temp_alloc =
+	    U_TYPED_CALLOC(struct uvc_source_descriptor);
+	while (format_desc != NULL) {
+		printf("Found format: %d FOURCC %c%c%c%c\n",
+		       format_desc->bFormatIndex, format_desc->fourccFormat[0],
+		       format_desc->fourccFormat[1],
+		       format_desc->fourccFormat[2],
+		       format_desc->fourccFormat[3]);
+		uvc_frame_desc_t* frame_desc = format_desc->frame_descs;
+		while (frame_desc != NULL) {
+			printf("W %d H %d\n", frame_desc->wWidth,
+			       frame_desc->wHeight);
+			uint32_t* frame_duration = frame_desc->intervals;
+			while (*frame_duration != 0) {
+				printf("rate: %d %f\n", *frame_duration,
+				       1.0 / (*frame_duration / 10000000.0f));
+				if (*frame_duration <
+				    400000) { // anything quicker than
+					      // 25fps
+					// if we are a YUV mode, write
+					// out a descriptor + the Y-only
+					// descriptor
+					if (format_desc->fourccFormat[0] ==
+					    'Y') {
+
+						temp_alloc = realloc(
+						    *sds,
+						    (sd_count + 3) *
+						        sizeof(
+						            struct
+						            uvc_source_descriptor));
+						if (!temp_alloc) {
+							printf(
+							    "ERROR: "
+							    "could not "
+							    "allocate "
+							    "memory\n");
+							exit(1);
+						}
+
+						*sds = temp_alloc;
+						desc = temp_alloc + sd_count;
+
+						desc->uvc_device_index =
+						    device_index;
+						desc->rate = *frame_duration;
+						source_descriptor_from_uvc_descriptor(
+						    desc, uvc_device_descriptor,
+						    frame_desc);
+						desc->stream_format =
+						    UVC_FRAME_FORMAT_YUYV;
+						desc->format =
+						    FS_FORMAT_YUYV_UINT8;
+						desc->sampling =
+						    FS_SAMPLING_NONE;
+						sd_count++;
+						desc++;
+
+						// YUV444 format
+						desc->uvc_device_index =
+						    device_index;
+						desc->rate = *frame_duration;
+						source_descriptor_from_uvc_descriptor(
+						    desc, uvc_device_descriptor,
+						    frame_desc);
+						desc->stream_format =
+						    UVC_FRAME_FORMAT_YUYV;
+						desc->format =
+						    FS_FORMAT_YUV444_UINT8;
+						desc->sampling =
+						    FS_SAMPLING_UPSAMPLED;
+						sd_count++;
+						desc++;
+
+						// also output our 'one
+						// plane Y' format
+						desc->uvc_device_index =
+						    device_index;
+						desc->rate = *frame_duration;
+						source_descriptor_from_uvc_descriptor(
+						    desc, uvc_device_descriptor,
+						    frame_desc);
+						desc->stream_format =
+						    UVC_FRAME_FORMAT_YUYV;
+						desc->format =
+						    FS_FORMAT_Y_UINT8;
+						desc->sampling =
+						    FS_SAMPLING_DOWNSAMPLED;
+						sd_count++;
+						desc++;
+					} else if (format_desc
+					               ->fourccFormat[0] ==
+					           'M') {
+						// MJPG, most likely -
+						// TODO: check more than
+						// the first letter
+
+						temp_alloc = realloc(
+						    *sds,
+						    (sd_count + 2) *
+						        sizeof(
+						            struct
+						            uvc_source_descriptor));
+						if (!temp_alloc) {
+							printf(
+							    "ERROR: "
+							    "could not "
+							    "allocate "
+							    "memory\n");
+							exit(1);
+						}
+						*sds = temp_alloc;
+						desc = temp_alloc + sd_count;
+
+						desc->uvc_device_index =
+						    device_index;
+						desc->rate = *frame_duration;
+						source_descriptor_from_uvc_descriptor(
+						    desc, uvc_device_descriptor,
+						    frame_desc);
+						desc->stream_format =
+						    UVC_FRAME_FORMAT_MJPEG;
+						desc->format =
+						    FS_FORMAT_YUV444_UINT8;
+						desc->sampling =
+						    FS_SAMPLING_UPSAMPLED;
+						sd_count++;
+						desc++;
+
+						desc->uvc_device_index =
+						    device_index;
+						desc->rate = *frame_duration;
+						source_descriptor_from_uvc_descriptor(
+						    desc, uvc_device_descriptor,
+						    frame_desc);
+						desc->stream_format =
+						    UVC_FRAME_FORMAT_MJPEG;
+						desc->format =
+						    FS_FORMAT_Y_UINT8;
+						desc->sampling =
+						    FS_SAMPLING_DOWNSAMPLED;
+						sd_count++;
+						desc++;
+					}
+				}
+				frame_duration++; // incrementing
+				                  // pointer
+			}
+			frame_desc = frame_desc->next;
+		}
+		format_desc = format_desc->next;
+	}
+	uvc_close(temp_handle);
+
+	// this crashes - i guess we only care about closing if we have started
+	// streaming
+	//
+	// uvc_free_device_descriptor(uvc_device_descriptor);
+	printf("RETURNING %d\n", sd_count);
+	return sd_count;
 }
 
-bool
-uvc_frameserver_enumerate_sources(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr sources_generic,
-    uint32_t* count)
+
+static bool
+uvc_frameserver_enumerate_sources(struct frameserver* inst,
+                                  fs_source_descriptor_ptr sources_generic,
+                                  uint32_t* count)
 {
-	uvc_source_descriptor_t* cameras =
-	    (uvc_source_descriptor_t*)sources_generic;
+	struct uvc_frameserver* internal = uvc_frameserver(inst);
+
+	struct uvc_source_descriptor* cameras =
+	    (struct uvc_source_descriptor*)sources_generic;
 	uvc_error_t res;
-	uvc_frameserver_instance_t* internal =
-	    uvc_frameserver_instance(inst->internal_instance);
-	// if (internal->device_list != NULL) {
-	//	uvc_free_device_list(internal->device_list,0);
-	//}
 	uint32_t device_count = 0;
 	res = uvc_get_device_list(internal->context, &(internal->device_list));
 	if (res < 0) {
@@ -116,7 +313,7 @@ uvc_frameserver_enumerate_sources(
 	if (cameras == NULL) {
 		printf("counting formats\n");
 		for (uint32_t i = 0; i < device_count; i++) {
-			uvc_source_descriptor_t* temp_sds_count = NULL;
+			struct uvc_source_descriptor* temp_sds_count = NULL;
 			// we need to free the source descriptors, even though
 			// we only use the count
 			uint32_t c = uvc_frameserver_get_source_descriptors(
@@ -134,7 +331,7 @@ uvc_frameserver_enumerate_sources(
 	printf("returning formats\n");
 
 	// if we were passed an array of camera descriptors, fill them in
-	uvc_source_descriptor_t* temp_sds = NULL;
+	struct uvc_source_descriptor* temp_sds = NULL;
 
 	uint32_t cameras_offset = 0;
 	for (uint32_t i = 0; i < device_count; i++) {
@@ -145,7 +342,7 @@ uvc_frameserver_enumerate_sources(
 		if (c > 0) {
 			source_count += c;
 			memcpy(cameras + cameras_offset, temp_sds,
-			       c * sizeof(uvc_source_descriptor_t));
+			       c * sizeof(struct uvc_source_descriptor));
 			cameras_offset += c;
 		}
 	}
@@ -160,46 +357,50 @@ uvc_frameserver_enumerate_sources(
 	return true;
 }
 
-
-bool
-uvc_frameserver_configure_capture(frameserver_instance_t* inst,
-                                  capture_parameters_t cp)
+static bool
+uvc_frameserver_configure_capture(struct frameserver* inst,
+                                  struct fs_capture_parameters cp)
 {
-	uvc_frameserver_instance_t* internal =
-	    uvc_frameserver_instance(inst->internal_instance);
+	struct uvc_frameserver* internal = uvc_frameserver(inst);
 	internal->capture_params = cp;
 	internal->is_configured = false;
 	return true;
 }
 
+static bool
+uvc_frameserver_frame_get(struct frameserver* inst, struct fs_frame* frame)
+{
+	// struct uvc_frameserver* internal = uvc_frameserver(inst);
+	//! @todo
+	return false;
+}
 
-void
+static void
 uvc_frameserver_register_event_callback(
-    frameserver_instance_t* inst,
+    struct frameserver* inst,
     void* target_instance,
     event_consumer_callback_func target_func)
 {
+	// struct uvc_frameserver* internal = uvc_frameserver(inst);
+
 	// do nothing
 }
 
-bool
-uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame)
+static bool
+uvc_frameserver_seek(struct frameserver* inst, uint64_t timestamp)
 {
+	// struct uvc_frameserver* internal = uvc_frameserver(inst);
+	//! @todo
 	return false;
 }
-bool
-uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
+
+static bool
+uvc_frameserver_stream_start(struct frameserver* inst,
+                             fs_source_descriptor_ptr source_generic)
 {
-	return false;
-}
-bool
-uvc_frameserver_stream_start(frameserver_instance_t* inst,
-                             frameserver_source_descriptor_ptr source_generic)
-{
-	uvc_frameserver_instance_t* internal =
-	    uvc_frameserver_instance(inst->internal_instance);
-	uvc_source_descriptor_t* source =
-	    (uvc_source_descriptor_t*)source_generic;
+	struct uvc_frameserver* internal = uvc_frameserver(inst);
+	struct uvc_source_descriptor* source =
+	    (struct uvc_source_descriptor*)source_generic;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	internal->sequence_counter = 0;
@@ -212,27 +413,64 @@ uvc_frameserver_stream_start(frameserver_instance_t* inst,
 	return true;
 }
 
-bool
-uvc_frameserver_stream_stop(frameserver_instance_t* inst)
+static bool
+uvc_frameserver_stream_stop(struct frameserver* inst)
 {
-	// TODO: stop the stream, join the thread, cleanup.
+	// struct uvc_frameserver* internal = uvc_frameserver(inst);
+	//! @todo stop the stream, join the thread, cleanup.
 	return false;
 }
 
-bool
-uvc_frameserver_is_running(frameserver_instance_t* inst)
+static bool
+uvc_frameserver_is_running(struct frameserver* inst)
 {
+	// struct uvc_frameserver* internal = uvc_frameserver(inst);
+	//! @todo
 	return false;
+}
+static void
+uvc_frameserver_destroy(struct frameserver* xinst)
+{
+	struct uvc_frameserver* inst = uvc_frameserver(xinst);
+
+	//! @todo do any destruction-required things here.
+
+	free(inst);
+}
+
+struct frameserver*
+uvc_frameserver_create()
+{
+	uvc_context_t* context;
+	uvc_error_t res = uvc_init(&context, NULL);
+	if (res < 0) {
+		uvc_perror(res, "UVC Context init failed");
+		return NULL;
+	}
+	struct uvc_frameserver* inst = U_TYPED_CALLOC(struct uvc_frameserver);
+	inst->base.type = FRAMESERVER_TYPE_UVC;
+	inst->base.enumerate_sources = uvc_frameserver_enumerate_sources;
+	inst->base.configure_capture = uvc_frameserver_configure_capture;
+	inst->base.frame_get = uvc_frameserver_frame_get;
+	inst->base.register_event_callback =
+	    uvc_frameserver_register_event_callback;
+	inst->base.seek = uvc_frameserver_seek;
+	inst->base.stream_start = uvc_frameserver_stream_start;
+	inst->base.stream_stop = uvc_frameserver_stream_stop;
+	inst->base.is_running = uvc_frameserver_is_running;
+	inst->base.destroy = uvc_frameserver_destroy;
+
+	inst->context = context;
+	return &(inst->base);
 }
 
 void*
 uvc_frameserver_stream_run(void* ptr)
 {
-	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	uvc_frameserver_instance_t* internal =
-	    uvc_frameserver_instance(inst->internal_instance);
+	struct frameserver* inst = (struct frameserver*)ptr;
+	struct uvc_frameserver* internal = uvc_frameserver(inst);
 	bool split_planes;
-	plane_t planes[MAX_PLANES] = {};
+	enum fs_plane planes[FS_MAX_PLANES] = {};
 
 	// clear our kill_handler_thread flag, likely set when closing
 	// devices during format enumeration
@@ -254,7 +492,7 @@ uvc_frameserver_stream_run(void* ptr)
 	int fps = 1.0 / (internal->source_descriptor.rate / 10000000.0f);
 	res = uvc_get_stream_ctrl_format_size(
 	    internal->device_handle, &internal->stream_ctrl,
-	    internal->source_descriptor.stream_format,
+	    (enum uvc_frame_format)internal->source_descriptor.stream_format,
 	    internal->source_descriptor.width,
 	    internal->source_descriptor.height, fps);
 	if (res < 0) {
@@ -279,23 +517,23 @@ uvc_frameserver_stream_run(void* ptr)
 		return NULL;
 	}
 
-	frame_t f = {}; // our buffer
+	struct fs_frame f = {}; // our buffer
 	f.source_id = internal->source_descriptor.source_id;
 	switch (internal->source_descriptor.stream_format) {
-	case UVC_FRAME_FORMAT_YUYV: f.format = FORMAT_YUYV_UINT8; break;
+	case UVC_FRAME_FORMAT_YUYV: f.format = FS_FORMAT_YUYV_UINT8; break;
 	case UVC_FRAME_FORMAT_MJPEG:
-		f.format = FORMAT_JPG; // this will get reset to YUV444
+		f.format = FS_FORMAT_JPG; // this will get reset to YUV444
 		cinfo.err = jpeg_std_error(&jerr);
 		jpeg_create_decompress(&cinfo);
 		break;
 	default: printf("ERROR: unhandled format!\n");
 	}
 
-	frame_t sampled_frame = {};
+	struct fs_frame sampled_frame = {};
 
 	// replaced by sampled_frame but may be useful for planar output.
-	frame_t plane_frame = {};
-	uint8_t* plane_data[MAX_PLANES];
+	struct fs_frame plane_frame = {};
+	uint8_t* plane_data[FS_MAX_PLANES];
 
 	uint8_t* temp_data = NULL;
 	uint8_t* data_ptr = NULL;
@@ -345,17 +583,19 @@ uvc_frameserver_stream_run(void* ptr)
 				case UVC_FRAME_FORMAT_MJPEG:
 					// immediately set this to YUV444 as
 					// this is what we decode to.
-					f.format = FORMAT_YUV444_UINT8;
+					f.format = FS_FORMAT_YUV444_UINT8;
 					f.stride =
 					    f.width * 3; // jpg format does not
 					                 // supply stride
 					// decode our jpg frame.
 					if (!temp_data) {
-						temp_data = malloc(
-						    frame_size_in_bytes(&f));
+						temp_data = (uint8_t*)malloc(
+						    fs_frame_size_in_bytes(&f));
 					}
-					jpeg_mem_src(&cinfo, frame->data,
-					             frame->data_bytes);
+					jpeg_mem_src(
+					    &cinfo,
+					    (const unsigned char*)frame->data,
+					    frame->data_bytes);
 					jpeg_read_header(&cinfo, TRUE);
 					// we will bypass colour conversion as
 					// we want YUV
@@ -378,27 +618,27 @@ uvc_frameserver_stream_run(void* ptr)
 
 					switch (internal->source_descriptor
 					            .format) {
-					case FORMAT_Y_UINT8:
+					case FS_FORMAT_Y_UINT8:
 						// split our Y plane out
 						sampled_frame =
 						    f; // copy our buffer frames
 						       // attributes
 						sampled_frame.format =
-						    FORMAT_Y_UINT8;
+						    FS_FORMAT_Y_UINT8;
 						sampled_frame.stride = f.width;
 						sampled_frame.size_bytes =
-						    frame_size_in_bytes(
+						    fs_frame_size_in_bytes(
 						        &sampled_frame);
 
 						if (!sampled_frame.data) {
-							sampled_frame
-							    .data = malloc(
-							    sampled_frame
-							        .size_bytes);
+							sampled_frame.data =
+							    (uint8_t*)malloc(
+							        sampled_frame
+							            .size_bytes);
 						}
 
-						frame_extract_plane(
-						    &f, PLANE_Y,
+						fs_frame_extract_plane(
+						    &f, FS_PLANE_Y,
 						    &sampled_frame);
 
 						frame_queue_add(fq,
@@ -412,52 +652,52 @@ uvc_frameserver_stream_run(void* ptr)
 				case UVC_FRAME_FORMAT_YUYV:
 					switch (internal->source_descriptor
 					            .format) {
-					case FORMAT_Y_UINT8:
+					case FS_FORMAT_Y_UINT8:
 						// split our Y plane out
 						sampled_frame =
 						    f; // copy our buffer frames
 						       // attributes
 						sampled_frame.format =
-						    FORMAT_Y_UINT8;
+						    FS_FORMAT_Y_UINT8;
 						sampled_frame.stride = f.width;
 						sampled_frame.size_bytes =
-						    frame_size_in_bytes(
+						    fs_frame_size_in_bytes(
 						        &sampled_frame);
 
 						if (!sampled_frame.data) {
-							sampled_frame
-							    .data = malloc(
-							    sampled_frame
-							        .size_bytes);
+							sampled_frame.data =
+							    (uint8_t*)malloc(
+							        sampled_frame
+							            .size_bytes);
 						}
 
-						frame_extract_plane(
-						    &f, PLANE_Y,
+						fs_frame_extract_plane(
+						    &f, FS_PLANE_Y,
 						    &sampled_frame);
 
 						frame_queue_add(fq,
 						                &sampled_frame);
 						break;
-					case FORMAT_YUV444_UINT8:
+					case FS_FORMAT_YUV444_UINT8:
 						// upsample our YUYV to YUV444
 						sampled_frame =
 						    f; // copy our buffer frames
 						       // attributes
 						sampled_frame.format =
-						    FORMAT_YUV444_UINT8;
+						    FS_FORMAT_YUV444_UINT8;
 						sampled_frame.stride =
 						    f.width * 3;
 						sampled_frame.size_bytes =
-						    frame_size_in_bytes(
+						    fs_frame_size_in_bytes(
 						        &sampled_frame);
 						// allocate on first access
 						if (!sampled_frame.data) {
-							sampled_frame
-							    .data = malloc(
-							    sampled_frame
-							        .size_bytes);
+							sampled_frame.data =
+							    (uint8_t*)malloc(
+							        sampled_frame
+							            .size_bytes);
 						}
-						if (frame_resample(
+						if (fs_frame_resample(
 						        &f, &sampled_frame)) {
 							frame_queue_add(
 							    fq, &sampled_frame);
@@ -498,27 +738,26 @@ uvc_frameserver_stream_run(void* ptr)
 	return NULL;
 }
 
-
 bool
 uvc_frameserver_test()
 {
 	printf("Running UVC Frameserver Test\n");
-	frameserver_instance_t* uvc_frameserver =
+	struct frameserver* uvc_frameserver =
 	    frameserver_create(FRAMESERVER_TYPE_UVC);
 	if (!uvc_frameserver) {
 		printf("FAILURE: Could not create frameserver.\n");
 		return false;
 	}
 	uint32_t source_count = 0;
-	if (!uvc_frameserver->frameserver_enumerate_sources(
-	        uvc_frameserver, NULL, &source_count)) {
+	if (!frameserver_enumerate_sources(uvc_frameserver, NULL,
+	                                   &source_count)) {
 		printf("FAILURE: Could not get source count.\n");
 		return false;
 	}
-	uvc_source_descriptor_t* source_list =
-	    U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
-	if (!uvc_frameserver->frameserver_enumerate_sources(
-	        uvc_frameserver, source_list, &source_count)) {
+	struct uvc_source_descriptor* source_list =
+	    U_TYPED_ARRAY_CALLOC(struct uvc_source_descriptor, source_count);
+	if (!frameserver_enumerate_sources(uvc_frameserver, source_list,
+	                                   &source_count)) {
 		printf("FAILURE: Could not get source descriptors\n");
 		return false;
 	}
@@ -526,228 +765,5 @@ uvc_frameserver_test()
 		printf("%d source name: %s\n", i, source_list[i].name);
 	}
 	free(source_list);
-	return true;
-}
-
-// TODO: fix this so we don't need to alloc?
-uint32_t
-uvc_frameserver_get_source_descriptors(uvc_source_descriptor_t** sds,
-                                       uvc_device_t* uvc_device,
-                                       uint32_t device_index)
-{
-
-	uint32_t sd_count = 0;
-	uvc_device_descriptor_t* uvc_device_descriptor;
-	res = uvc_get_device_descriptor(uvc_device, &uvc_device_descriptor);
-	if (res < 0) {
-		printf("ERROR: %s\n", uvc_strerror(res));
-	}
-	uvc_device_handle_t* temp_handle;
-	res = uvc_open(uvc_device, &temp_handle);
-	if (res == UVC_SUCCESS) {
-		const uvc_format_desc_t* format_desc =
-		    uvc_get_format_descs(temp_handle);
-		uvc_source_descriptor_t* desc = *sds;
-		uvc_source_descriptor_t* temp_alloc =
-		    U_TYPED_CALLOC(uvc_source_descriptor_t);
-		while (format_desc != NULL) {
-			printf("Found format: %d FOURCC %c%c%c%c\n",
-			       format_desc->bFormatIndex,
-			       format_desc->fourccFormat[0],
-			       format_desc->fourccFormat[1],
-			       format_desc->fourccFormat[2],
-			       format_desc->fourccFormat[3]);
-			uvc_frame_desc_t* frame_desc = format_desc->frame_descs;
-			while (frame_desc != NULL) {
-				printf("W %d H %d\n", frame_desc->wWidth,
-				       frame_desc->wHeight);
-				uint32_t* frame_duration =
-				    frame_desc->intervals;
-				while (*frame_duration != 0) {
-					printf("rate: %d %f\n", *frame_duration,
-					       1.0 / (*frame_duration /
-					              10000000.0f));
-					if (*frame_duration <
-					    400000) { // anything quicker than
-						      // 25fps
-						// if we are a YUV mode, write
-						// out a descriptor + the Y-only
-						// descriptor
-						if (format_desc
-						        ->fourccFormat[0] ==
-						    'Y') {
-
-							temp_alloc = realloc(
-							    *sds,
-							    (sd_count + 3) *
-							        sizeof(
-							            uvc_source_descriptor_t));
-							if (!temp_alloc) {
-								printf(
-								    "ERROR: "
-								    "could not "
-								    "allocate "
-								    "memory\n");
-								exit(1);
-							}
-
-							*sds = temp_alloc;
-							desc = temp_alloc +
-							       sd_count;
-
-							desc->uvc_device_index =
-							    device_index;
-							desc->rate =
-							    *frame_duration;
-							source_descriptor_from_uvc_descriptor(
-							    desc,
-							    uvc_device_descriptor,
-							    frame_desc);
-							desc->stream_format =
-							    UVC_FRAME_FORMAT_YUYV;
-							desc->format =
-							    FORMAT_YUYV_UINT8;
-							desc->sampling =
-							    SAMPLING_NONE;
-							sd_count++;
-							desc++;
-
-							// YUV444 format
-							desc->uvc_device_index =
-							    device_index;
-							desc->rate =
-							    *frame_duration;
-							source_descriptor_from_uvc_descriptor(
-							    desc,
-							    uvc_device_descriptor,
-							    frame_desc);
-							desc->stream_format =
-							    UVC_FRAME_FORMAT_YUYV;
-							desc->format =
-							    FORMAT_YUV444_UINT8;
-							desc->sampling =
-							    SAMPLING_UPSAMPLED;
-							sd_count++;
-							desc++;
-
-							// also output our 'one
-							// plane Y' format
-							desc->uvc_device_index =
-							    device_index;
-							desc->rate =
-							    *frame_duration;
-							source_descriptor_from_uvc_descriptor(
-							    desc,
-							    uvc_device_descriptor,
-							    frame_desc);
-							desc->stream_format =
-							    UVC_FRAME_FORMAT_YUYV;
-							desc->format =
-							    FORMAT_Y_UINT8;
-							desc->sampling =
-							    SAMPLING_DOWNSAMPLED;
-							sd_count++;
-							desc++;
-						} else if (format_desc
-						               ->fourccFormat
-						                   [0] == 'M') {
-							// MJPG, most likely -
-							// TODO: check more than
-							// the first letter
-
-							temp_alloc = realloc(
-							    *sds,
-							    (sd_count + 2) *
-							        sizeof(
-							            uvc_source_descriptor_t));
-							if (!temp_alloc) {
-								printf(
-								    "ERROR: "
-								    "could not "
-								    "allocate "
-								    "memory\n");
-								exit(1);
-							}
-							*sds = temp_alloc;
-							desc = temp_alloc +
-							       sd_count;
-
-							desc->uvc_device_index =
-							    device_index;
-							desc->rate =
-							    *frame_duration;
-							source_descriptor_from_uvc_descriptor(
-							    desc,
-							    uvc_device_descriptor,
-							    frame_desc);
-							desc->stream_format =
-							    UVC_FRAME_FORMAT_MJPEG;
-							desc->format =
-							    FORMAT_YUV444_UINT8;
-							desc->sampling =
-							    SAMPLING_UPSAMPLED;
-							sd_count++;
-							desc++;
-
-							desc->uvc_device_index =
-							    device_index;
-							desc->rate =
-							    *frame_duration;
-							source_descriptor_from_uvc_descriptor(
-							    desc,
-							    uvc_device_descriptor,
-							    frame_desc);
-							desc->stream_format =
-							    UVC_FRAME_FORMAT_MJPEG;
-							desc->format =
-							    FORMAT_Y_UINT8;
-							desc->sampling =
-							    SAMPLING_DOWNSAMPLED;
-							sd_count++;
-							desc++;
-						}
-					}
-					frame_duration++; // incrementing
-					                  // pointer
-				}
-				frame_desc = frame_desc->next;
-			}
-			format_desc = format_desc->next;
-		}
-		uvc_close(temp_handle);
-	}
-	// this crashes - i guess we only care about closing if we have started
-	// streaming
-	//
-	// uvc_free_device_descriptor(uvc_device_descriptor);
-	printf("RETURNING %d\n", sd_count);
-	return sd_count;
-}
-
-bool
-source_descriptor_from_uvc_descriptor(
-    uvc_source_descriptor_t* source_descriptor,
-    uvc_device_descriptor_t* uvc_device_descriptor,
-    uvc_frame_desc_t* uvc_frame_descriptor)
-{
-	snprintf(
-	    source_descriptor->name, 128, "%s %s %s %04x:%04x",
-	    uvc_device_descriptor->manufacturer, uvc_device_descriptor->product,
-	    uvc_device_descriptor->serialNumber,
-	    uvc_device_descriptor->idProduct, uvc_device_descriptor->idVendor);
-	source_descriptor->name[127] = 0;
-	source_descriptor->product_id = uvc_device_descriptor->idProduct;
-	source_descriptor->vendor_id = uvc_device_descriptor->idVendor;
-	// TODO check lengths
-	if (uvc_device_descriptor->serialNumber) {
-		memcpy(source_descriptor->serial,
-		       uvc_device_descriptor->serialNumber,
-		       strlen(uvc_device_descriptor->serialNumber) + 1);
-	} else {
-		sprintf(source_descriptor->serial, "NONE");
-	}
-	source_descriptor->serial[127] = 0;
-	source_descriptor->width = uvc_frame_descriptor->wWidth;
-	source_descriptor->height = uvc_frame_descriptor->wHeight;
 	return true;
 }

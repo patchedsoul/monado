@@ -137,296 +137,296 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 
 	return NULL;
 }
-
-/*bool
+#if 0
+bool
 mt_create_mono_ps3eye(mt_device_t* md)
 {
-        md->frameserver_count = 1; // this driver uses a single camera source
-        md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_V4L2);
-        // ask our frameserver for available sources - note this will return a
-        // type-specific struct that we need to deal with e.g. UVC-specific,
-        // FFMPEG-specific.
-        uint32_t source_count = 0;
-        md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-                                                           NULL, &source_count);
-        if (source_count == 0) {
-                // we have no sources, we cannot continue
-                return false;
-        }
-        v4l2_source_descriptor_t* descriptors =
-            U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, source_count);
-        md->frameservers[0]->frameserver_enumerate_sources(
-            md->frameservers[0], descriptors, &source_count);
-        // defer further configuration and stream start until the rest of our
-        // chain is set up.
+	md->frameserver_count = 1; // this driver uses a single camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_V4L2);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	struct v4l2_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct v4l2_source_descriptor, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
 
-        md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
-        tracker_mono_configuration_t tracker_config = {};
+	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
+	tracker_mono_configuration_t tracker_config = {};
 
-        // start in calibration mode
-        tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
+	// start in calibration mode
+	tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
 
 
-        // configure our ps3 eye when we find it during enumeration
-        uint32_t source_index; // our frameserver config descriptor index
-        for (uint32_t i = 0; i < source_count; i++) {
-                v4l2_source_descriptor_t temp = descriptors[i];
-                if (strcmp(descriptors[i].name, "ov534") == 0 &&
-                    descriptors[i].format == FORMAT_Y_UINT8) {
-                        if (descriptors[i].width == 640 &&
-                            descriptors[i].height == 480 &&
-                            descriptors[i].rate == 166666) {
-                                tracker_config.format = descriptors[i].format;
-                                tracker_config.source_id =
-                                    descriptors[i].source_id;
-                                source_index = i;
-                        }
-                }
-        }
-        snprintf(tracker_config.configuration_filename, 128, "PS3eye_mono");
+	// configure our ps3 eye when we find it during enumeration
+	uint32_t source_index; // our frameserver config descriptor index
+	for (uint32_t i = 0; i < source_count; i++) {
+		struct v4l2_source_descriptor temp = descriptors[i];
+		if (strcmp(descriptors[i].name, "ov534") == 0 &&
+		    descriptors[i].format == FS_FORMAT_Y_UINT8) {
+			if (descriptors[i].width == 640 &&
+			    descriptors[i].height == 480 &&
+			    descriptors[i].rate == 166666) {
+				tracker_config.format = descriptors[i].format;
+				tracker_config.source_id =
+				    descriptors[i].source_id;
+				source_index = i;
+			}
+		}
+	}
+	snprintf(tracker_config.configuration_filename, 128, "PS3eye_mono");
 
-        // configure our tracker for this frame source
-        bool configured = false;
-        configured =
-            md->tracker->tracker_configure(md->tracker, &tracker_config);
+	// configure our tracker for this frame source
+	bool configured = false;
+	configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
 
-        if (!configured) {
-                printf("ERROR: tracker rejected frameserver configuration!\n");
-                return false;
-        }
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
 
-        // create a filter for the trackers output
-        opencv_filter_configuration_t filter_config = {};
-        filter_config.measurement_noise_cov = 0.1f;
-        filter_config.process_noise_cov = 0.1f;
+	// create a filter for the trackers output
+	opencv_filter_configuration_t filter_config = {};
+	filter_config.measurement_noise_cov = 0.1f;
+	filter_config.process_noise_cov = 0.1f;
 
-        md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
-        md->filter->filter_configure(md->filter, &filter_config);
-        // connect our tracker to our filter
-        md->tracker->tracker_register_measurement_callback(
-            md->tracker, md->filter, md->filter->filter_queue);
-        // and our driver to tracker events
-        md->tracker->tracker_register_event_callback(md->tracker, md,
-                                                     mt_handle_event);
+	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
+	md->filter->filter_configure(md->filter, &filter_config);
+	// connect our tracker to our filter
+	md->tracker->tracker_register_measurement_callback(
+	    md->tracker, md->filter, md->filter->filter_queue);
+	// and our driver to tracker events
+	md->tracker->tracker_register_event_callback(md->tracker, md,
+	                                             mt_handle_event);
 
-        // now we can configure our frameserver and start the stream
+	// now we can configure our frameserver and start the stream
 
-        printf("INFO: frame source path: %s %d x %d %d interval: %d\n",
-               descriptors[source_index].name, descriptors[source_index].width,
-               descriptors[source_index].height,
-               descriptors[source_index].format,
-               descriptors[source_index].rate);
-        md->frameservers[0]->frameserver_configure_capture(
-            md->frameservers[0],
-            md->tracker->tracker_get_capture_params(md->tracker));
-        md->frameservers[0]->frameserver_stream_start(
-            md->frameservers[0], &(descriptors[source_index]));
-        return true;
+	printf("INFO: frame source path: %s %d x %d %d interval: %d\n",
+	       descriptors[source_index].name, descriptors[source_index].width,
+	       descriptors[source_index].height,
+	       descriptors[source_index].format,
+	       descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
+	return true;
 }
 
 bool
 mt_create_mono_c270(mt_device_t* md)
 {
-        // TODO - add IMU input source -> filter
+	// TODO - add IMU input source -> filter
 
-        md->frameserver_count = 1; // this driver uses a single camera source
-        md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
-        // ask our frameserver for available sources - note this will return a
-        // type-specific struct that we need to deal with e.g. UVC-specific,
-        // FFMPEG-specific.
-        uint32_t source_count = 0;
-        md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-                                                           NULL, &source_count);
-        if (source_count == 0) {
-                // we have no sources, we cannot continue
-                return false;
-        }
-        uvc_source_descriptor_t* descriptors =
-            U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
-        md->frameservers[0]->frameserver_enumerate_sources(
-            md->frameservers[0], descriptors, &source_count);
-        // defer further configuration and stream start until the rest of our
-        // chain is set up.
+	md->frameserver_count = 1; // this driver uses a single camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	struct uvc_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct uvc_source_descriptor, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
 
-        md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
-        tracker_mono_configuration_t tracker_config = {};
+	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_MONO);
+	tracker_mono_configuration_t tracker_config = {};
 
-        // start in calibration mode
-        tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
+	// start in calibration mode
+	tracker_config.calibration_mode = CALIBRATION_MODE_CHESSBOARD;
 
 
-        // configure our logitech c270 when we find it during enumeration
-        uint32_t source_index; // our frameserver config descriptor index
-        for (uint32_t i = 0; i < source_count; i++) {
-                if (descriptors[i].product_id == 0x0825 &&
-                    descriptors[i].vendor_id == 0x046d &&
-                    descriptors[i].format == FORMAT_Y_UINT8) {
-                        if (descriptors[i].width == 640 &&
-                            descriptors[i].height == 480 &&
-                            descriptors[i].rate == 333333) {
-                                tracker_config.format = descriptors[i].format;
-                                tracker_config.source_id =
-                                    descriptors[i].source_id;
-                                source_index = i;
-                        }
-                }
-        }
-        snprintf(tracker_config.configuration_filename, 128, "C270_mono_%s",
-                 descriptors[source_index].serial);
+	// configure our logitech c270 when we find it during enumeration
+	uint32_t source_index; // our frameserver config descriptor index
+	for (uint32_t i = 0; i < source_count; i++) {
+		if (descriptors[i].product_id == 0x0825 &&
+		    descriptors[i].vendor_id == 0x046d &&
+		    descriptors[i].format == FS_FORMAT_Y_UINT8) {
+			if (descriptors[i].width == 640 &&
+			    descriptors[i].height == 480 &&
+			    descriptors[i].rate == 333333) {
+				tracker_config.format = descriptors[i].format;
+				tracker_config.source_id =
+				    descriptors[i].source_id;
+				source_index = i;
+			}
+		}
+	}
+	snprintf(tracker_config.configuration_filename, 128, "C270_mono_%s",
+	         descriptors[source_index].serial);
 
-        // configure our tracker for this frame source
-        bool configured = false;
-        configured =
-            md->tracker->tracker_configure(md->tracker, &tracker_config);
+	// configure our tracker for this frame source
+	bool configured = false;
+	configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
 
-        if (!configured) {
-                printf("ERROR: tracker rejected frameserver configuration!\n");
-                return false;
-        }
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
 
-        // create a filter for the trackers output
-        opencv_filter_configuration_t filter_config = {};
-        filter_config.measurement_noise_cov = 0.1f;
-        filter_config.process_noise_cov = 0.1f;
+	// create a filter for the trackers output
+	opencv_filter_configuration_t filter_config = {};
+	filter_config.measurement_noise_cov = 0.1f;
+	filter_config.process_noise_cov = 0.1f;
 
-        md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
-        md->filter->filter_configure(md->filter, &filter_config);
-        // connect our tracker to our filter
-        md->tracker->tracker_register_measurement_callback(
-            md->tracker, md->filter, md->filter->filter_queue);
-        // and our driver to tracker events
-        md->tracker->tracker_register_event_callback(md->tracker, md,
-                                                     mt_handle_event);
+	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
+	md->filter->filter_configure(md->filter, &filter_config);
+	// connect our tracker to our filter
+	md->tracker->tracker_register_measurement_callback(
+	    md->tracker, md->filter, md->filter->filter_queue);
+	// and our driver to tracker events
+	md->tracker->tracker_register_event_callback(md->tracker, md,
+	                                             mt_handle_event);
 
-        // now we can configure our frameserver and start the stream
+	// now we can configure our frameserver and start the stream
 
-        printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
-               descriptors[source_index].name, descriptors[source_index].width,
-               descriptors[source_index].height,
-               descriptors[source_index].format,
-               descriptors[source_index].rate);
-        md->frameservers[0]->frameserver_configure_capture(
-            md->frameservers[0],
-            md->tracker->tracker_get_capture_params(md->tracker));
-        md->frameservers[0]->frameserver_stream_start(
-            md->frameservers[0], &(descriptors[source_index]));
+	printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	       descriptors[source_index].name, descriptors[source_index].width,
+	       descriptors[source_index].height,
+	       descriptors[source_index].format,
+	       descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
 
-        return true;
+	return true;
 }
 
 bool
 mt_create_stereo_elp(mt_device_t* md)
 {
 
-        // TODO - add IMU input source -> filter
+	// TODO - add IMU input source -> filter
 
-        md->frameserver_count =
-            1; // this driver uses a single, composite stereo, camera source
-        md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
-        // ask our frameserver for available sources - note this will return a
-        // type-specific struct that we need to deal with e.g. UVC-specific,
-        // FFMPEG-specific.
-        uint32_t source_count = 0;
-        md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-                                                           NULL, &source_count);
-        if (source_count == 0) {
-                // we have no sources, we cannot continue
-                return false;
-        }
-        uvc_source_descriptor_t* descriptors =
-            U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
-        md->frameservers[0]->frameserver_enumerate_sources(
-            md->frameservers[0], descriptors, &source_count);
-        // defer further configuration and stream start until the rest of our
-        // chain is set up.
+	md->frameserver_count =
+	    1; // this driver uses a single, composite stereo, camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	struct uvc_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct uvc_source_descriptor, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
 
-        md->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
-        tracker_stereo_configuration_t tracker_config = {0};
+	md->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
+	tracker_stereo_configuration_t tracker_config = {0};
 
-        // configure our ELP camera when we find it during enumeration
-        uint32_t source_index; // our frameserver config descriptor index - we
-                               // would have an array for multiple devices
-        for (uint32_t i = 0; i < source_count; i++) {
-                uvc_source_descriptor_t s = descriptors[i];
-                if (descriptors[i].product_id == 0x9750 &&
-                    descriptors[i].vendor_id == 0x05a3 &&
-                    descriptors[i].format == FORMAT_YUV444_UINT8) {
-                        if (descriptors[i].width == 1280 &&
-                            descriptors[i].height == 480 &&
-                            descriptors[i].rate == 166666) {
-                                tracker_config.l_format = descriptors[i].format;
-                                tracker_config.l_source_id =
-                                    descriptors[i].source_id;
-                                const char* serial = descriptors[i].serial;
-                                snprintf(tracker_config.configuration_filename,
-                                         128, "ELP_60FPS_stereo_%s", serial);
-
-
-                                // start in calibration mode
-
-                                tracker_config.calibration_mode =
-                                    CALIBRATION_MODE_CHESSBOARD;
-
-                                // set up 50/50 horizontal stereo split - may
-                                // need to put this in calibration data
-
-                                struct xrt_vec2 ltl = {0.0f, 0.0f};
-                                struct xrt_vec2 lbr = {descriptors[i].width /
-                                                           2.0f,
-                                                       descriptors[i].height};
-                                struct xrt_vec2 rtl = {
-                                    descriptors[i].width / 2.0f, 0.0f};
-                                struct xrt_vec2 rbr = {descriptors[i].width,
-                                                       descriptors[i].height};
-
-                                tracker_config.l_rect.tl = ltl;
-                                tracker_config.l_rect.br = lbr;
-                                tracker_config.r_rect.tl = rtl;
-                                tracker_config.r_rect.br = rbr;
-
-                                tracker_config.split_left = true;
-
-                                source_index = i;
-                        }
-                }
-        }
-        // configure our tracker for this frame source
-        bool configured =
-            md->tracker->tracker_configure(md->tracker, &tracker_config);
-
-        if (!configured) {
-                printf("ERROR: tracker rejected frameserver configuration!\n");
-                return false;
-        }
+	// configure our ELP camera when we find it during enumeration
+	uint32_t source_index; // our frameserver config descriptor index - we
+	                       // would have an array for multiple devices
+	for (uint32_t i = 0; i < source_count; i++) {
+		struct uvc_source_descriptor s = descriptors[i];
+		if (descriptors[i].product_id == 0x9750 &&
+		    descriptors[i].vendor_id == 0x05a3 &&
+		    descriptors[i].format == FS_FORMAT_YUV444_UINT8) {
+			if (descriptors[i].width == 1280 &&
+			    descriptors[i].height == 480 &&
+			    descriptors[i].rate == 166666) {
+				tracker_config.l_format = descriptors[i].format;
+				tracker_config.l_source_id =
+				    descriptors[i].source_id;
+				const char* serial = descriptors[i].serial;
+				snprintf(tracker_config.configuration_filename,
+				         128, "ELP_60FPS_stereo_%s", serial);
 
 
-        // create a filter for the trackers output
-        opencv_filter_configuration_t filter_config = {0};
-        filter_config.measurement_noise_cov = 0.1f;
-        filter_config.process_noise_cov = 0.1f;
+				// start in calibration mode
 
-        md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
-        md->filter->filter_configure(md->filter, &filter_config);
+				tracker_config.calibration_mode =
+				    CALIBRATION_MODE_CHESSBOARD;
 
-        // connect our tracker to our filter
-        md->tracker->tracker_register_measurement_callback(
-            md->tracker, md->filter, md->filter->filter_queue);
-        md->tracker->tracker_register_event_callback(md->tracker, md,
-                                                     mt_handle_event);
+				// set up 50/50 horizontal stereo split - may
+				// need to put this in calibration data
 
-        // nw our chain is setup up we can start streaming data through it
-        printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
-               descriptors[source_index].name, descriptors[source_index].width,
-               descriptors[source_index].height,
-               descriptors[source_index].format,
-               descriptors[source_index].rate);
-        md->frameservers[0]->frameserver_configure_capture(
-            md->frameservers[0],
-            md->tracker->tracker_get_capture_params(md->tracker));
-        md->frameservers[0]->frameserver_stream_start(
-            md->frameservers[0], &(descriptors[source_index]));
+				struct xrt_vec2 ltl = {0.0f, 0.0f};
+				struct xrt_vec2 lbr = {descriptors[i].width /
+				                           2.0f,
+				                       descriptors[i].height};
+				struct xrt_vec2 rtl = {
+				    descriptors[i].width / 2.0f, 0.0f};
+				struct xrt_vec2 rbr = {descriptors[i].width,
+				                       descriptors[i].height};
 
-        return true;
+				tracker_config.l_rect.tl = ltl;
+				tracker_config.l_rect.br = lbr;
+				tracker_config.r_rect.tl = rtl;
+				tracker_config.r_rect.br = rbr;
+
+				tracker_config.split_left = true;
+
+				source_index = i;
+			}
+		}
+	}
+	// configure our tracker for this frame source
+	bool configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
+
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
+
+
+	// create a filter for the trackers output
+	opencv_filter_configuration_t filter_config = {0};
+	filter_config.measurement_noise_cov = 0.1f;
+	filter_config.process_noise_cov = 0.1f;
+
+	md->filter = filter_create(FILTER_TYPE_OPENCV_KALMAN);
+	md->filter->filter_configure(md->filter, &filter_config);
+
+	// connect our tracker to our filter
+	md->tracker->tracker_register_measurement_callback(
+	    md->tracker, md->filter, md->filter->filter_queue);
+	md->tracker->tracker_register_event_callback(md->tracker, md,
+	                                             mt_handle_event);
+
+	// nw our chain is setup up we can start streaming data through it
+	printf("INFO: frame source path: %s %d x %d format: %d, interval: %d\n",
+	       descriptors[source_index].name, descriptors[source_index].width,
+	       descriptors[source_index].height,
+	       descriptors[source_index].format,
+	       descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
+
+	return true;
 }
 
 
@@ -434,144 +434,144 @@ bool
 mt_create_uvbi_elp(mt_device_t* md)
 {
 
-        // TODO - add IMU input source -> filter
+	// TODO - add IMU input source -> filter
 
-        md->frameserver_count =
-            1; // this driver uses a single, mono camera source
-        md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
-        // ask our frameserver for available sources - note this will return a
-        // type-specific struct that we need to deal with e.g. UVC-specific,
-        // FFMPEG-specific.
-        uint32_t source_count = 0;
-        md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-                                                           NULL, &source_count);
-        if (source_count == 0) {
-                // we have no sources, we cannot continue
-                return false;
-        }
-        uvc_source_descriptor_t* descriptors =
-            U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
-        md->frameservers[0]->frameserver_enumerate_sources(
-            md->frameservers[0], descriptors, &source_count);
-        // defer further configuration and stream start until the rest of our
-        // chain is set up.
+	md->frameserver_count =
+	    1; // this driver uses a single, mono camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	struct uvc_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct uvc_source_descriptor, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
 
-        md->tracker = tracker_create(TRACKER_TYPE_UVBI);
-        tracker_mono_configuration_t tracker_config = {0};
+	md->tracker = tracker_create(TRACKER_TYPE_UVBI);
+	tracker_mono_configuration_t tracker_config = {0};
 
-        // configure our ELP camera when we find it during enumeration
-        uint32_t source_index; // our frameserver config descriptor index - we
-                               // would have an array for multiple devices
-        for (uint32_t i = 0; i < source_count; i++) {
-                uvc_source_descriptor_t s = descriptors[i];
-                if (descriptors[i].product_id == 0x9750 &&
-                    descriptors[i].vendor_id == 0x05a3 &&
-                    descriptors[i].format == FORMAT_Y_UINT8) {
-                        if (descriptors[i].width == 1280 &&
-                            descriptors[i].height == 480 &&
-                            descriptors[i].rate == 166666) {
-                                tracker_config.format = descriptors[i].format;
-                                tracker_config.source_id =
-                                    descriptors[i].source_id;
-                                snprintf(tracker_config.configuration_filename,
-                                         128, "ELP_60FPS_uvbi_%s",
-                                         descriptors[i].serial);
-                                source_index = i;
-                        }
-                }
-        }
-        // configure our tracker for this frame source
-        bool configured =
-            md->tracker->tracker_configure(md->tracker, &tracker_config);
+	// configure our ELP camera when we find it during enumeration
+	uint32_t source_index; // our frameserver config descriptor index - we
+	                       // would have an array for multiple devices
+	for (uint32_t i = 0; i < source_count; i++) {
+		struct uvc_source_descriptor s = descriptors[i];
+		if (descriptors[i].product_id == 0x9750 &&
+		    descriptors[i].vendor_id == 0x05a3 &&
+		    descriptors[i].format == FS_FORMAT_Y_UINT8) {
+			if (descriptors[i].width == 1280 &&
+			    descriptors[i].height == 480 &&
+			    descriptors[i].rate == 166666) {
+				tracker_config.format = descriptors[i].format;
+				tracker_config.source_id =
+				    descriptors[i].source_id;
+				snprintf(tracker_config.configuration_filename,
+				         128, "ELP_60FPS_uvbi_%s",
+				         descriptors[i].serial);
+				source_index = i;
+			}
+		}
+	}
+	// configure our tracker for this frame source
+	bool configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
 
-        if (!configured) {
-                printf("ERROR: tracker rejected frameserver configuration!\n");
-                return false;
-        }
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
 
-        // now our chain is setup up we can start streaming data through it
-        printf(
-            "INFO: frame source path: %s %d x %d interval: %d\n",
-            &(descriptors[source_index].name), descriptors[source_index].width,
-            descriptors[source_index].height, descriptors[source_index].format,
-            descriptors[source_index].rate);
-        md->frameservers[0]->frameserver_configure_capture(
-            md->frameservers[0],
-            md->tracker->tracker_get_capture_params(md->tracker));
-        md->frameservers[0]->frameserver_stream_start(
-            md->frameservers[0], &(descriptors[source_index]));
+	// now our chain is setup up we can start streaming data through it
+	printf(
+	    "INFO: frame source path: %s %d x %d interval: %d\n",
+	    &(descriptors[source_index].name), descriptors[source_index].width,
+	    descriptors[source_index].height, descriptors[source_index].format,
+	    descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
 
-        return true;
+	return true;
 }
 bool
 mt_create_uvbi_hdk(mt_device_t* md)
 {
 
-        // TODO - add IMU input source -> filter
+	// TODO - add IMU input source -> filter
 
-        md->frameserver_count =
-            1; // this driver uses a single, mono camera source
-        md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
-        // ask our frameserver for available sources - note this will return a
-        // type-specific struct that we need to deal with e.g. UVC-specific,
-        // FFMPEG-specific.
-        uint32_t source_count = 0;
-        md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-                                                           NULL, &source_count);
-        if (source_count == 0) {
-                // we have no sources, we cannot continue
-                return false;
-        }
-        uvc_source_descriptor_t* descriptors =
-            U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t, source_count);
-        md->frameservers[0]->frameserver_enumerate_sources(
-            md->frameservers[0], descriptors, &source_count);
-        // defer further configuration and stream start until the rest of our
-        // chain is set up.
+	md->frameserver_count =
+	    1; // this driver uses a single, mono camera source
+	md->frameservers[0] = frameserver_create(FRAMESERVER_TYPE_UVC);
+	// ask our frameserver for available sources - note this will return a
+	// type-specific struct that we need to deal with e.g. UVC-specific,
+	// FFMPEG-specific.
+	uint32_t source_count = 0;
+	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
+	                                                   NULL, &source_count);
+	if (source_count == 0) {
+		// we have no sources, we cannot continue
+		return false;
+	}
+	struct uvc_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct uvc_source_descriptor, source_count);
+	md->frameservers[0]->frameserver_enumerate_sources(
+	    md->frameservers[0], descriptors, &source_count);
+	// defer further configuration and stream start until the rest of our
+	// chain is set up.
 
-        md->tracker = tracker_create(TRACKER_TYPE_UVBI);
-        tracker_mono_configuration_t tracker_config = {};
+	md->tracker = tracker_create(TRACKER_TYPE_UVBI);
+	tracker_mono_configuration_t tracker_config = {};
 
-        uint32_t source_index;
-        for (uint32_t i = 0; i < source_count; i++) {
-                uvc_source_descriptor_t s = descriptors[i];
+	uint32_t source_index;
+	for (uint32_t i = 0; i < source_count; i++) {
+		struct uvc_source_descriptor s = descriptors[i];
 
-                if (s.product_id == 0x57e8 && s.vendor_id == 0x0bda &&
-                    s.format == FORMAT_JPG) {
-                        if (s.width == 640 && s.height == 480) {
-                                tracker_config.format = s.format;
-                                tracker_config.source_id = s.source_id;
-                                snprintf(tracker_config.configuration_filename,
-                                         128, "HDK_uvbi_%s", s.serial);
-                                source_index = i;
-                        }
-                }
-        }
-        // configure our tracker for this frame source
-        bool configured =
-            md->tracker->tracker_configure(md->tracker, &tracker_config);
+		if (s.product_id == 0x57e8 && s.vendor_id == 0x0bda &&
+		    s.format == FORMAT_JPG) {
+			if (s.width == 640 && s.height == 480) {
+				tracker_config.format = s.format;
+				tracker_config.source_id = s.source_id;
+				snprintf(tracker_config.configuration_filename,
+				         128, "HDK_uvbi_%s", s.serial);
+				source_index = i;
+			}
+		}
+	}
+	// configure our tracker for this frame source
+	bool configured =
+	    md->tracker->tracker_configure(md->tracker, &tracker_config);
 
-        if (!configured) {
-                printf("ERROR: tracker rejected frameserver configuration!\n");
-                return false;
-        }
+	if (!configured) {
+		printf("ERROR: tracker rejected frameserver configuration!\n");
+		return false;
+	}
 
 
-        // now our chain is setup up we can start streaming data through it
-        printf(
-            "INFO: frame source path: %s %d x %d format: %d rate: %d\n",
-            &(descriptors[source_index].name), descriptors[source_index].width,
-            descriptors[source_index].height, descriptors[source_index].format,
-            descriptors[source_index].rate);
-        md->frameservers[0]->frameserver_configure_capture(
-            md->frameservers[0],
-            md->tracker->tracker_get_capture_params(md->tracker));
-        md->frameservers[0]->frameserver_stream_start(
-            md->frameservers[0], &(descriptors[source_index]));
+	// now our chain is setup up we can start streaming data through it
+	printf(
+	    "INFO: frame source path: %s %d x %d format: %d rate: %d\n",
+	    &(descriptors[source_index].name), descriptors[source_index].width,
+	    descriptors[source_index].height, descriptors[source_index].format,
+	    descriptors[source_index].rate);
+	md->frameservers[0]->frameserver_configure_capture(
+	    md->frameservers[0],
+	    md->tracker->tracker_get_capture_params(md->tracker));
+	md->frameservers[0]->frameserver_stream_start(
+	    md->frameservers[0], &(descriptors[source_index]));
 
-        return true;
+	return true;
 }
-*/
+#endif
 bool
 mt_create_stereo_ps4(mt_device_t* md)
 {
@@ -585,16 +585,15 @@ mt_create_stereo_ps4(mt_device_t* md)
 	// type-specific struct that we need to deal with e.g. UVC-specific,
 	// FFMPEG-specific.
 	uint32_t source_count = 0;
-	md->frameservers[0]->frameserver_enumerate_sources(md->frameservers[0],
-	                                                   NULL, &source_count);
+	frameserver_enumerate_sources(md->frameservers[0], NULL, &source_count);
 	if (source_count == 0) {
 		// we have no sources, we cannot continue
 		return false;
 	}
-	v4l2_source_descriptor_t* descriptors =
-	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, source_count);
-	md->frameservers[0]->frameserver_enumerate_sources(
-	    md->frameservers[0], descriptors, &source_count);
+	struct v4l2_source_descriptor* descriptors =
+	    U_TYPED_ARRAY_CALLOC(struct v4l2_source_descriptor, source_count);
+	frameserver_enumerate_sources(md->frameservers[0], descriptors,
+	                              &source_count);
 	// defer further configuration and stream start until the rest of our
 	// chain is set up.
 
@@ -605,12 +604,12 @@ mt_create_stereo_ps4(mt_device_t* md)
 	uint32_t source_index; // our frameserver config descriptor index - we
 	                       // would have an array for multiple devices
 	for (uint32_t i = 0; i < source_count; i++) {
-		v4l2_source_descriptor_t s = descriptors[i];
+		struct v4l2_source_descriptor s = descriptors[i];
 		if (strcmp(descriptors[i].model,
 		           "USB Camera-OV580: USB "
 		           "Camera-OV                                          "
 		           "                           ") == 0 &&
-		    descriptors[i].format == FORMAT_YUV444_UINT8) {
+		    descriptors[i].format == FS_FORMAT_YUV444_UINT8) {
 			if (descriptors[i].width == 1748 &&
 			    descriptors[i].height == 408 &&
 			    descriptors[i].rate == 166666) {
@@ -684,11 +683,11 @@ mt_create_stereo_ps4(mt_device_t* md)
 	    &(descriptors[source_index].name), descriptors[source_index].width,
 	    descriptors[source_index].height, descriptors[source_index].format,
 	    descriptors[source_index].rate);
-	md->frameservers[0]->frameserver_configure_capture(
+	frameserver_configure_capture(
 	    md->frameservers[0],
 	    md->tracker->tracker_get_capture_params(md->tracker));
-	md->frameservers[0]->frameserver_stream_start(
-	    md->frameservers[0], &(descriptors[source_index]));
+	frameserver_stream_start(md->frameservers[0],
+	                         &(descriptors[source_index]));
 
 	return true;
 }
@@ -702,11 +701,10 @@ mt_handle_event(mt_device_t* md, driver_event_t e)
 		case TRACKER_TYPE_SPHERE_STEREO:
 		case TRACKER_TYPE_SPHERE_MONO:
 			for (uint32_t i = 0; i < md->frameserver_count; i++) {
-				md->frameservers[i]
-				    ->frameserver_configure_capture(
-				        md->frameservers[i],
-				        md->tracker->tracker_get_capture_params(
-				            md->tracker));
+				frameserver_configure_capture(
+				    md->frameservers[i],
+				    md->tracker->tracker_get_capture_params(
+				        md->tracker));
 			}
 			break;
 		default: break;

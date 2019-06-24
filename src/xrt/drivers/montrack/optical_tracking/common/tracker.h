@@ -60,7 +60,7 @@ typedef struct tracker_mono_configuration
 	char configuration_filename[256]; // TODO: maybe too small?
 	tracker_calibration_mode_t calibration_mode;
 	// camera_calibration_t calibration;
-	frame_format_t format;
+	enum fs_frame_format format;
 	uint64_t source_id;
 } tracker_mono_configuration_t;
 
@@ -70,13 +70,13 @@ typedef struct tracker_stereo_configuration
 	tracker_calibration_mode_t calibration_mode;
 	// camera_calibration_t l_calibration;
 	// camera_calibration_t r_calibration;
-	frame_format_t l_format;
+	enum fs_frame_format l_format;
 	uint64_t l_source_id;
-	frame_format_t r_format;
+	enum fs_frame_format r_format;
 	uint64_t r_source_id;
 	bool split_left; // single-frame stereo will split the left frame
-	frame_rect_t l_rect;
-	frame_rect_t r_rect;
+	struct fs_frame_rect l_rect;
+	struct fs_frame_rect r_rect;
 
 
 } tracker_stereo_configuration_t;
@@ -88,11 +88,12 @@ typedef struct tracker_stereo_configuration
 typedef struct _tracker_instance
 {
 	tracker_type_t tracker_type;
-	capture_parameters_t (*tracker_get_capture_params)(
+	struct fs_capture_parameters (*tracker_get_capture_params)(
 	    tracker_instance_ptr inst);
-	bool (*tracker_queue)(tracker_instance_ptr inst, frame_t* frame);
+	bool (*tracker_queue)(tracker_instance_ptr inst,
+	                      struct fs_frame* frame);
 	bool (*tracker_get_debug_frame)(tracker_instance_ptr inst,
-	                                frame_t* frame);
+	                                struct fs_frame* frame);
 	bool (*tracker_get_poses)(tracker_instance_ptr inst,
 	                          tracked_object_t* tracked_objects,
 	                          uint32_t* count);

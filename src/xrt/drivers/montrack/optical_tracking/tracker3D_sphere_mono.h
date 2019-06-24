@@ -23,13 +23,14 @@ tracker3D_sphere_mono_create(tracker_instance_t* inst);
 bool
 tracker3D_sphere_mono_destroy(tracker_instance_t* inst);
 
-capture_parameters_t
+struct fs_capture_parameters
 tracker3D_sphere_mono_get_capture_params(tracker_instance_t* inst);
 
 bool
-tracker3D_sphere_mono_get_debug_frame(tracker_instance_t* inst, frame_t* frame);
+tracker3D_sphere_mono_get_debug_frame(tracker_instance_t* inst,
+                                      struct fs_frame* frame);
 bool
-tracker3D_sphere_mono_queue(tracker_instance_t* inst, frame_t* frame);
+tracker3D_sphere_mono_queue(tracker_instance_t* inst, struct fs_frame* frame);
 bool
 tracker3D_sphere_mono_get_poses(tracker_instance_t* inst,
                                 tracked_object_t* objects,

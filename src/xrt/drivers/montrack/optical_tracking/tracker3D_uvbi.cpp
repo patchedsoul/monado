@@ -24,10 +24,10 @@ typedef struct tracker3D_uvbi_instance
 
 
 
-capture_parameters_t
+struct fs_capture_parameters
 tracker3D_uvbi_get_capture_params(tracker_instance_t* inst)
 {
-	capture_parameters_t cp = {};
+	struct fs_capture_parameters cp = {};
 	cp.exposure = 0.5f;
 	cp.gain = 0.5f;
 	return cp;
@@ -55,7 +55,7 @@ tracker3D_uvbi_create(tracker_instance_t* inst)
 
 
 bool
-tracker3D_uvbi_get_debug_frame(tracker_instance_t* inst, frame_t* frame)
+tracker3D_uvbi_get_debug_frame(tracker_instance_t* inst, struct fs_frame* frame)
 {
 	tracker3D_uvbi_instance_t* internal =
 	    (tracker3D_uvbi_instance_t*)inst->internal_instance;
@@ -67,18 +67,18 @@ tracker3D_uvbi_get_debug_frame(tracker_instance_t* inst, frame_t* frame)
 	uvbi_debug.copyTo(internal->debug_rgb);
 
 
-	frame->format = FORMAT_RGB_UINT8;
+	frame->format = FS_FORMAT_RGB_UINT8;
 	frame->width = internal->debug_rgb.cols;
 	frame->stride =
-	    internal->debug_rgb.cols * format_bytes_per_pixel(frame->format);
+	    internal->debug_rgb.cols * fs_format_bytes_per_pixel(frame->format);
 	frame->height = internal->debug_rgb.rows;
 	frame->data = internal->debug_rgb.data;
-	frame->size_bytes = frame_size_in_bytes(frame);
+	frame->size_bytes = fs_frame_size_in_bytes(frame);
 
 	return true;
 }
 bool
-tracker3D_uvbi_queue(tracker_instance_t* inst, frame_t* frame)
+tracker3D_uvbi_queue(tracker_instance_t* inst, struct fs_frame* frame)
 {
 	tracker3D_uvbi_instance_t* internal =
 	    (tracker3D_uvbi_instance_t*)inst->internal_instance;
@@ -120,7 +120,7 @@ tracker3D_uvbi_configure(tracker_instance_t* inst,
 	    (tracker3D_uvbi_instance_t*)inst->internal_instance;
 	// return false if we cannot handle this config
 
-	if (config->format != FORMAT_Y_UINT8) {
+	if (config->format != FS_FORMAT_Y_UINT8) {
 		internal->configured = false;
 		return false;
 	}

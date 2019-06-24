@@ -1,35 +1,23 @@
-#ifndef UVC_FRAMESERVER_H
-#define UVC_FRAMESERVER_H
-
-#ifdef XRT_HAVE_LIBUVC
-
-/* Almost all of the ground covered here would be covered
- * by the v4l2 frameserver on linux, but uvc may be the
- * simplest approach for cross-platform e.g. OS X
+// Copyright 2019, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+/*!
+ * @file
+ * @brief  Header
+ * @author Pete Black <pblack@collabora.com>
  */
 
-#include <stdint.h>
-#include <stdio.h>
+#pragma once
 
-#include "../common/frameserver.h"
-#include <libuvc/libuvc.h>
-#include <pthread.h>
+#include "frameserver.h"
 
-// we need this to do a bit of hackery with multiple opens/closes
-struct uvc_context
-{
-	/** Underlying context for USB communication */
-	struct libusb_context* usb_ctx;
-	/** True if libuvc initialized the underlying USB context */
-	uint8_t own_usb_ctx;
-	/** List of open devices in this context */
-	uvc_device_handle_t* open_devices;
-	pthread_t handler_thread;
-	int kill_handler_thread;
-};
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 
 // TODO: unify device descriptors across apis
-typedef struct uvc_source_descriptor
+struct uvc_source_descriptor
 {
 	char name[128];
 	uint16_t vendor_id;
@@ -37,68 +25,17 @@ typedef struct uvc_source_descriptor
 	char serial[128];
 	uint64_t source_id;
 	uint32_t uvc_device_index;
-	enum uvc_frame_format stream_format;
-	frame_format_t format;
-	sampling_t sampling;
+	/*enum uvc_frame_format*/ int stream_format;
+	enum fs_frame_format format;
+	enum fs_sampling sampling;
 	uint32_t width;
 	uint32_t height;
 	uint32_t rate;
-} uvc_source_descriptor_t;
+};
 
-typedef struct uvc_frameserver_instance
-{
-	uvc_device_t** device_list;
-	uvc_context_t* context;
-	uvc_device_t* device;
-	uvc_device_handle_t* device_handle;
-	uvc_stream_handle_t* stream_handle;
-	uvc_stream_ctrl_t stream_ctrl;
-	event_consumer_callback_func event_target_callback;
-	void* event_target_instance; // where we send our events
-	uvc_source_descriptor_t source_descriptor;
-	pthread_t stream_thread;
-	capture_parameters_t capture_params;
-	bool is_configured;
-	bool is_running;
-	uint32_t sequence_counter;
-} uvc_frameserver_instance_t;
+struct frameserver*
+uvc_frameserver_create();
 
-
-
-uvc_frameserver_instance_t*
-uvc_frameserver_create(frameserver_instance_t* inst);
-bool
-uvc_frameserver_destroy(frameserver_instance_t* inst);
-bool
-uvc_source_alloc(uvc_source_descriptor_t* desc);
-bool
-uvc_source_destroy(uvc_source_descriptor_t* desc);
-bool
-uvc_frameserver_configure_capture(frameserver_instance_t* inst,
-                                  capture_parameters_t cp);
-bool
-uvc_frameserver_enumerate_sources(
-    frameserver_instance_t*,
-    frameserver_source_descriptor_ptr sources_generic,
-    uint32_t* count);
-bool
-uvc_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
-void
-uvc_frameserver_register_event_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    event_consumer_callback_func target_func);
-bool
-uvc_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
-bool
-uvc_frameserver_stream_start(frameserver_instance_t* inst,
-                             frameserver_source_descriptor_ptr source_generic);
-bool
-uvc_frameserver_stream_stop(frameserver_instance_t* inst);
-bool
-uvc_frameserver_is_running(frameserver_instance_t* inst);
-bool
-uvc_frameserver_test();
-
-#endif // XRT_HAVE_LIBUVC
-#endif // UVC_FRAMESERVER_H
+#ifdef __cplusplus
+}
+#endif

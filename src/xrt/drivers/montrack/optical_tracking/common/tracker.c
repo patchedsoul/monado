@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/signal.h>
 #include <unistd.h>
+#include <stdio.h>
 
 tracker_instance_t*
 tracker_create(tracker_type_t t)
@@ -122,7 +123,7 @@ tracker_create(tracker_type_t t)
 bool
 tracker_send_debug_frame(tracker_instance_t* inst)
 {
-	frame_t f = {};
+	struct fs_frame f = {};
 	if (inst->tracker_get_debug_frame(inst, &f)) {
 		if (!inst->client_connected) {
 			inst->debug_client_fd =

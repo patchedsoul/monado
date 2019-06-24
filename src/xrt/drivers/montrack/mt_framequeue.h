@@ -13,7 +13,7 @@ typedef struct frame_data
 
 typedef struct frame_array
 {
-	frame_t* items;
+	struct fs_frame* items;
 	framedata_t* refdata;
 	uint32_t size;
 	uint32_t capacity;
@@ -23,9 +23,9 @@ typedef struct frame_queue
 {
 	frame_array_t frames;
 	uint64_t source_id_counter;
-	frame_t
+	struct fs_frame
 	    source_frames[MAX_FRAME_SOURCES]; //'empty' frames (NULL data) that
-	                                      //act as a per-source descriptor
+	                                      // act as a per-source descriptor
 } frame_queue_t;
 
 frame_queue_t*
@@ -33,13 +33,13 @@ frame_queue_instance(); //'singleton' initialisation
 
 void
 frame_queue_init();
-frame_t*
+struct fs_frame*
 frame_queue_ref_latest(frame_queue_t* fq,
                        uint32_t source_id); // used by consumers
 void
-frame_queue_unref(frame_queue_t* fq, frame_t* f); // used by consumers
+frame_queue_unref(frame_queue_t* fq, struct fs_frame* f); // used by consumers
 void
-frame_queue_add(frame_queue_t* fq, frame_t* f); // used by producers
+frame_queue_add(frame_queue_t* fq, struct fs_frame* f); // used by producers
 uint64_t
 frame_queue_uniq_source_id(frame_queue_t* fq); // used by producers
 
@@ -47,13 +47,11 @@ void
 frame_array_init(frame_array_t* fa);
 uint32_t
 frame_array_total(frame_array_t* fa);
-static void
-frame_array_resize(frame_array_t* fa, uint32_t s);
 void
-frame_array_add(frame_array_t* fa, frame_t* f);
+frame_array_add(frame_array_t* fa, struct fs_frame* f);
 void
-frame_array_set(frame_array_t* fa, uint32_t index, frame_t* f);
-frame_t*
+frame_array_set(frame_array_t* fa, uint32_t index, struct fs_frame* f);
+struct fs_frame*
 frame_array_get(frame_array_t* fa, uint32_t index);
 void
 frame_array_delete(frame_array_t* fa, uint32_t index);

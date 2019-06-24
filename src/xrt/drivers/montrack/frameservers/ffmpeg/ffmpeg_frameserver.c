@@ -1,47 +1,58 @@
-#include "../common/frameserver.h"
-#include "ffmpeg_frameserver.h"
-#include <string.h>
-#include <stdlib.h>
-#include <pthread.h>
+// Copyright 2019, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+/*!
+ * @file
+ * @brief  Implementation
+ * @author Pete Black <pblack@collabora.com>
+ */
+
 
 #include "util/u_misc.h"
+
+#include "ffmpeg_frameserver.h"
+#include "frameserver.h"
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
 #include "libavutil/avutil.h"
 
+#include <string.h>
+#include <stdlib.h>
+#include <pthread.h>
+
 #define DUMMY_FILE "/home/pblack/tracker_test.avi"
 
 static const AVPacket empty_packet;
 
-typedef struct ffmpeg_frameserver_instance
+
+struct ffmpeg_frameserver
 {
+
+	struct frameserver base;
+
 	int64_t videoCodecTimebase;
 	int32_t av_video_streamid;
 	AVFormatContext* av_format_context;
 	AVCodecContext* av_codec_context;
 	AVCodec* av_video_codec;
 	AVFrame* av_current_frame;
-	frame_consumer_callback_func frame_target_callback;
+	fs_frame_consumer_callback_func frame_target_callback;
 	event_consumer_callback_func event_target_callback;
 	void* frame_target_instance; // where we send our frames
 	void* event_target_instance; // where we send our events
 	pthread_t stream_thread;
 	bool is_running;
-	ffmpeg_source_descriptor_t source_descriptor;
+	struct ffmpeg_source_descriptor source_descriptor;
 	uint32_t sequence_counter;
-
-
-} ffmpeg_frameserver_instance_t;
+};
 
 /*!
- * Casts the internal instance pointer from the generic opaque type to our
- * ffmpeg_frameserver internal type.
+ * Cast to derived type.
  */
-static inline ffmpeg_frameserver_instance_t*
-ffmpeg_frameserver_instance(frameserver_internal_instance_ptr ptr)
+static inline struct ffmpeg_frameserver*
+ffmpeg_frameserver(struct frameserver* inst)
 {
-	return (ffmpeg_frameserver_instance_t*)ptr;
+	return (struct ffmpeg_frameserver*)inst;
 }
 
 /*!
@@ -49,111 +60,22 @@ ffmpeg_frameserver_instance(frameserver_internal_instance_ptr ptr)
  */
 static void*
 ffmpeg_stream_run(void* ptr);
-static bool
-ffmpeg_frameserver_configure_capture(frameserver_instance_t* inst,
-                                     capture_parameters_t cp);
-static bool
-ffmpeg_frameserver_enumerate_sources(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr sources_generic,
-    uint32_t* count);
-static bool
-ffmpeg_frameserver_get(frameserver_instance_t* inst, frame_t* _frame);
-static void
-ffmpeg_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func);
-static void
-ffmpeg_frameserver_register_event_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    event_consumer_callback_func target_func);
-static bool
-ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp);
-static bool
-ffmpeg_frameserver_stream_start(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr source_generic);
-static bool
-ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst);
-static bool
-ffmpeg_frameserver_is_running(frameserver_instance_t* inst);
 
-bool
-ffmpeg_source_create(ffmpeg_source_descriptor_t* desc)
+static bool
+ffmpeg_frameserver_enumerate_sources(struct frameserver* inst,
+                                     fs_source_descriptor_ptr sources_generic,
+                                     uint32_t* count)
 {
-	// do nothing right now
-	return true;
-}
+	// struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
 
-bool
-ffmpeg_source_destroy(ffmpeg_source_descriptor_t* desc)
-{
-	// do nothing right now
-	return true;
-}
-
-ffmpeg_frameserver_instance_t*
-ffmpeg_frameserver_create(frameserver_instance_t* inst)
-{
-	ffmpeg_frameserver_instance_t* i =
-	    U_TYPED_CALLOC(ffmpeg_frameserver_instance_t);
-	if (i) {
-		i->is_running = false;
-
-		inst->frameserver_enumerate_sources =
-		    ffmpeg_frameserver_enumerate_sources;
-		inst->frameserver_configure_capture =
-		    ffmpeg_frameserver_configure_capture;
-		inst->frameserver_frame_get = ffmpeg_frameserver_get;
-		inst->frameserver_is_running = ffmpeg_frameserver_is_running;
-/*
-		inst->frameserver_register_frame_callback =
-		    ffmpeg_frameserver_register_frame_callback;
-*/
-		inst->frameserver_register_event_callback =
-		    ffmpeg_frameserver_register_event_callback;
-		inst->frameserver_seek = ffmpeg_frameserver_seek;
-		inst->frameserver_stream_stop = ffmpeg_frameserver_stream_stop;
-		inst->frameserver_stream_start =
-		    ffmpeg_frameserver_stream_start;
-		inst->internal_instance = (frameserver_internal_instance_ptr)i;
-		return i;
-	}
-	return NULL;
-}
-
-bool
-ffmpeg_frameserver_configure_capture(frameserver_instance_t* inst,
-                                     capture_parameters_t cp)
-{
-	printf("ffmpeg is file-only, no capture params supported\n");
-	return true;
-}
-
-
-bool
-ffmpeg_frameserver_destroy(ffmpeg_frameserver_instance_t* inst)
-{
-	// TODO: cleanup
-	free(inst);
-	return true;
-}
-bool
-ffmpeg_frameserver_enumerate_sources(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr sources_generic,
-    uint32_t* count)
-{
 	// TODO: this is hardcoded, we need to query the source for its
 	// properties
 	if (sources_generic == NULL) {
 		*count = 2; // we advertise support for YUV420 or just a Y frame
 		return true;
 	}
-	ffmpeg_source_descriptor_t* sources =
-	    (ffmpeg_source_descriptor_t*)sources_generic;
+	struct ffmpeg_source_descriptor* sources =
+	    (struct ffmpeg_source_descriptor*)sources_generic;
 	char* filepath = DUMMY_FILE;
 	char* source_name = "FFMPEG Test Source";
 	uint32_t source_id = 666;
@@ -167,62 +89,60 @@ ffmpeg_frameserver_enumerate_sources(
 	sources[0].frame_count = 99;
 	memcpy(sources[0].name, source_name, strlen(source_name) + 1);
 	sources[0].name[127] = 0; // unnecessary in this context, but why not?
-	sources[0].format = FORMAT_YUV420_UINT8;
+	sources[0].format = FS_FORMAT_YUV420_UINT8;
 
 	sources[1].current_frame = 0;
-	sources[1].filepath = calloc(1, strlen(filepath) + 1);
+	sources[1].filepath = U_TYPED_ARRAY_CALLOC(char, strlen(filepath) + 1);
 	memcpy(sources[1].filepath, filepath, strlen(filepath) + 1);
 	sources[1].frame_count = 99;
 	memcpy(sources[1].name, source_name, strlen(source_name) + 1);
 	sources[1].name[127] = 0; // unnecessary in this context, but why not?
-	sources[1].format = FORMAT_Y_UINT8;
+	sources[1].format = FS_FORMAT_Y_UINT8;
 	return true;
 }
 
-bool
-ffmpeg_frameserver_get(frameserver_instance_t* inst, frame_t* _frame)
+static bool
+ffmpeg_frameserver_configure_capture(struct frameserver* inst,
+                                     struct fs_capture_parameters cp)
 {
-	return false;
-}
-void
-ffmpeg_frameserver_register_frame_callback(
-    frameserver_instance_t* inst,
-    void* target_instance,
-    frame_consumer_callback_func target_func)
-{
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
-	internal->frame_target_instance = target_instance;
-	internal->frame_target_callback = target_func;
+	printf("ffmpeg is file-only, no capture params supported\n");
+	return true;
 }
 
-void
+static bool
+ffmpeg_frameserver_frame_get(struct frameserver* inst, struct fs_frame* frame)
+{
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
+	//! @todo
+	return false;
+}
+
+static void
 ffmpeg_frameserver_register_event_callback(
-    frameserver_instance_t* inst,
+    struct frameserver* inst,
     void* target_instance,
     event_consumer_callback_func target_func)
 {
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
 	internal->event_target_instance = target_instance;
 	internal->event_target_callback = target_func;
 }
 
-bool
-ffmpeg_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
+static bool
+ffmpeg_frameserver_seek(struct frameserver* inst, uint64_t timestamp)
 {
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
+	//! @todo
 	return false;
 }
 
-bool
-ffmpeg_frameserver_stream_start(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr source_generic)
+static bool
+ffmpeg_frameserver_stream_start(struct frameserver* inst,
+                                fs_source_descriptor_ptr source_generic)
 {
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
-	ffmpeg_source_descriptor_t* source =
-	    (ffmpeg_source_descriptor_t*)source_generic;
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
+	struct ffmpeg_source_descriptor* source =
+	    (struct ffmpeg_source_descriptor*)source_generic;
 	if (pthread_create(&internal->stream_thread, NULL, ffmpeg_stream_run,
 	                   inst)) {
 		printf("ERROR: could not createv thread\n");
@@ -235,44 +155,69 @@ ffmpeg_frameserver_stream_start(
 	return true;
 }
 
-bool
-ffmpeg_frameserver_stream_stop(frameserver_instance_t* inst)
+static bool
+ffmpeg_frameserver_stream_stop(struct frameserver* inst)
 {
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
 	// TODO: signal shutdown to thread
 	pthread_join(internal->stream_thread, NULL);
 	return true;
 }
 
-bool
-ffmpeg_frameserver_is_running(frameserver_instance_t* inst)
+static bool
+ffmpeg_frameserver_is_running(struct frameserver* inst)
 {
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
 	return internal->is_running;
+}
+
+static void
+ffmpeg_frameserver_destroy(struct frameserver* inst)
+{
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
+	//! @todo
+
+	free(internal);
+}
+
+struct frameserver*
+ffmpeg_frameserver_create()
+{
+	struct ffmpeg_frameserver* inst =
+	    U_TYPED_CALLOC(struct ffmpeg_frameserver);
+	inst->base.type = FRAMESERVER_TYPE_FFMPEG;
+	inst->base.enumerate_sources = ffmpeg_frameserver_enumerate_sources;
+	inst->base.configure_capture = ffmpeg_frameserver_configure_capture;
+	inst->base.frame_get = ffmpeg_frameserver_frame_get;
+	inst->base.register_event_callback =
+	    ffmpeg_frameserver_register_event_callback;
+	inst->base.seek = ffmpeg_frameserver_seek;
+	inst->base.stream_start = ffmpeg_frameserver_stream_start;
+	inst->base.stream_stop = ffmpeg_frameserver_stream_stop;
+	inst->base.is_running = ffmpeg_frameserver_is_running;
+	inst->base.destroy = ffmpeg_frameserver_destroy;
+	return &(inst->base);
 }
 
 bool
 ffmpeg_frameserver_test()
 {
 	printf("Running FFMPEG Frameserver Test\n");
-	frameserver_instance_t* ffm_server =
+	struct frameserver* ffm_server =
 	    frameserver_create(FRAMESERVER_TYPE_FFMPEG);
 	if (!ffm_server) {
 		printf("FAILURE: Could not init FFMPEG frameserver.\n");
 		return false;
 	}
 	uint32_t source_count = 0;
-	if (!ffm_server->frameserver_enumerate_sources(ffm_server, NULL,
-	                                               &source_count)) {
+	if (!frameserver_enumerate_sources(ffm_server, NULL, &source_count)) {
 		printf("FAILURE: Could not get source count.\n");
 		return false;
 	}
-	ffmpeg_source_descriptor_t* source_list =
-	    U_TYPED_ARRAY_CALLOC(ffmpeg_source_descriptor_t, source_count);
-	if (!ffm_server->frameserver_enumerate_sources(ffm_server, source_list,
-	                                               &source_count)) {
+	struct ffmpeg_source_descriptor* source_list =
+	    U_TYPED_ARRAY_CALLOC(struct ffmpeg_source_descriptor, source_count);
+	if (!frameserver_enumerate_sources(ffm_server, source_list,
+	                                   &source_count)) {
 		printf("FAILURE: Could not get source descriptors\n");
 		return false;
 	}
@@ -282,13 +227,11 @@ ffmpeg_frameserver_test()
 	return true;
 }
 
-
 void*
 ffmpeg_stream_run(void* ptr)
 {
-	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	ffmpeg_frameserver_instance_t* internal =
-	    ffmpeg_frameserver_instance(inst->internal_instance);
+	struct frameserver* inst = (struct frameserver*)ptr;
+	struct ffmpeg_frameserver* internal = ffmpeg_frameserver(inst);
 	internal->av_video_streamid = -1;
 	av_register_all();
 	internal->av_format_context = avformat_alloc_context();
@@ -387,7 +330,7 @@ ffmpeg_stream_run(void* ptr)
 				// printf("got frame!\n");
 				// now we need to invoke our callback with a
 				// frame.
-				frame_t f;
+				struct fs_frame f;
 				f.source_id =
 				    internal->source_descriptor.source_id;
 				f.format = internal->source_descriptor.format;
@@ -395,13 +338,14 @@ ffmpeg_stream_run(void* ptr)
 				f.height = internal->av_current_frame->height;
 				f.stride =
 				    internal->av_current_frame->linesize[0];
-				f.size_bytes = frame_size_in_bytes(&f);
+				f.size_bytes = fs_frame_size_in_bytes(&f);
 
 				// since we are just PoCing, we can just pass
 				// the Y plane.
 				f.data = internal->av_current_frame->data[0];
-				internal->frame_target_callback(
-				    internal->frame_target_instance, &f);
+				//! @todo no more frame callbacks
+				// internal->frame_target_callback(
+				// internal->frame_target_instance, &f);
 				f.source_sequence =
 				    internal->sequence_counter++;
 				driver_event_t e = {};

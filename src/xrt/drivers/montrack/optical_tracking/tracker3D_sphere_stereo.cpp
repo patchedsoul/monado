@@ -143,28 +143,28 @@ tracker3D_sphere_stereo_create(tracker_instance_t* inst)
 }
 bool
 tracker3D_sphere_stereo_get_debug_frame(tracker_instance_t* inst,
-                                        frame_t* frame)
+                                        struct fs_frame* frame)
 {
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 
 	// wrap a frame struct around our debug cv::Mat and return it.
 
-	frame->format = FORMAT_RGB_UINT8;
+	frame->format = FS_FORMAT_RGB_UINT8;
 	frame->width = internal->debug_rgb.cols;
 	frame->stride =
-	    internal->debug_rgb.cols * format_bytes_per_pixel(frame->format);
+	    internal->debug_rgb.cols * fs_format_bytes_per_pixel(frame->format);
 	frame->height = internal->debug_rgb.rows;
 	frame->data = internal->debug_rgb.data;
-	frame->size_bytes = frame_size_in_bytes(frame);
+	frame->size_bytes = fs_frame_size_in_bytes(frame);
 	return true;
 }
-capture_parameters_t
+struct fs_capture_parameters
 tracker3D_sphere_stereo_get_capture_params(tracker_instance_t* inst)
 {
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
-	capture_parameters_t cp = {};
+	struct fs_capture_parameters cp = {};
 	switch (internal->configuration.calibration_mode) {
 	case CALIBRATION_MODE_CHESSBOARD:
 		cp.exposure = 0.3f;
@@ -180,7 +180,7 @@ tracker3D_sphere_stereo_get_capture_params(tracker_instance_t* inst)
 }
 
 bool
-tracker3D_sphere_stereo_queue(tracker_instance_t* inst, frame_t* frame)
+tracker3D_sphere_stereo_queue(tracker_instance_t* inst, struct fs_frame* frame)
 {
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
@@ -898,7 +898,7 @@ tracker3D_sphere_stereo_configure(tracker_instance_t* inst,
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	// return false if we cannot handle this config
 
-	if (config->l_format != FORMAT_YUV444_UINT8) {
+	if (config->l_format != FS_FORMAT_YUV444_UINT8) {
 		inst->configured = false;
 		return false;
 	}

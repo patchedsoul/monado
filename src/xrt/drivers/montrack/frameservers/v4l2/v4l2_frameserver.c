@@ -1,19 +1,62 @@
-#include <common/frameserver.h>
-#include "v4l2_frameserver.h"
-#include <string.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include "errno.h"
-#include "jpeglib.h"
-#include "unistd.h"
+// Copyright 2019, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+/*!
+ * @file
+ * @brief  Implementation
+ * @author Pete Black <pblack@collabora.com>
+ */
+
 
 #include "util/u_misc.h"
 
+#include "v4l2_frameserver.h"
+#include "frameserver.h"
+
 #include "../mt_framequeue.h"
+
+// Must be before jpeglib
+#include <stdio.h>
+
+#include "jpeglib.h"
+
+#include <linux/types.h>
+#include <linux/videodev2.h>
+#include <linux/v4l2-common.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+
+#include <string.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <errno.h>
+#include <pthread.h>
+
+#define NUM_V4L2_BUFFERS 2
+
+struct v4l2_frameserver
+{
+	struct frameserver base;
+	event_consumer_callback_func event_target_callback;
+	void* event_target_instance; // where we send our events
+	struct v4l2_source_descriptor source_descriptor;
+	pthread_t stream_thread;
+	struct fs_capture_parameters capture_params;
+	bool is_configured;
+	bool is_running;
+};
+
+
+static uint32_t
+v4l2_frameserver_get_source_descriptors(struct v4l2_source_descriptor** sds,
+                                        char* v4l2_device,
+                                        uint32_t device_index);
+static bool
+source_descriptor_from_v4l2(struct v4l2_source_descriptor* descriptor,
+                            char* v4l2_device,
+                            struct v4l2_capability* cap,
+                            struct v4l2_fmtdesc* desc);
 
 /*!
  * Streaming thread entrypoint
@@ -22,87 +65,21 @@ static void*
 v4l2_frameserver_stream_run(void* ptr);
 
 /*!
- * Casts the internal instance pointer from the generic opaque type to our
- * v4l2_frameserver internal type.
+ * Cast to derived type.
  */
-static inline v4l2_frameserver_instance_t*
-v4l2_frameserver_instance(frameserver_internal_instance_ptr ptr)
+static inline struct v4l2_frameserver*
+v4l2_frameserver(struct frameserver* inst)
 {
-	return (v4l2_frameserver_instance_t*)ptr;
+	return (struct v4l2_frameserver*)inst;
 }
-
 static bool
-source_descriptor_from_v4l2(v4l2_source_descriptor_t* source_descriptor,
-                            char* v4l2_device,
-                            struct v4l2_capability* cap,
-                            struct v4l2_fmtdesc* desc);
-
-
-uint32_t
-v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
-                                        char* v4l2_device,
-                                        uint32_t device_index);
-
-bool
-v4l2_source_create(v4l2_source_descriptor_t* desc)
+v4l2_frameserver_enumerate_sources(struct frameserver* inst,
+                                   fs_source_descriptor_ptr sources_generic,
+                                   uint32_t* count)
 {
-	// do nothing right now
-	return true;
-}
-
-bool
-v4l2_source_destroy(v4l2_source_descriptor_t* desc)
-{
-	if (desc->device_path) {
-		free(desc->device_path);
-	}
-	return true;
-}
-
-v4l2_frameserver_instance_t*
-v4l2_frameserver_create(frameserver_instance_t* inst)
-{
-	v4l2_frameserver_instance_t* i =
-	    U_TYPED_CALLOC(v4l2_frameserver_instance_t);
-	if (i == NULL) {
-		return NULL;
-	}
-
-	// clang-format off
-	inst->frameserver_enumerate_sources       = v4l2_frameserver_enumerate_sources;
-	inst->frameserver_configure_capture       = v4l2_frameserver_configure_capture;
-	inst->frameserver_frame_get               = v4l2_frameserver_get;
-	inst->frameserver_is_running              = v4l2_frameserver_is_running;
-	inst->frameserver_register_event_callback = v4l2_frameserver_register_event_callback;
-	inst->frameserver_seek                    = v4l2_frameserver_seek;
-	inst->frameserver_stream_stop             = v4l2_frameserver_stream_stop;
-	inst->frameserver_stream_start            = v4l2_frameserver_stream_start;
-	inst->internal_instance                    = (frameserver_internal_instance_ptr)i;
-	// clang-format on
-
-	return i;
-}
-
-bool
-v4l2_frameserver_destroy(frameserver_instance_t* inst)
-{
-	if (inst->internal_instance) {
-		free(inst->internal_instance);
-		return true;
-	}
-	return false;
-}
-
-bool
-v4l2_frameserver_enumerate_sources(
-    frameserver_instance_t* inst,
-    frameserver_source_descriptor_ptr sources_generic,
-    uint32_t* count)
-{
-	v4l2_frameserver_instance_t* internal =
-	    v4l2_frameserver_instance(inst->internal_instance);
-	v4l2_source_descriptor_t* sources =
-	    (v4l2_source_descriptor_t*)sources_generic;
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	struct v4l2_source_descriptor* sources =
+	    (struct v4l2_source_descriptor*)sources_generic;
 	char device_files[64][256]; // max of 64 video4linux devices supported
 	                            // TODO: maybe 256 too small
 	char* base_path =
@@ -132,7 +109,7 @@ v4l2_frameserver_enumerate_sources(
 
 	if (sources == NULL) {
 		for (uint32_t i = 0; i < device_count; i++) {
-			v4l2_source_descriptor_t* temp_sds_count = NULL;
+			struct v4l2_source_descriptor* temp_sds_count = NULL;
 			uint32_t c = v4l2_frameserver_get_source_descriptors(
 			    &temp_sds_count, device_files[i], i);
 			source_count += c;
@@ -147,7 +124,7 @@ v4l2_frameserver_enumerate_sources(
 	// fill them out
 
 	for (uint32_t i = 0; i < device_count; i++) {
-		v4l2_source_descriptor_t* device_sources =
+		struct v4l2_source_descriptor* device_sources =
 		    sources + source_count;
 		uint32_t c = v4l2_frameserver_get_source_descriptors(
 		    &device_sources, device_files[i], i);
@@ -158,43 +135,48 @@ v4l2_frameserver_enumerate_sources(
 	return true;
 }
 
-bool
-v4l2_frameserver_configure_capture(frameserver_instance_t* inst,
-                                   capture_parameters_t cp)
+static bool
+v4l2_frameserver_configure_capture(struct frameserver* inst,
+                                   struct fs_capture_parameters cp)
 {
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
 	return true;
 }
 
-void
+static bool
+v4l2_frameserver_frame_get(struct frameserver* inst, struct fs_frame* frame)
+{
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
+	return false;
+}
+
+static void
 v4l2_frameserver_register_event_callback(
-    frameserver_instance_t* inst,
+    struct frameserver* inst,
     void* target_instance,
     event_consumer_callback_func target_func)
 {
-	// do nothing
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
 }
 
-bool
-v4l2_frameserver_get(frameserver_instance_t* inst, frame_t* frame)
+static bool
+v4l2_frameserver_seek(struct frameserver* inst, uint64_t timestamp)
 {
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
 	return false;
 }
 
-bool
-v4l2_frameserver_seek(frameserver_instance_t* inst, uint64_t timestamp)
+static bool
+v4l2_frameserver_stream_start(struct frameserver* inst,
+                              fs_source_descriptor_ptr source_generic)
 {
-	// do nothing
-	return false;
-}
-
-bool
-v4l2_frameserver_stream_start(frameserver_instance_t* inst,
-                              frameserver_source_descriptor_ptr source_generic)
-{
-	v4l2_frameserver_instance_t* internal =
-	    v4l2_frameserver_instance(inst->internal_instance);
-	v4l2_source_descriptor_t* source =
-	    (v4l2_source_descriptor_t*)source_generic;
+	struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	struct v4l2_source_descriptor* source =
+	    (struct v4l2_source_descriptor*)source_generic;
 	internal->source_descriptor = *source;
 	internal->is_running = true;
 	if (pthread_create(&internal->stream_thread, NULL,
@@ -206,13 +188,54 @@ v4l2_frameserver_stream_start(frameserver_instance_t* inst,
 	return true;
 }
 
+static bool
+v4l2_frameserver_stream_stop(struct frameserver* inst)
+{
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
+	return false;
+}
+
+static bool
+v4l2_frameserver_is_running(struct frameserver* inst)
+{
+	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
+	//! @todo
+	return false;
+}
+static void
+v4l2_frameserver_destroy(struct frameserver* xinst)
+{
+	struct v4l2_frameserver* inst = v4l2_frameserver(xinst);
+
+	//! @todo do any destruction-required things here.
+
+	free(inst);
+}
+
+struct frameserver*
+v4l2_frameserver_create()
+{
+	struct v4l2_frameserver* inst = U_TYPED_CALLOC(struct v4l2_frameserver);
+	inst->base.type = FRAMESERVER_TYPE_V4L2;
+	inst->base.enumerate_sources = v4l2_frameserver_enumerate_sources;
+	inst->base.configure_capture = v4l2_frameserver_configure_capture;
+	inst->base.frame_get = v4l2_frameserver_frame_get;
+	inst->base.register_event_callback =
+	    v4l2_frameserver_register_event_callback;
+	inst->base.seek = v4l2_frameserver_seek;
+	inst->base.stream_start = v4l2_frameserver_stream_start;
+	inst->base.stream_stop = v4l2_frameserver_stream_stop;
+	inst->base.is_running = v4l2_frameserver_is_running;
+	inst->base.destroy = v4l2_frameserver_destroy;
+	return &(inst->base);
+}
 
 void*
 v4l2_frameserver_stream_run(void* ptr)
 {
-	frameserver_instance_t* inst = (frameserver_instance_t*)ptr;
-	v4l2_frameserver_instance_t* internal =
-	    v4l2_frameserver_instance(inst->internal_instance);
+	struct frameserver* inst = (struct frameserver*)ptr;
+	struct v4l2_frameserver* internal = v4l2_frameserver(inst);
 	// our jpeg decoder stuff
 	struct jpeg_decompress_struct cinfo;
 	struct jpeg_error_mgr jerr;
@@ -325,12 +348,13 @@ v4l2_frameserver_stream_run(void* ptr)
 	}
 
 	uint8_t* cropped_buffer = NULL;
-	frame_t f = {}; // we dequeue buffers into this frame in our main loop
+	struct fs_frame f =
+	    {}; // we dequeue buffers into this frame in our main loop
 	if (internal->source_descriptor.crop_scanline_bytes_start > 0) {
-		uint32_t alloc_size =
-		    internal->source_descriptor.crop_width *
-		    internal->source_descriptor.height *
-		    format_bytes_per_pixel(internal->source_descriptor.format);
+		uint32_t alloc_size = internal->source_descriptor.crop_width *
+		                      internal->source_descriptor.height *
+		                      fs_format_bytes_per_pixel(
+		                          internal->source_descriptor.format);
 		cropped_buffer = malloc(alloc_size);
 		if (!cropped_buffer) {
 			printf("ERROR: could not alloc memory!");
@@ -338,16 +362,16 @@ v4l2_frameserver_stream_run(void* ptr)
 		}
 	}
 	switch (internal->source_descriptor.stream_format) {
-	case V4L2_PIX_FMT_YUYV: f.format = FORMAT_YUYV_UINT8; break;
+	case V4L2_PIX_FMT_YUYV: f.format = FS_FORMAT_YUYV_UINT8; break;
 	case V4L2_PIX_FMT_JPEG:
-		f.format = FORMAT_JPG; // this will get reset to YUV444
+		f.format = FS_FORMAT_JPG; // this will get reset to YUV444
 		cinfo.err = jpeg_std_error(&jerr);
 		jpeg_create_decompress(&cinfo);
 		break;
 	default: printf("ERROR: unhandled format!\n");
 	}
 
-	frame_t sampled_frame;
+	struct fs_frame sampled_frame;
 	sampled_frame.data = NULL;
 
 	uint8_t* temp_data = NULL;
@@ -429,7 +453,7 @@ v4l2_frameserver_stream_run(void* ptr)
 				// reasonable default - will get reset
 				f.stride =
 				    internal->source_descriptor.crop_width *
-				    format_bytes_per_pixel(
+				    fs_format_bytes_per_pixel(
 				        internal->source_descriptor.format);
 				f.size_bytes = cropped_stride * f.height;
 				f.data = cropped_buffer;
@@ -441,7 +465,7 @@ v4l2_frameserver_stream_run(void* ptr)
 				// reasonable default - will get reset
 				f.stride =
 				    internal->source_descriptor.width *
-				    format_bytes_per_pixel(
+				    fs_format_bytes_per_pixel(
 				        internal->source_descriptor.format);
 				f.size_bytes = v_buf.bytesused;
 				f.data = mem[v_buf.index];
@@ -452,14 +476,14 @@ v4l2_frameserver_stream_run(void* ptr)
 			case V4L2_PIX_FMT_JPEG:
 				// immediately set this to YUV444 as this is
 				// what we decode to.
-				f.format = FORMAT_YUV444_UINT8;
+				f.format = FS_FORMAT_YUV444_UINT8;
 				f.stride =
 				    f.width *
 				    3; // jpg format does not supply stride
 				// decode our jpg frame.
 				if (!temp_data) {
 					temp_data =
-					    malloc(frame_size_in_bytes(&f));
+					    malloc(fs_frame_size_in_bytes(&f));
 				}
 				jpeg_mem_src(&cinfo, mem[v_buf.index],
 				             v_buf.bytesused);
@@ -483,25 +507,27 @@ v4l2_frameserver_stream_run(void* ptr)
 				jpeg_finish_decompress(&cinfo);
 
 				switch (internal->source_descriptor.format) {
-				case FORMAT_Y_UINT8:
+				case FS_FORMAT_Y_UINT8:
 					// split our Y plane out
 					sampled_frame = f;
 					sampled_frame.data =
 					    preserve_sample_data; // put our
-					                          // correct data
-					                          // back
-					sampled_frame.format = FORMAT_Y_UINT8;
+					                          // correct
+					                          // data back
+					sampled_frame.format =
+					    FS_FORMAT_Y_UINT8;
 					sampled_frame.stride = f.width;
 					sampled_frame.size_bytes =
-					    frame_size_in_bytes(&sampled_frame);
+					    fs_frame_size_in_bytes(
+					        &sampled_frame);
 
 					if (!sampled_frame.data) {
 						sampled_frame.data = malloc(
 						    sampled_frame.size_bytes);
 					}
 
-					frame_extract_plane(&f, PLANE_Y,
-					                    &sampled_frame);
+					fs_frame_extract_plane(&f, FS_PLANE_Y,
+					                       &sampled_frame);
 
 					frame_queue_add(fq, &sampled_frame);
 					break;
@@ -514,49 +540,52 @@ v4l2_frameserver_stream_run(void* ptr)
 				f.stride =
 				    f.width * 2; // 2 bytes per pixel for yuyv
 				switch (internal->source_descriptor.format) {
-				case FORMAT_Y_UINT8:
+				case FS_FORMAT_Y_UINT8:
 					// split our Y plane out
 					sampled_frame = f; // copy our buffer
 					                   // frames attributes
 					sampled_frame.data =
 					    preserve_sample_data; // put our
-					                          // correct data
-					                          // back
-					sampled_frame.format = FORMAT_Y_UINT8;
+					                          // correct
+					                          // data back
+					sampled_frame.format =
+					    FS_FORMAT_Y_UINT8;
 					sampled_frame.stride = f.width;
 					sampled_frame.size_bytes =
-					    frame_size_in_bytes(&sampled_frame);
+					    fs_frame_size_in_bytes(
+					        &sampled_frame);
 
 					if (!sampled_frame.data) {
 						sampled_frame.data = malloc(
 						    sampled_frame.size_bytes);
 					}
 
-					frame_extract_plane(&f, PLANE_Y,
-					                    &sampled_frame);
+					fs_frame_extract_plane(&f, FS_PLANE_Y,
+					                       &sampled_frame);
 
 					frame_queue_add(fq, &sampled_frame);
 					break;
-				case FORMAT_YUV444_UINT8:
+				case FS_FORMAT_YUV444_UINT8:
 					// upsample our YUYV to YUV444
 					sampled_frame = f; // copy our buffer
 					                   // frames attributes
 					sampled_frame.data =
 					    preserve_sample_data; // put our
-					                          // correct data
-					                          // back
+					                          // correct
+					                          // data back
 					sampled_frame.format =
-					    FORMAT_YUV444_UINT8;
+					    FS_FORMAT_YUV444_UINT8;
 					sampled_frame.stride = f.width * 3;
 					sampled_frame.size_bytes =
-					    frame_size_in_bytes(&sampled_frame);
+					    fs_frame_size_in_bytes(
+					        &sampled_frame);
 					// allocate on first access
 					if (!sampled_frame.data) {
 						sampled_frame.data = malloc(
 						    sampled_frame.size_bytes);
 					}
-					if (frame_resample(&f,
-					                   &sampled_frame)) {
+					if (fs_frame_resample(&f,
+					                      &sampled_frame)) {
 						frame_queue_add(fq,
 						                &sampled_frame);
 						break;
@@ -607,22 +636,9 @@ v4l2_frameserver_stream_run(void* ptr)
 	return NULL;
 }
 
-bool
-v4l2_frameserver_stream_stop(frameserver_instance_t* inst)
-{
-	return false;
-}
-
-
-bool
-v4l2_frameserver_is_running(frameserver_instance_t* inst)
-{
-	// do nothing
-	return false;
-}
 
 uint32_t
-v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
+v4l2_frameserver_get_source_descriptors(struct v4l2_source_descriptor** sds,
                                         char* v4l2_device,
                                         uint32_t device_index)
 {
@@ -639,7 +655,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 		return 0;
 	}
 
-	v4l2_source_descriptor_t* descriptor = *sds;
+	struct v4l2_source_descriptor* descriptor = *sds;
 	if (ioctl(fd, VIDIOC_QUERYCAP, &cap) == 0) {
 		if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 			return 0; // not a video device
@@ -707,7 +723,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 						switch (desc.pixelformat) {
 						case V4L2_PIX_FMT_YUYV:
 							descriptor->format =
-							    FORMAT_YUYV_UINT8;
+							    FS_FORMAT_YUYV_UINT8;
 							descriptor->width =
 							    frame_interval
 							        .width;
@@ -716,7 +732,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							        .height;
 							descriptor->rate = rate;
 							descriptor->sampling =
-							    SAMPLING_NONE;
+							    FS_SAMPLING_NONE;
 							source_descriptor_from_v4l2(
 							    descriptor,
 							    v4l2_device, &cap,
@@ -724,7 +740,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							descriptor++;
 
 							descriptor->format =
-							    FORMAT_YUV444_UINT8;
+							    FS_FORMAT_YUV444_UINT8;
 							descriptor->width =
 							    frame_interval
 							        .width;
@@ -733,7 +749,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							        .height;
 							descriptor->rate = rate;
 							descriptor->sampling =
-							    SAMPLING_UPSAMPLED;
+							    FS_SAMPLING_UPSAMPLED;
 							source_descriptor_from_v4l2(
 							    descriptor,
 							    v4l2_device, &cap,
@@ -741,7 +757,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							descriptor++;
 
 							descriptor->format =
-							    FORMAT_Y_UINT8;
+							    FS_FORMAT_Y_UINT8;
 							descriptor->width =
 							    frame_interval
 							        .width;
@@ -750,7 +766,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							        .height;
 							descriptor->rate = rate;
 							descriptor->sampling =
-							    SAMPLING_DOWNSAMPLED;
+							    FS_SAMPLING_DOWNSAMPLED;
 							source_descriptor_from_v4l2(
 							    descriptor,
 							    v4l2_device, &cap,
@@ -762,7 +778,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 						                        // stream
 						                        // format
 							descriptor->format =
-							    FORMAT_YUV444_UINT8;
+							    FS_FORMAT_YUV444_UINT8;
 							descriptor->width =
 							    frame_interval
 							        .width;
@@ -771,7 +787,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							        .height;
 							descriptor->rate = rate;
 							descriptor->sampling =
-							    SAMPLING_UPSAMPLED;
+							    FS_SAMPLING_UPSAMPLED;
 							source_descriptor_from_v4l2(
 							    descriptor,
 							    v4l2_device, &cap,
@@ -779,7 +795,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							descriptor++;
 
 							descriptor->format =
-							    FORMAT_Y_UINT8;
+							    FS_FORMAT_Y_UINT8;
 							descriptor->width =
 							    frame_interval
 							        .width;
@@ -788,7 +804,7 @@ v4l2_frameserver_get_source_descriptors(v4l2_source_descriptor_t** sds,
 							        .height;
 							descriptor->rate = rate;
 							descriptor->sampling =
-							    SAMPLING_DOWNSAMPLED;
+							    FS_SAMPLING_DOWNSAMPLED;
 							source_descriptor_from_v4l2(
 							    descriptor,
 							    v4l2_device, &cap,
@@ -840,22 +856,21 @@ bool
 v4l2_frameserver_test()
 {
 	printf("Running V4L2 Frameserver Test\n");
-	frameserver_instance_t* frameserver =
+	struct frameserver* frameserver =
 	    frameserver_create(FRAMESERVER_TYPE_V4L2);
 	if (!frameserver) {
 		printf("FAILURE: Could not create frameserver.\n");
 		return false;
 	}
 	uint32_t camera_count = 0;
-	if (!frameserver->frameserver_enumerate_sources(frameserver, NULL,
-	                                                &camera_count)) {
+	if (!frameserver_enumerate_sources(frameserver, NULL, &camera_count)) {
 		printf("FAILURE: Could not get camera count.\n");
 		return false;
 	}
-	v4l2_source_descriptor_t* camera_list =
-	    U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t, camera_count);
-	if (!frameserver->frameserver_enumerate_sources(
-	        frameserver, camera_list, &camera_count)) {
+	struct v4l2_source_descriptor* camera_list =
+	    U_TYPED_ARRAY_CALLOC(struct v4l2_source_descriptor, camera_count);
+	if (!frameserver_enumerate_sources(frameserver, camera_list,
+	                                   &camera_count)) {
 		printf("FAILURE: Could not get camera descriptors\n");
 		return false;
 	}
@@ -866,7 +881,7 @@ v4l2_frameserver_test()
 }
 
 static bool
-source_descriptor_from_v4l2(v4l2_source_descriptor_t* descriptor,
+source_descriptor_from_v4l2(struct v4l2_source_descriptor* descriptor,
                             char* v4l2_device,
                             struct v4l2_capability* cap,
                             struct v4l2_fmtdesc* desc)
