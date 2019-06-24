@@ -47,9 +47,9 @@ if(BUILD_DRIVER_MONTRACK)
 	endif()
 	if(BUILD_WITH_FFMPEG)
 		list(APPEND DRIVER_LIBRARIES
-			libavformat
-			libavcodec
-			libavutil)
+			avformat
+			avcodec
+			avutil)
 	endif()
 
 
