@@ -108,8 +108,10 @@ ffmpeg_frameserver_create(frameserver_instance_t* inst)
 		    ffmpeg_frameserver_configure_capture;
 		inst->frameserver_frame_get = ffmpeg_frameserver_get;
 		inst->frameserver_is_running = ffmpeg_frameserver_is_running;
+/*
 		inst->frameserver_register_frame_callback =
 		    ffmpeg_frameserver_register_frame_callback;
+*/
 		inst->frameserver_register_event_callback =
 		    ffmpeg_frameserver_register_event_callback;
 		inst->frameserver_seek = ffmpeg_frameserver_seek;
