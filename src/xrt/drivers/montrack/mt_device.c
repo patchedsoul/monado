@@ -102,7 +102,7 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 
 	dummy_init_mt_device(md);
 
-	if (strcmp(device_name, "MONO_PS3EYE") == 0) {
+    /*if (strcmp(device_name, "MONO_PS3EYE") == 0) {
 		if (mt_create_mono_ps3eye(md)) {
 			return md;
 		}
@@ -126,7 +126,7 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 		if (mt_create_uvbi_hdk(md)) {
 			return md;
 		}
-	}
+    }*/
 
 	if (strcmp(device_name, "STEREO_PS4_60FPS") == 0) {
 		if (mt_create_stereo_ps4(md)) {
@@ -138,7 +138,7 @@ mt_device_create(char* device_name, bool log_verbose, bool log_debug)
 	return NULL;
 }
 
-bool
+/*bool
 mt_create_mono_ps3eye(mt_device_t* md)
 {
 	md->frameserver_count = 1; // this driver uses a single camera source
@@ -571,7 +571,7 @@ mt_create_uvbi_hdk(mt_device_t* md)
 
 	return true;
 }
-
+*/
 bool
 mt_create_stereo_ps4(mt_device_t* md)
 {

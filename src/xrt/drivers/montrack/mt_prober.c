@@ -55,9 +55,9 @@ mt_prober_autoprobe(struct xrt_auto_prober* p)
 
 	// mt_device_t* mtd =
 	// mt_device_create("STEREO_LOGITECH_C270",true,true);
-	mt_device_t* mtd = mt_device_create("STEREO_PS4_60FPS", true, true);
-
-	return &mtd->base;
+    //mt_device_t* mtd = mt_device_create("STEREO_PS4_60FPS", true, true);
+    return NULL;
+    //return &mtd->base;
 }
 
 struct xrt_auto_prober*

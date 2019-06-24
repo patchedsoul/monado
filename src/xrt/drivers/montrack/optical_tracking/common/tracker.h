@@ -111,6 +111,7 @@ typedef struct _tracker_instance
 	int debug_fd, debug_socket, socket_read;
 	int debug_client_fd;
 	bool client_connected;
+    bool configured;
 	struct sockaddr_in debug_address;
 } tracker_instance_t;
 

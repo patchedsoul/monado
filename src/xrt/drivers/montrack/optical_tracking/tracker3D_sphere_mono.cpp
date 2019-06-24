@@ -14,7 +14,6 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
 
 typedef struct tracker3D_sphere_mono_instance
 {
-	bool configured;
 	measurement_consumer_callback_func measurement_target_callback;
 	void* measurement_target_instance; // where we send our measurements
 	event_consumer_callback_func event_target_callback;
@@ -71,7 +70,6 @@ tracker3D_sphere_mono_create(tracker_instance_t* inst)
 		    cv::createBackgroundSubtractorMOG2(32, 16, false);
 
 		i->poses_consumed = false;
-		i->configured = false;
 		i->alloced_frames = false;
 		int intrinsics_dim = sqrt(INTRINSICS_SIZE);
 		i->intrinsics = cv::Mat(intrinsics_dim, intrinsics_dim, CV_32F);
@@ -109,7 +107,7 @@ tracker3D_sphere_mono_queue(tracker_instance_t* inst, frame_t* frame)
 {
 	tracker3D_sphere_mono_instance_t* internal =
 	    (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
-	if (!internal->configured) {
+    if (!inst->configured) {
 		printf(
 		    "ERROR: you must configure this tracker before it can "
 		    "accept frames\n");
@@ -462,11 +460,11 @@ tracker3D_sphere_mono_configure(tracker_instance_t* inst,
 	// return false if we cannot handle this config
 
 	if (config->format != FORMAT_Y_UINT8) {
-		internal->configured = false;
+        inst->configured = false;
 		return false;
 	}
 	internal->configuration = *config;
-	internal->configured = true;
+    inst->configured = true;
 	return true;
 }
 
