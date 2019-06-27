@@ -3,7 +3,8 @@ typedef enum driver_event_type
 {
 	EVENT_NONE,
 	EVENT_FRAMESERVER_GOTFRAME,
-	EVENT_TRACKER_RECONFIGURED
+    EVENT_TRACKER_RECONFIGURED,
+    EVENT_CALIBRATION_DONE
 } driver_event_type_t;
 
 typedef struct driver_event

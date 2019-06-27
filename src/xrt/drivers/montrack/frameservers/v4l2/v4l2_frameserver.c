@@ -360,7 +360,7 @@ v4l2_frameserver_stream_run(void* ptr)
 		// if our config is invalidated at runtime, reconfigure
 		if (!internal->is_configured) {
 			// defaults - auto-anything off
-			// uvc_set_ae_mode(internal->device_handle, 1);
+            // uvc_set_ae_mode(internal->device_handle, 1);
 			// uvc_set_ae_priority(internal->device_handle,0);
 			// we may need to enumerate the control range..
 			// uvc_set_exposure_abs(internal->device_handle,internal->capture_params.exposure

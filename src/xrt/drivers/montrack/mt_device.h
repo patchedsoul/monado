@@ -21,11 +21,24 @@ extern "C" {
 #endif
 
 
+typedef struct frameserver_model {
+    char model_name[128];
+    uint32_t vendor_id;
+    uint32_t product_id;
+    char driver_name[128];
+} frameserver_model_t;
+
+typedef struct frameserver_config_request{
+    uint32_t width;
+    uint32_t height;
+    uint32_t fps;
+} frameserver_config_request_t;
+
 typedef struct mt_device
 {
 	struct xrt_device base;
-	frameserver_instance_t* frameservers[MAX_FRAMESERVERS];
-	uint32_t frameserver_count;
+    uint32_t frameserver_count;
+    frameserver_instance_t** frameservers;
 	tracker_instance_t* tracker;
 	// TODO: merge these configurations to be descriptive of
 	// n-source trackers
@@ -45,27 +58,22 @@ mt_device(struct xrt_device* xdev)
 mt_device_t*
 mt_device_create(char* device_name, bool log_verbose, bool log_debug);
 
-bool
-mt_create_mono_ps3eye(mt_device_t* md); // mono blob tracker, ps3 60fps camera
-bool
-mt_create_mono_c270(
-    mt_device_t* md); // mono blob tracker, logitech 30fps c270 camera
-bool
-mt_create_stereo_elp(
-    mt_device_t* md); // stereo tracker, ELP 60fps stereo camera
-bool
-mt_create_uvbi_elp(mt_device_t* md); // uvbi tracker, ELP 60fps stereo camera
-bool
-mt_create_uvbi_hdk(mt_device_t* md); // uvbi tracker, OSVR HDK 100fps IR camera
-bool
-mt_create_stereo_ps4(
-    mt_device_t* md); // stereo tracker, PS4 60fps stereo camera
+frameserver_instance_t*
+mt_frameserver_create(char* model,frameserver_config_request_t config_req, bool log_verbose, bool log_debug);
+
+static bool
+mt_create_calibration_stereo(
+    mt_device_t* md); // stereo tracker for calibration
 
 void
 mt_handle_event(mt_device_t* md, driver_event_t e);
 
 void
 dummy_init_mt_device(mt_device_t* md);
+
+static void
+mt_device_update_inputs(struct xrt_device *xdev,
+                          struct time_state *timekeeping);
 
 
 #ifdef __cplusplus

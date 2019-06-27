@@ -15,9 +15,33 @@
 tracker_instance_t*
 tracker_create(tracker_type_t t)
 {
-	tracker_instance_t* i = U_TYPED_CALLOC(tracker_instance_t);
+    tracker_instance_t* i = U_TYPED_CALLOC(tracker_instance_t);
 	if (i) {
 		switch (t) {
+        case TRACKER_TYPE_CALIBRATION_MONO:
+            i->tracker_type = t;
+            i->internal_instance = tracker3D_calibration_mono_create(i);
+            i->tracker_get_capture_params = tracker3D_calibration_mono_get_capture_params;
+            i->tracker_get_poses = tracker3D_calibration_get_poses;
+            i->tracker_get_debug_frame = tracker3D_calibration_mono_get_debug_frame;
+            i->tracker_queue = tracker3D_calibration_mono_queue;
+            i->tracker_register_measurement_callback = tracker3D_calibration_register_measurement_callback;
+            i->tracker_register_event_callback = tracker3D_calibration_mono_register_event_callback;
+            i->tracker_has_new_poses = tracker3D_calibration_new_poses;
+            i->tracker_configure = tracker3D_calibration_mono_configure;
+            break;
+        case TRACKER_TYPE_CALIBRATION_STEREO:
+            i->tracker_type = t;
+            i->internal_instance = tracker3D_calibration_stereo_create(i);
+            i->tracker_get_capture_params = tracker3D_calibration_stereo_get_capture_params;
+            i->tracker_get_poses = tracker3D_calibration_get_poses;
+            i->tracker_get_debug_frame = tracker3D_calibration_stereo_get_debug_frame;
+            i->tracker_queue = tracker3D_calibration_stereo_queue;
+            i->tracker_register_measurement_callback = tracker3D_calibration_register_measurement_callback;
+            i->tracker_register_event_callback = tracker3D_calibration_stereo_register_event_callback;
+            i->tracker_has_new_poses = tracker3D_calibration_new_poses;
+            i->tracker_configure = tracker3D_calibration_stereo_configure;
+            break;
 		case TRACKER_TYPE_SPHERE_MONO:
 			i->tracker_type = t;
 			i->internal_instance = tracker3D_sphere_mono_create(i);
@@ -34,7 +58,8 @@ tracker_create(tracker_type_t t)
 			i->tracker_has_new_poses =
 			    tracker3D_sphere_mono_new_poses;
 			i->tracker_configure = tracker3D_sphere_mono_configure;
-			break;
+
+            break;
 		case TRACKER_TYPE_SPHERE_STEREO:
 			i->tracker_type = t;
 			i->internal_instance =
@@ -95,6 +120,7 @@ tracker_create(tracker_type_t t)
 		}
 		i->debug_address.sin_family = AF_INET;
 		i->debug_address.sin_addr.s_addr = INADDR_ANY;
+        // TODO: use different port for each tracker
 		i->debug_address.sin_port = htons(6666);
 		if (bind(i->debug_fd, (struct sockaddr*)&i->debug_address,
 		         sizeof(i->debug_address)) < 0) {

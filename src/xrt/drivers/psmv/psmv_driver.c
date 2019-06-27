@@ -25,6 +25,7 @@
 
 #include <optical_tracking/common/tracker.h>
 #include <mt_framequeue.h>
+#include <pthread.h>
 
 
 /*
@@ -197,6 +198,8 @@ struct psmv_device
 	tracker_instance_t* tracker;
 	uint32_t tracked_objects;
 	tracked_object_t* tracked_object_array;
+    uint64_t last_frame_seq;
+    pthread_t* tracking_thread;
 
 	bool print_spew;
 	bool print_debug;
@@ -208,6 +211,8 @@ struct psmv_device
  * Internal functions.
  *
  */
+
+static void* psmv_tracking_run(void* arg);
 
 static inline struct psmv_device *
 psmv_device(struct xrt_device *xdev)
@@ -412,34 +417,8 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 	struct psmv_device *psmv = psmv_device(xdev);
 
 	psmv_read_hid(psmv);
-    if (! psmv->tracker->configured)
-    {
-       // hook up our tracker to an available frame source that will work
-       // TODO: don't assume a suitable input will be on source id 0
-       frame_queue_t* fq = frame_queue_instance();
-       if (fq->source_frames[0].format == FORMAT_YUV444_UINT8) {
-           frame_t* source = &fq->source_frames[0];
-           tracker_stereo_configuration_t tc;
-           frame_rect_t l_rect;
-           frame_rect_t r_rect;
-           tc.l_format = source->format;
-           tc.r_format = FORMAT_NONE;
-           tc.split_left = true;
-           tc.l_source_id = source->source_id;
-           l_rect.tl.x=0.0f;
-           l_rect.tl.y=0.0f;
-           l_rect.br.x=source->width/2.0f;
-           l_rect.br.y=source->height;
-           r_rect.tl.x=source->width/2.0f;
-           r_rect.tl.y=0.0f;
-           r_rect.br.x=source->width;
-           r_rect.br.y=source->height;
-           // TODO: if this fails, we will just keep trying.. not ideal
-           psmv->tracker->tracker_configure(psmv->tracker,&tc);
-       }
-       // no frames yet, or source not suitable - just carry on.
-    }
 
+    //TODO: get the latest pose from the tracker and send it down the pipe
 }
 
 static void
@@ -543,12 +522,85 @@ psmv_found(struct xrt_prober *xp,
 
     // create our tracker and determine tracked object count
     // we will defer full configuration until a frame is available
+
+
     psmv->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
+
+    // if we want to generate a calibration, we can use this calibration tracker,
+    // instead of the above. this will move to a standalone application.
+    // TODO: note the config in the tracker run thread will determine the filename,
+    // this should be passed through from the frameserver.
+
+    // psmv->tracker = tracker_create(TRACKER_TYPE_CALIBRATION_STEREO);
+
+    // initialise some info about how many objects are tracked, and the initial frame seq.
     psmv->tracker->tracker_get_poses(psmv->tracker,NULL,&psmv->tracked_objects);
-
-
+    psmv->last_frame_seq = 0;
+    pthread_create(&psmv->tracking_thread,NULL,psmv_tracking_run,psmv);
 
 	// And finally done
 	*out_xdev = &psmv->base;
 	return 0;
+}
+
+void* psmv_tracking_run(void* arg) {
+    struct psmv_device* psmv = (struct psmv_device*) arg;
+    frame_queue_t* fq = frame_queue_instance();
+    frame_t f;
+    //TODO: orderly shutdown
+    while(1) {
+        if (frame_queue_ref_latest(fq,0,&f)) {
+
+            if (! psmv->tracker->configured)
+            {
+                // we need to set up our tracker. currently
+                // we hardcode the source id to 0 - assuming only one camera
+                // is running.
+
+                // we also assume our calibration will be available in the specified filename.
+                // this should come from the framserver source descriptor, somehow.
+                if (fq->source_frames[0].format == FORMAT_YUV444_UINT8) {
+                   frame_t* source = &fq->source_frames[0];
+                   tracker_stereo_configuration_t tc;
+                   //TODO: pass this through the framequeue
+                   snprintf(tc.configuration_filename,256,"PETE");
+
+                   // set up our side-by-side split.
+                   // TODO: this should probably be camera-specific.
+                   tc.l_format = source->format;
+                   tc.r_format = FORMAT_NONE;
+                   tc.split_left = true;
+                   tc.l_source_id = source->source_id;
+                   tc.l_rect.tl.x=0.0f;
+                   tc.l_rect.tl.y=0.0f;
+                   tc.l_rect.br.x=source->width/2.0f;
+                   tc.l_rect.br.y=source->height;
+                   tc.r_rect.tl.x=source->width/2.0f;
+                   tc.r_rect.tl.y=0.0f;
+                   tc.r_rect.br.x=source->width;
+
+                   tc.r_rect.br.y=source->height;
+                   // TODO: if this fails, we will just keep trying.. not ideal
+                   psmv->tracker->tracker_configure(psmv->tracker,&tc);
+               }
+            }
+
+
+
+            //printf("psmv ref %d\n",f.source_sequence);
+            if (f.source_sequence > psmv->last_frame_seq)
+            {
+                //printf("psmv tracking\n");
+                psmv->tracker->tracker_queue(psmv->tracker,&f);
+                psmv->last_frame_seq = f.source_sequence;
+                //printf("unrefing tracked %d\n",f.source_sequence);
+                frame_queue_unref(fq,&f);
+                usleep(1000);
+            } else {
+                //printf("unrefing unused %d\n",f.source_sequence);
+                frame_queue_unref(fq,&f);
+                usleep(1000);
+            }
+        }
+    }
 }

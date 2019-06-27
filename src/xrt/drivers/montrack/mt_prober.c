@@ -24,6 +24,7 @@ typedef struct mt_prober
 	struct xrt_auto_prober base;
 	bool log_verbose;
 	bool log_debug;
+    frameserver_instance_t* frameserver;
 } mt_prober_t;
 
 static inline mt_prober_t*
@@ -36,26 +37,25 @@ static void
 mt_prober_destroy(struct xrt_auto_prober* xp)
 {
 	mt_prober_t* mp = mt_prober(xp);
-
-	free(mp);
+    free(mp);
 }
 
 static struct xrt_device*
 mt_prober_autoprobe(struct xrt_auto_prober* p)
-{
-	// struct mt_prober* mp = mt_prober(p);
+{ 
+    //TODO: create a 'dummy' device that just holds frameserver(s)
 
-	// here we would call functions to consult our config, check devices
-	// are present etc. - for now we will attempt to create a mono blob
-	// tracker, with any uvc camera we can use
+    //just used to create a calibration tracker
+    /*mt_device_t* mtd = mt_device_create("CALIBRATION_STEREO", true, true);
 
-	// mt_device_t* mtd = mt_device_create("MONO_LOGITECH_C270",true,true);
-	// mt_device_t* mtd = mt_device_create("STEREO_ELP_60FPS",true,true);
-	// mt_device_t* mtd = mt_device_create("MONO_PS3EYE",true,true);
-
-	// mt_device_t* mtd =
-	// mt_device_create("STEREO_LOGITECH_C270",true,true);
-    //mt_device_t* mtd = mt_device_create("STEREO_PS4_60FPS", true, true);
+    mtd->frameserver_count= 1;
+    mtd->frameservers = calloc(1,sizeof(void*));
+    frameserver_config_request_t config_req;
+    config_req.fps = 60;
+    config_req.width = 1280;
+    config_req.height = 480;
+    mtd->frameservers[0] = mt_frameserver_create("PS4EYE",config_req,true,true);
+*/
     return NULL;
     //return &mtd->base;
 }
@@ -68,6 +68,5 @@ mt_create_auto_prober()
 	mp->base.lelo_dallas_autoprobe = mt_prober_autoprobe;
 	mp->log_verbose = debug_get_bool_option_mt_verbose();
 	mp->log_debug = debug_get_bool_option_mt_debug();
-
-	return &mp->base;
+    return &mp->base;
 }

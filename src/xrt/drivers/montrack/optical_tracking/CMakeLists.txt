@@ -6,7 +6,7 @@ include_directories(
 	)
 
 set(OPTICAL_TRACKING_SOURCE_FILES
-	common/calibration.c
+        common/calibration.cpp
 	common/calibration.h
 	common/tracked_object.h
 	common/tracked_object.c

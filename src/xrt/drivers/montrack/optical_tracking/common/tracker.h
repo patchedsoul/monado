@@ -2,7 +2,6 @@
 #define TRACKER_H
 #include <xrt/xrt_defines.h>
 #include <frameserver.h>
-#include "calibration.h"
 #include "tracked_object.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -12,17 +11,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef enum tracker_calibration_mode
-{
-	CALIBRATION_MODE_NONE,
-	CALIBRATION_MODE_CHESSBOARD
-} tracker_calibration_mode_t;
-typedef enum tracker_event_desc
-{
-	TRACKER_EVENT_NONE,
-	TRACKER_EVENT_RECONFIGURED
-} tracker_event_desc_t;
 
 typedef struct tracker_measurement
 {
@@ -37,14 +25,12 @@ typedef enum tracker_type
 	TRACKER_TYPE_NONE,
 	TRACKER_TYPE_SPHERE_STEREO,
 	TRACKER_TYPE_SPHERE_MONO,
-	TRACKER_TYPE_UVBI
+    TRACKER_TYPE_UVBI,
+    TRACKER_TYPE_CALIBRATION_STEREO,
+    TRACKER_TYPE_CALIBRATION_MONO
 } tracker_type_t;
 
-typedef struct tracker_event
-{
-	tracker_type_t type;
-	tracker_event_desc_t event;
-} tracker_event_t;
+
 
 struct _tracker_instance;
 
@@ -58,8 +44,7 @@ typedef void (*measurement_consumer_callback_func)(
 typedef struct tracker_mono_configuration
 {
 	char configuration_filename[256]; // TODO: maybe too small?
-	tracker_calibration_mode_t calibration_mode;
-	// camera_calibration_t calibration;
+    // camera_calibration_t calibration;
 	frame_format_t format;
 	uint64_t source_id;
 } tracker_mono_configuration_t;
@@ -67,8 +52,7 @@ typedef struct tracker_mono_configuration
 typedef struct tracker_stereo_configuration
 {
 	char configuration_filename[256]; // TODO: maybe too small?
-	tracker_calibration_mode_t calibration_mode;
-	// camera_calibration_t l_calibration;
+    // camera_calibration_t l_calibration;
 	// camera_calibration_t r_calibration;
 	frame_format_t l_format;
 	uint64_t l_source_id;

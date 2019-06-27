@@ -127,17 +127,7 @@ tracker3D_sphere_mono_queue(tracker_instance_t* inst, frame_t* frame)
 	// TODO: asynchronous tracker thread
 
 	memcpy(internal->frame_gray.data, frame->data, frame->size_bytes);
-
-	switch (internal->configuration.calibration_mode) {
-	case CALIBRATION_MODE_NONE:
-		return tracker3D_sphere_mono_track(inst);
-		break;
-	case CALIBRATION_MODE_CHESSBOARD:
-		return tracker3D_sphere_mono_calibrate(inst);
-		break;
-	default: printf("ERROR: unrecognised calibration mode\n"); return false;
-	}
-	return true;
+    return tracker3D_sphere_mono_track(inst);
 }
 
 
@@ -252,6 +242,7 @@ tracker3D_sphere_mono_track(tracker_instance_t* inst)
 
 	return true;
 }
+/*
 bool
 tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 {
@@ -420,7 +411,7 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 	tracker_send_debug_frame(inst);
 
 	return true;
-}
+}*/
 
 bool
 tracker3D_sphere_mono_get_poses(tracker_instance_t* inst,
@@ -463,7 +454,41 @@ tracker3D_sphere_mono_configure(tracker_instance_t* inst,
         inst->configured = false;
 		return false;
 	}
-	internal->configuration = *config;
+    if (! internal->calibrated)
+    {
+        cv::Mat intrinsics;
+        cv::Mat distortion;
+        cv::Mat distortion_fisheye;
+        cv::Mat mat_image_size;
+
+        char path_string[1024];
+        char* config_path = secure_getenv("HOME");
+        snprintf(path_string, 1024, "%s/.config/monado/%s.calibration",
+                 config_path, internal->configuration.configuration_filename);
+
+        printf("TRY LOADING CONFIG FROM %s\n", path_string);
+        FILE* calib_file = fopen(path_string, "rb");
+        if (calib_file) {
+            // read our calibration from this file
+            read_mat(calib_file, &intrinsics);
+            read_mat(calib_file, &distortion);
+            read_mat(calib_file, &distortion_fisheye);
+            read_mat(calib_file, &mat_image_size);
+
+            cv::Size image_size(mat_image_size.at<float>(0,0),mat_image_size.at<float>(0,1));
+
+            cv::initUndistortRectifyMap(
+                internal->intrinsics, internal->distortion, cv::noArray(),
+                internal->intrinsics, image_size, CV_32FC1,
+                internal->undistort_map_x, internal->undistort_map_y);
+
+            printf("calibrated cameras! setting tracking mode\n");
+            internal->calibrated = true;
+        }
+    }
+
+
+    internal->configuration = *config;
     inst->configured = true;
 	return true;
 }

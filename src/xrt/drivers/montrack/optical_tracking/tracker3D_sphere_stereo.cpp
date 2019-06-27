@@ -52,23 +52,8 @@ typedef struct tracker3D_sphere_stereo_instance
 
 
 	cv::Mat debug_rgb;
-	cv::Mat l_intrinsics;
-	cv::Mat l_distortion;
-	cv::Mat l_distortion_fisheye;
-	cv::Mat l_translation;
-	cv::Mat l_rotation;
-	cv::Mat l_projection;
-	cv::Mat r_intrinsics;
-	cv::Mat r_distortion;
-	cv::Mat r_distortion_fisheye;
-	cv::Mat r_translation;
-	cv::Mat r_rotation;
-	cv::Mat r_projection;
 
-	cv::Mat zero_distortion;
-	cv::Mat zero_distortion_fisheye;
-
-	cv::Matx44d disparity_to_depth;
+    cv::Mat disparity_to_depth;
 
 	cv::Mat l_undistort_map_x;
 	cv::Mat l_undistort_map_y;
@@ -128,14 +113,11 @@ tracker3D_sphere_stereo_create(tracker_instance_t* inst)
 		i->got_left = false;
 		i->got_right = false;
 
+        i->calibrated = false;
+
 
 		// alloc our debug frame here - opencv is h,w, not w,h
 		i->debug_rgb = cv::Mat(480, 640, CV_8UC3, cv::Scalar(0, 0, 0));
-
-		i->zero_distortion =
-		    cv::Mat(DISTORTION_SIZE, 1, CV_32F, cv::Scalar(0.0f));
-		i->zero_distortion_fisheye = cv::Mat(DISTORTION_FISHEYE_SIZE, 1,
-		                                     CV_32F, cv::Scalar(0.0f));
 
 		return i;
 	}
@@ -165,18 +147,9 @@ tracker3D_sphere_stereo_get_capture_params(tracker_instance_t* inst)
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	capture_parameters_t cp = {};
-	switch (internal->configuration.calibration_mode) {
-	case CALIBRATION_MODE_CHESSBOARD:
-		cp.exposure = 0.3f;
-		cp.gain = 0.01f;
-		break;
-	default:
-		cp.exposure = 1.0 / 2048.0;
-		cp.gain = 0.01f;
-		break;
-	}
-
-	return cp;
+    cp.exposure = 1.0 / 2048.0;
+    cp.gain = 0.01f;
+    return cp;
 }
 
 bool
@@ -291,18 +264,8 @@ tracker3D_sphere_stereo_queue(tracker_instance_t* inst, frame_t* frame)
 	// this async, rather than in queue
 
 	if (internal->got_left && internal->got_right) {
-		switch (internal->configuration.calibration_mode) {
-		case CALIBRATION_MODE_NONE:
-			return tracker3D_sphere_stereo_track(inst);
-			break;
-		case CALIBRATION_MODE_CHESSBOARD:
-			return tracker3D_sphere_stereo_calibrate(inst);
-			break;
-		default:
-			printf("ERROR: unrecognised calibration mode\n");
-			return false;
-		}
-	}
+        return tracker3D_sphere_stereo_track(inst);
+    }
 	return true;
 }
 
@@ -310,20 +273,20 @@ bool
 tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 {
 
-	// printf("tracking...\n");
-	tracker3D_sphere_stereo_instance_t* internal =
+    tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	internal->l_keypoints.clear();
 	internal->r_keypoints.clear();
 
+
 	// DEBUG: dump all our planes out for inspection
-	/*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
+    /*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
 	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
 	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
 	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
 	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
-	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
-*/
+    cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);*/
+
 
 	// disabled channel combining in favour of using v plane directly - Y is
 	// 2x resolution
@@ -366,8 +329,7 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	          internal->r_rectify_map_x, internal->r_rectify_map_y,
 	          cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
-
-	// block-match for disparity calculation - disabled
+   // block-match for disparity calculation - disabled
 
 	cv::Mat disp;
 	cv::Ptr<cv::StereoBM> sbm = cv::StereoBM::create(128, 5);
@@ -416,8 +378,17 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	// TODO: handle source images larger than debug_rgb
 	cv::Mat debug_img;
 	cv::cvtColor(internal->l_frame_gray, debug_img, CV_GRAY2BGR);
-	cv::Mat dst_roi =
-	    internal->debug_rgb(cv::Rect(0, 0, debug_img.cols, debug_img.rows));
+    int32_t cropped_rows = debug_img.rows;
+    int32_t cropped_cols = debug_img.cols;
+
+    if (debug_img.rows > internal->debug_rgb.rows || debug_img.cols > internal->debug_rgb.cols)
+    {
+        cropped_rows = internal->debug_rgb.rows;
+        cropped_cols = internal->debug_rgb.rows;
+
+    }
+    cv::Mat dst_roi =
+        internal->debug_rgb(cv::Rect(0, 0, cropped_cols, cropped_rows));
 	debug_img.copyTo(dst_roi);
 
 
@@ -428,8 +399,7 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	                      internal->l_keypoints); //,internal->l_mask_gray);
 	internal->sbd->detect(internal->r_frame_gray,
 	                      internal->r_keypoints); //,internal->r_mask_gray);
-
-	// do some basic matching to come up with likely disparity-pairs
+    // do some basic matching to come up with likely disparity-pairs
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
 	for (uint32_t i = 0; i < internal->l_keypoints.size(); i++) {
 		cv::KeyPoint l_blob = internal->l_keypoints[i];
@@ -469,7 +439,7 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 			cv::Vec4d xydw(l_blobs[i].pt.x, l_blobs[i].pt.y, disp,
 			               1.0f);
 			// Transform
-			cv::Vec4d h_world = internal->disparity_to_depth * xydw;
+            cv::Vec4d h_world = (cv::Matx44d)internal->disparity_to_depth * xydw;
 			// Divide by scale to get 3D vector from homogeneous
 			// coordinate
 			world_points.push_back(cv::Point3f(
@@ -549,319 +519,6 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 }
 
 bool
-tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
-{
-
-	printf("calibrating...\n");
-
-	// check if we have saved calibration data. if so, just use it.
-	tracker3D_sphere_stereo_instance_t* internal =
-	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
-
-
-	char path_string[256]; // TODO: 256 maybe not enough
-	// TODO: use multiple env vars?
-	char* config_path = secure_getenv("HOME");
-	snprintf(path_string, 256, "%s/.config/monado/%s.calibration",
-	         config_path,
-	         internal->configuration
-	             .configuration_filename); // TODO: hardcoded 256
-
-	printf("TRY LOADING CONFIG FROM %s\n", path_string);
-	FILE* calib_file = fopen(path_string, "rb");
-	if (calib_file) {
-		// read our calibration from this file
-		read_mat(calib_file, &internal->l_intrinsics);
-		read_mat(calib_file, &internal->r_intrinsics);
-		read_mat(calib_file, &internal->l_distortion);
-		read_mat(calib_file, &internal->r_distortion);
-		read_mat(calib_file, &internal->l_distortion_fisheye);
-		read_mat(calib_file, &internal->r_distortion_fisheye);
-		read_mat(calib_file, &internal->l_rotation);
-		read_mat(calib_file, &internal->r_rotation);
-		read_mat(calib_file, &internal->l_translation);
-		read_mat(calib_file, &internal->r_translation);
-		read_mat(calib_file, &internal->l_projection);
-		read_mat(calib_file, &internal->r_projection);
-		cv::Mat disparity_to_depth;
-		read_mat(calib_file, &disparity_to_depth);
-		internal->disparity_to_depth = disparity_to_depth;
-		cv::Size image_size(internal->l_frame_gray.cols,
-		                    internal->l_frame_gray.rows);
-		// TODO: save data indicating calibration image size
-		// and multiply intrinsics accordingly
-
-		cv::fisheye::initUndistortRectifyMap(
-		    internal->l_intrinsics, internal->l_distortion_fisheye,
-		    cv::noArray(), internal->l_intrinsics, image_size, CV_32FC1,
-		    internal->l_undistort_map_x, internal->l_undistort_map_y);
-		cv::fisheye::initUndistortRectifyMap(
-		    internal->r_intrinsics, internal->r_distortion_fisheye,
-		    cv::noArray(), internal->r_intrinsics, image_size, CV_32FC1,
-		    internal->r_undistort_map_x, internal->r_undistort_map_y);
-
-		cv::initUndistortRectifyMap(
-		    internal->l_intrinsics, internal->zero_distortion,
-		    internal->l_rotation, internal->l_projection, image_size,
-		    CV_32FC1, internal->l_rectify_map_x,
-		    internal->l_rectify_map_y);
-		cv::initUndistortRectifyMap(
-		    internal->r_intrinsics, internal->zero_distortion,
-		    internal->r_rotation, internal->r_projection, image_size,
-		    CV_32FC1, internal->r_rectify_map_x,
-		    internal->r_rectify_map_y);
-
-		printf("calibrated cameras! setting tracking mode\n");
-		internal->calibrated = true;
-		internal->configuration.calibration_mode =
-		    CALIBRATION_MODE_NONE;
-		// send an event to notify our driver of the switch into
-		// tracking mode.
-		driver_event_t e = {};
-		e.type = EVENT_TRACKER_RECONFIGURED;
-		internal->event_target_callback(internal->event_target_instance,
-		                                e);
-		return true;
-	}
-
-	// no saved file - perform interactive calibration.
-	// try and find a chessboard in both images, and run the calibration.
-	// - we need to define some mechanism for UI/user interaction.
-
-	// TODO: initialise this on construction and move this to internal state
-	cv::Size board_size(8, 6);
-	std::vector<cv::Point3f> chessboard_model;
-
-	for (uint32_t i = 0; i < board_size.width * board_size.height; i++) {
-		cv::Point3f p(i / board_size.width, i % board_size.width, 0.0f);
-		chessboard_model.push_back(p);
-	}
-
-	cv::Mat l_chessboard_measured;
-	cv::Mat r_chessboard_measured;
-	cv::Mat camera_rotation;
-	cv::Mat camera_translation;
-	cv::Mat camera_essential;
-	cv::Mat camera_fundamental;
-
-	// clear our debug image
-	cv::rectangle(
-	    internal->debug_rgb, cv::Point2f(0, 0),
-	    cv::Point2f(internal->debug_rgb.cols, internal->debug_rgb.rows),
-	    cv::Scalar(0, 0, 0), -1, 0);
-	cv::Mat disp8;
-	cv::cvtColor(internal->r_frame_gray, disp8, CV_GRAY2BGR);
-	// disp8.copyTo(internal->debug_rgb);
-	// we will collect samples continuously - the user should be able to
-	// wave a chessboard around randomly while the system calibrates.. we
-	// only add a sample when it increases the coverage area substantially,
-	// to give the solver a decent dataset.
-
-	bool found_left = cv::findChessboardCorners(
-	    internal->l_frame_gray, board_size, l_chessboard_measured);
-	bool found_right = cv::findChessboardCorners(
-	    internal->r_frame_gray, board_size, r_chessboard_measured);
-	char message[128];
-	message[0] = 0x0;
-
-	if (found_left && found_right) {
-		std::vector<cv::Point2f> coverage;
-		for (uint32_t i = 0;
-		     i < internal->l_chessboards_measured.size(); i++) {
-			cv::Rect brect = cv::boundingRect(
-			    internal->l_chessboards_measured[i]);
-			cv::rectangle(internal->debug_rgb, brect.tl(),
-			              brect.br(), cv::Scalar(0, 64, 32));
-
-			coverage.push_back(cv::Point2f(brect.tl()));
-			coverage.push_back(cv::Point2f(brect.br()));
-		}
-		cv::Rect pre_rect = cv::boundingRect(coverage);
-		cv::Rect brect = cv::boundingRect(l_chessboard_measured);
-		coverage.push_back(cv::Point2f(brect.tl()));
-		coverage.push_back(cv::Point2f(brect.br()));
-		cv::Rect post_rect = cv::boundingRect(coverage);
-
-		// std::cout << "COVERAGE: " << brect.area() << "\n";
-
-		cv::rectangle(internal->debug_rgb, post_rect.tl(),
-		              post_rect.br(), cv::Scalar(0, 255, 0));
-
-		if (post_rect.area() > pre_rect.area() + 500) {
-			// we will use the last n samples to calculate our
-			// calibration
-
-			if (internal->l_chessboards_measured.size() >
-			    MAX_CALIBRATION_SAMPLES) {
-				internal->l_chessboards_measured.erase(
-				    internal->l_chessboards_measured.begin());
-				internal->r_chessboards_measured.erase(
-				    internal->r_chessboards_measured.begin());
-			} else {
-				internal->chessboards_model.push_back(
-				    chessboard_model);
-			}
-
-			internal->l_chessboards_measured.push_back(
-			    l_chessboard_measured);
-			internal->r_chessboards_measured.push_back(
-			    r_chessboard_measured);
-		}
-
-		if (internal->l_chessboards_measured.size() ==
-		    MAX_CALIBRATION_SAMPLES) {
-			cv::Size image_size(internal->l_frame_gray.cols,
-			                    internal->l_frame_gray.rows);
-			cv::Mat errors;
-
-			// float rp_error =
-			// cv::stereoCalibrate(internal->chessboards_model,internal->l_chessboards_measured,internal->r_chessboards_measured,internal->l_intrinsics,internal->l_distortion,internal->r_intrinsics,internal->r_distortion,image_size,camera_rotation,camera_translation,camera_essential,camera_fundamental,errors,0);
-
-			float rp_error = cv::fisheye::stereoCalibrate(
-			    internal->chessboards_model,
-			    internal->l_chessboards_measured,
-			    internal->r_chessboards_measured,
-			    internal->l_intrinsics,
-			    internal->l_distortion_fisheye,
-			    internal->r_intrinsics,
-			    internal->r_distortion_fisheye, image_size,
-			    camera_rotation, camera_translation,
-			    cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC);
-
-			// we will generate undistort and rectify mappings
-			// separately
-
-
-			std::cout << "calibration rp_error" << rp_error << "\n";
-			std::cout << "calibration camera_translation"
-			          << camera_translation << "\n";
-
-			// TODO: handle both fisheye and normal cameras -right
-			// now I only have the fisheye
-
-			cv::fisheye::initUndistortRectifyMap(
-			    internal->l_intrinsics,
-			    internal->l_distortion_fisheye, cv::noArray(),
-			    internal->l_intrinsics, image_size, CV_32FC1,
-			    internal->l_undistort_map_x,
-			    internal->l_undistort_map_y);
-			cv::fisheye::initUndistortRectifyMap(
-			    internal->r_intrinsics,
-			    internal->r_distortion_fisheye, cv::noArray(),
-			    internal->r_intrinsics, image_size, CV_32FC1,
-			    internal->r_undistort_map_x,
-			    internal->r_undistort_map_y);
-
-			cv::stereoRectify(
-			    internal->l_intrinsics, internal->zero_distortion,
-			    internal->r_intrinsics, internal->zero_distortion,
-			    image_size, camera_rotation, camera_translation,
-			    internal->l_rotation, internal->r_rotation,
-			    internal->l_projection, internal->r_projection,
-			    internal->disparity_to_depth,
-			    cv::CALIB_ZERO_DISPARITY);
-
-			cv::initUndistortRectifyMap(
-			    internal->l_intrinsics, internal->zero_distortion,
-			    internal->l_rotation, internal->l_projection,
-			    image_size, CV_32FC1, internal->l_rectify_map_x,
-			    internal->l_rectify_map_y);
-			cv::initUndistortRectifyMap(
-			    internal->r_intrinsics, internal->zero_distortion,
-			    internal->r_rotation, internal->r_projection,
-			    image_size, CV_32FC1, internal->r_rectify_map_x,
-			    internal->r_rectify_map_y);
-
-			char path_string[PATH_MAX];
-			char file_string[PATH_MAX];
-			// TODO: centralise this - use multiple env vars?
-			char* config_path = secure_getenv("HOME");
-			snprintf(path_string, PATH_MAX, "%s/.config/monado",
-			         config_path);
-			snprintf(
-			    file_string, PATH_MAX,
-			    "%s/.config/monado/%s.calibration", config_path,
-			    internal->configuration.configuration_filename);
-
-			printf("TRY WRITING CONFIG TO %s\n", file_string);
-			FILE* calib_file = fopen(file_string, "wb");
-			if (!calib_file) {
-				// try creating it
-				mkpath(path_string);
-			}
-			calib_file = fopen(file_string, "wb");
-			if (!calib_file) {
-				printf(
-				    "ERROR. could not create calibration file "
-				    "%s\n",
-				    file_string);
-			} else {
-				write_mat(calib_file, &internal->l_intrinsics);
-				write_mat(calib_file, &internal->r_intrinsics);
-				write_mat(calib_file, &internal->l_distortion);
-				write_mat(calib_file, &internal->r_distortion);
-				write_mat(calib_file,
-				          &internal->l_distortion_fisheye);
-				write_mat(calib_file,
-				          &internal->r_distortion_fisheye);
-				write_mat(calib_file, &internal->l_rotation);
-				write_mat(calib_file, &internal->r_rotation);
-				write_mat(calib_file, &internal->l_translation);
-				write_mat(calib_file, &internal->r_translation);
-				write_mat(calib_file, &internal->l_projection);
-				write_mat(calib_file, &internal->r_projection);
-				cv::Mat disparity_to_depth(
-				    internal->disparity_to_depth);
-				write_mat(calib_file, &disparity_to_depth);
-
-
-				fclose(calib_file);
-			}
-
-			printf("calibrated cameras! setting tracking mode\n");
-			internal->calibrated = true;
-			internal->configuration.calibration_mode =
-			    CALIBRATION_MODE_NONE;
-			// send an event to notify our driver of the switch into
-			// tracking mode.
-			driver_event_t e = {};
-			e.type = EVENT_TRACKER_RECONFIGURED;
-			internal->event_target_callback(
-			    internal->event_target_instance, e);
-		}
-
-		snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
-		         internal->l_chessboards_measured.size() + 1,
-		         MAX_CALIBRATION_SAMPLES);
-	}
-
-
-	cv::drawChessboardCorners(internal->debug_rgb, board_size,
-	                          l_chessboard_measured, found_left);
-	cv::drawChessboardCorners(internal->debug_rgb, board_size,
-	                          r_chessboard_measured, found_right);
-
-	cv::putText(internal->debug_rgb, "CALIBRATION MODE",
-	            cv::Point2i(160, 240), 0, 1.0f, cv::Scalar(192, 192, 192));
-	cv::putText(internal->debug_rgb, message, cv::Point2i(160, 460), 0,
-	            0.5f, cv::Scalar(192, 192, 192));
-
-	// DEBUG: write out our image planes to confirm imagery is arriving as
-	// expected
-	/*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
-	cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
-	cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
-	cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
-	cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
-	cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);
-*/
-	tracker_send_debug_frame(inst);
-	printf("calibrating f end\n");
-	return true;
-}
-
-
-bool
 tracker3D_sphere_stereo_get_poses(tracker_instance_t* inst,
                                   tracked_object_t* objects,
                                   uint32_t* count)
@@ -902,7 +559,82 @@ tracker3D_sphere_stereo_configure(tracker_instance_t* inst,
         inst->configured = false;
 		return false;
 	}
-	internal->configuration = *config;
+
+    //load calibration data
+
+    if (! internal->calibrated) {
+
+        cv::Mat l_intrinsics;
+        cv::Mat l_distortion;
+        cv::Mat l_distortion_fisheye;
+        cv::Mat l_translation;
+        cv::Mat l_rotation;
+        cv::Mat l_projection;
+        cv::Mat r_intrinsics;
+        cv::Mat r_distortion;
+        cv::Mat r_distortion_fisheye;
+        cv::Mat r_translation;
+        cv::Mat r_rotation;
+        cv::Mat r_projection;
+        cv::Mat mat_image_size;
+
+        cv::Mat zero_distortion =
+                cv::Mat(DISTORTION_SIZE, 1, CV_32F, cv::Scalar(0.0f));;
+
+        char path_string[256]; // TODO: 256 maybe not enough
+        // TODO: use multiple env vars?
+        char* config_path = secure_getenv("HOME");
+        snprintf(path_string, 256, "%s/.config/monado/%s.calibration",
+             config_path,
+             config->configuration_filename); // TODO: hardcoded 256
+
+        printf("TRY LOADING CONFIG FROM %s\n", path_string);
+        FILE* calib_file = fopen(path_string, "rb");
+        if (calib_file) {
+            // read our calibration from this file
+            read_mat(calib_file, &l_intrinsics);
+            read_mat(calib_file, &r_intrinsics);
+            read_mat(calib_file, &l_distortion);
+            read_mat(calib_file, &r_distortion);
+            read_mat(calib_file, &l_distortion_fisheye);
+            read_mat(calib_file, &r_distortion_fisheye);
+            read_mat(calib_file, &l_rotation);
+            read_mat(calib_file, &r_rotation);
+            read_mat(calib_file, &l_translation);
+            read_mat(calib_file, &r_translation);
+            read_mat(calib_file, &l_projection);
+            read_mat(calib_file, &r_projection);
+            read_mat(calib_file, &internal->disparity_to_depth);
+            read_mat(calib_file, &mat_image_size);
+
+            cv::Size image_size(mat_image_size.at<float>(0,0),
+                            mat_image_size.at<float>(0,1));
+
+        cv::fisheye::initUndistortRectifyMap(
+            l_intrinsics, l_distortion_fisheye,
+            cv::noArray(), l_intrinsics, image_size, CV_32FC1,
+            internal->l_undistort_map_x, internal->l_undistort_map_y);
+        cv::fisheye::initUndistortRectifyMap(
+            r_intrinsics, r_distortion_fisheye,
+            cv::noArray(), r_intrinsics, image_size, CV_32FC1,
+            internal->r_undistort_map_x, internal->r_undistort_map_y);
+
+        cv::initUndistortRectifyMap(
+            l_intrinsics, zero_distortion,
+            l_rotation, l_projection, image_size,
+            CV_32FC1, internal->l_rectify_map_x,
+            internal->l_rectify_map_y);
+        cv::initUndistortRectifyMap(
+            r_intrinsics, zero_distortion,
+            r_rotation, r_projection, image_size,
+            CV_32FC1, internal->r_rectify_map_x,
+            internal->r_rectify_map_y);
+
+        printf("loaded calibration for camera!\n");
+        internal->calibrated = true;
+    }
+}
+    internal->configuration = *config;
     inst->configured=true;
 	return true;
 }

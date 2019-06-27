@@ -15,6 +15,7 @@ frame_queue_t* frame_queue_instance()
 			printf("ERROR: could not malloc!\n");
 			exit(0);
 		}
+        pthread_mutex_init(&fq->queue_lock,NULL);
 		frame_array_init(&fq->frames);
 		fq->source_id_counter=0;
         //make sure our source_frames is initialised to NULLs;
@@ -24,14 +25,14 @@ frame_queue_t* frame_queue_instance()
 }
 
 uint64_t frame_queue_uniq_source_id(frame_queue_t* fq) {
-	//TODO: locking
+    //pthread_mutex_lock(&fq->queue_lock);
     return fq->source_id_counter++;
+    //pthread_mutex_unlock(&fq->queue_lock);
 }
 
-
-frame_t* frame_queue_ref_latest(frame_queue_t* fq,uint32_t source_id){
+bool frame_queue_ref_latest(frame_queue_t* fq,uint32_t source_id, frame_t* cf){
 	//find the latest frame from this source, increment its refcount and return it
-	//TODO: locking
+    pthread_mutex_lock(&fq->queue_lock);
 	uint64_t highest_seq =0;
 	uint32_t selected_index=0;
 	frame_t* ret=NULL;
@@ -46,59 +47,70 @@ frame_t* frame_queue_ref_latest(frame_queue_t* fq,uint32_t source_id){
 	if (ret){
 		framedata_t* fd = &fq->frames.refdata[selected_index];
 		fd->refcount++;
-		return ret;
+        pthread_mutex_unlock(&fq->queue_lock);
+        *cf = *ret;
+        return true;
 	}
-	return NULL;
+    pthread_mutex_unlock(&fq->queue_lock);
+    return false;
 }
 
 void frame_queue_unref(frame_queue_t* fq,frame_t* f) {
 	//find the frame index, based on the source id and sequence id and decrement the corresponding index
-	//TODO: locking
+    //printf("unref %d\n",f->source_sequence);
+    pthread_mutex_lock(&fq->queue_lock);
 	uint32_t selected_index=0;
 	bool found =false;
 	for (uint32_t i =0;i<fq->frames.size;i++) {
 		frame_t* qf =&fq->frames.items[i];
+        //printf("F source %d sequence %d QF source %d sequence %d\n",f->source_id,f->source_sequence,qf->source_id,qf->source_sequence);
 		if (qf->source_id == f->source_id && qf->source_sequence == f->source_sequence) {
 			selected_index=i;
 			found =true;
+            break;
 		}
 	}
 	if (found){
 		framedata_t* fd = &fq->frames.refdata[selected_index];
-		fd->refcount--;
+        fd->refcount--;
 	}
+    else
+    {
+        printf("unref-ed frame not found! %d %d\n",f->source_id,f->source_sequence);
+    }
+    pthread_mutex_unlock(&fq->queue_lock);
 
 }
 void frame_queue_add(frame_queue_t* fq,frame_t* f) {
 	//delete any unrefed frames for this source, then add this new one
-	//TODO: locking
-
+    pthread_mutex_lock(&fq->queue_lock);
     //update our frame data for this source
     if (f->source_id < MAX_FRAME_SOURCES) {
         fq->source_frames[f->source_id] = *f;
         fq->source_frames[f->source_id].data = NULL;
     }
-	printf("queue add: existing size: %d\n",fq->frames.size);
+    //printf("queue add: %d\n",f->source_sequence);
 	uint32_t* indices_to_remove = malloc(sizeof(uint32_t) * fq->frames.size);
 	uint32_t c_index=0;
-	for (uint32_t i =0;i<fq->frames.size;i++) {
+    for (uint32_t i =0;i<fq->frames.size;i++) {
 		framedata_t* fd = &fq->frames.refdata[i];
-		printf("checking frame - refcount %d\n",fd->refcount);
-		if (fd->refcount == 0) {
+        //printf("checking frame %d - refcount %d\n",fq->frames.items[i].source_sequence,fd->refcount);
+        if (fd->refcount <= 0) {
 			indices_to_remove[c_index] = i;
 			c_index++;
 		}
 	}
-	printf("queue marking %d indices for removal\n",c_index);
+    //printf("queue marking %d indices for removal\n",c_index);
 
 	for (uint32_t i=0;i<c_index;i++)
 	{
 		frame_array_delete(&fq->frames,indices_to_remove[i]);
-		printf("queue deleting frame new size %d\n",fq->frames.size);
+        //printf("queue deleted frame new size %d\n",fq->frames.size);
 	}
 	free(indices_to_remove);
 	frame_array_add(&fq->frames,f);
-	printf("queue adding frame new size %d\n",fq->frames.size);
+    //printf("queue adding frame new size %d\n",fq->frames.size);
+    pthread_mutex_unlock(&fq->queue_lock);
 
 }
 
@@ -166,8 +178,9 @@ frame_t* frame_array_get(frame_array_t* fa, uint32_t index)
 
 void frame_array_delete(frame_array_t* fa, uint32_t index)
 {
-	if (index >= fa->size) {
-		return;
+    if (index > fa->size) {
+        printf("asked to delete non-existen index %d\n",index);
+        return;
 	}
 
 	framedata_t* fd = &fa->refdata[index];

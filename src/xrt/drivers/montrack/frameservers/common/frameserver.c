@@ -160,15 +160,11 @@ frame_resample(frame_t* source, frame_t* out)
 				source_ptr = source->data +
 				             (j * source_pixel_bytes) +
 				             (i * source_line_bytes);
-				dest_ptr = out->data + (j * dest_pixel_bytes) +
-				           (i * dest_line_bytes);
+                dest_ptr = out->data + (j * dest_pixel_bytes) + (i * dest_line_bytes);
 				*dest_ptr = *source_ptr; // Y
 				if (j % 2 == 0) {
-					*(dest_ptr + 1) =
-					    *(source_ptr + 1); // U
-					*(dest_ptr + 2) =
-					    *(source_ptr +
-					      3); // V from next source pixel
+                    *(dest_ptr + 1) = *(source_ptr + 1); // U
+                    *(dest_ptr + 2) = *(source_ptr + 3); // V from next source pixel
 					lastU = *(dest_ptr + 1);
 				} else {
 					*(dest_ptr + 1) = lastU;
