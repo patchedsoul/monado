@@ -80,8 +80,8 @@ v4l2_frameserver_enumerate_sources(struct frameserver* inst,
 	// struct v4l2_frameserver* internal = v4l2_frameserver(inst);
 	struct v4l2_source_descriptor* sources =
 	    (struct v4l2_source_descriptor*)sources_generic;
-	char device_files[64][256]; // max of 64 video4linux devices supported
-	                            // TODO: maybe 256 too small
+	char device_files[64][512]; // max of 64 video4linux devices supported
+	                            // TODO: maybe 512 too small
 	char* base_path =
 	    "/dev/v4l/by-id"; // TODO: does this path work everywhere?
 	DIR* dir;
@@ -97,9 +97,9 @@ v4l2_frameserver_enumerate_sources(struct frameserver* inst,
 	while ((dentry = readdir(dir)) != NULL) {
 		if (strcmp(dentry->d_name, ".") != 0 &&
 		    strcmp(dentry->d_name, "..") != 0) {
-			snprintf(device_files[device_count], 256, "%s/%s",
+			snprintf(device_files[device_count], 512, "%s/%s",
 			         base_path,
-			         dentry->d_name); // TODO: hardcoded 256
+			         dentry->d_name); // TODO: hardcoded 512
 			device_count++;
 		}
 	}
@@ -325,7 +325,7 @@ v4l2_frameserver_stream_run(void* ptr)
 			// Silence valgrind.
 			memset(mem[i], 0, v_buf.length);
 
-			v_buf.m.userptr = mem[i];
+			v_buf.m.userptr = (intptr_t)mem[i];
 		} else {
 			mem[i] = mmap(0, v_buf.length, PROT_READ, MAP_SHARED,
 			              fd, v_buf.m.offset);
@@ -348,8 +348,8 @@ v4l2_frameserver_stream_run(void* ptr)
 	}
 
 	uint8_t* cropped_buffer = NULL;
-	struct fs_frame f =
-	    {}; // we dequeue buffers into this frame in our main loop
+	struct fs_frame f = {0};
+	// we dequeue buffers into this frame in our main loop
 	if (internal->source_descriptor.crop_scanline_bytes_start > 0) {
 		uint32_t alloc_size = internal->source_descriptor.crop_width *
 		                      internal->source_descriptor.height *
@@ -646,7 +646,7 @@ v4l2_frameserver_get_source_descriptors(struct v4l2_source_descriptor** sds,
 
 	uint32_t sd_count = 0;
 	struct v4l2_capability cap;
-	struct v4l2_format fmt;
+	// struct v4l2_format fmt;
 	// open the device, and check if is a video source
 
 	int fd = open(v4l2_device, O_RDWR, 0);
@@ -891,16 +891,16 @@ source_descriptor_from_v4l2(struct v4l2_source_descriptor* descriptor,
 	strncpy(descriptor->device_path, v4l2_device,
 	        256);                       // TODO: hardcoded 256
 	descriptor->device_path[255] = 0x0; // TODO: hardcoded 256
-	strncpy(descriptor->name, cap->driver, 32);
+	strncpy(descriptor->name, (char*)cap->driver, 32);
 	descriptor->name[127] = 0x0;
-	strncpy(descriptor->model, cap->card, 32);
+	strncpy(descriptor->model, (char*)cap->card, 32);
 	descriptor->model[127] = 0x0;
 	descriptor->stream_format = desc->pixelformat;
 	descriptor->crop_scanline_bytes_start = 0;
 	// special-case the PS4 Eye camera  - need to crop the main stereo image
 	// out of the composite (header+audio + main + interlaced) frame the
 	// driver produces
-	if (strcmp(cap->card, "USB Camera-OV580: USB Camera-OV") == 0) {
+	if (strcmp((char*)cap->card, "USB Camera-OV580: USB Camera-OV") == 0) {
 		descriptor->crop_scanline_bytes_start = 96;
 		descriptor->crop_width = 2560; // assume highest res
 		if (descriptor->width < 900) {

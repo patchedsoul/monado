@@ -36,12 +36,14 @@ enum fs_frame_format
 	FS_FORMAT_YUV420_UINT8,
 	FS_FORMAT_JPG
 };
+
 enum fs_stereo_format
 {
 	FS_STEREO_NONE,
 	FS_STEREO_SBS,
 	FS_STEREO_OAU
 };
+
 enum fs_plane
 {
 	FS_PLANE_NONE,
@@ -52,17 +54,20 @@ enum fs_plane
 	FS_PLANE_U,
 	FS_PLANE_V
 };
+
 enum fs_chroma_sampling
 {
 	FS_CHROMA_SAMP_NONE,
 	FS_CHROMA_SAMP_444,
 	FS_CHROMA_SAMP_422,
 	FS_CHROMA_SAMP_411
-};
+}
+;
 enum fs_plane_layout
 {
 	FS_PLANE_LAYOUT_COMPOSITE,
 	FS_PLANE_LAYOUT_SEPARATE
+
 };
 enum fs_sampling
 {

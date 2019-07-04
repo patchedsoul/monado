@@ -188,6 +188,8 @@ tracker3D_sphere_mono_track(tracker_instance_t* inst)
 	internal->sbd->detect(internal->frame_gray, internal->keypoints,
 	                      internal->mask_gray);
 	bool ret = cv::imwrite("/tmp/out.jpg", internal->frame_gray);
+	(void)ret;
+
 	// ret = cv::imwrite("/tmp/mask.jpg",internal->mask_gray);
 
 	cv::KeyPoint blob;
@@ -263,6 +265,7 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 	                    internal->frame_gray.rows);
 
 	bool ret = cv::imwrite("/tmp/out.jpg", internal->frame_gray);
+	(void)ret;
 
 
 	// TODO: use multiple env vars? - centralise this
@@ -308,7 +311,7 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 	cv::Size board_size(8, 6);
 	std::vector<cv::Point3f> chessboard_model;
 
-	for (uint32_t i = 0; i < board_size.width * board_size.height; i++) {
+	for (int i = 0; i < board_size.width * board_size.height; i++) {
 		cv::Point3f p(i / board_size.width, i % board_size.width, 0.0f);
 		chessboard_model.push_back(p);
 	}
@@ -355,6 +358,7 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 			    internal->chessboards_measured, image_size,
 			    internal->intrinsics, internal->distortion, rvecs,
 			    tvecs);
+			(void)rp_error;
 
 			cv::initUndistortRectifyMap(
 			    internal->intrinsics, internal->distortion,
@@ -403,7 +407,7 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 			    internal->event_target_instance, e);
 		} else {
 			snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
-			         internal->chessboards_measured.size() + 1,
+			         (uint32_t)internal->chessboards_measured.size() + 1,
 			         MAX_CALIBRATION_SAMPLES);
 		}
 	}
@@ -450,10 +454,11 @@ tracker3D_sphere_mono_new_poses(tracker_instance_t* inst)
 	return internal->poses_consumed;
 }
 
-bool
+extern "C" bool
 tracker3D_sphere_mono_configure(tracker_instance_t* inst,
-                                tracker_mono_configuration_t* config)
+                                tracker_configuration_ptr void_config)
 {
+	auto config = (tracker_mono_configuration_t*)void_config;
 	tracker3D_sphere_mono_instance_t* internal =
 	    (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
 	// return false if we cannot handle this config

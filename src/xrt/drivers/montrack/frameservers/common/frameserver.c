@@ -90,6 +90,7 @@ fs_frame_size_in_bytes(struct fs_frame* f)
 		case FS_FORMAT_JPG:
 			// this is a maximum (assuming YUV444)
 			frame_bytes = f->width * f->height * 3;
+			break;
 		case FS_FORMAT_RAW:
 		case FS_FORMAT_NONE:
 		default: printf("cannot compute frame size for this format\n");

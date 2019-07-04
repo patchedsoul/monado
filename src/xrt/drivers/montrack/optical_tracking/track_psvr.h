@@ -7,8 +7,8 @@
 
 #define NUM_LEDS 9
 
-static const char* LED_LABELS[] = {"LU", "RU", "C",  "LL", "RL",
-                                   "LS", "RS", "LB", "RB"};
+static XRT_MAYBE_UNUSED const char* LED_LABELS[] = {
+    "LU", "RU", "C", "LL", "RL", "LS", "RS", "LB", "RB"};
 
 #ifdef __cplusplus
 extern "C" {

@@ -391,11 +391,11 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 	// internal->background_subtractor->apply(internal->l_frame_gray,internal->l_mask_gray);
 	// internal->background_subtractor->apply(internal->r_frame_gray,internal->r_mask_gray);
 
-	xrt_vec2 lastPos = internal->l_tracked_blob.center;
-	float offset = ROI_OFFSET;
-	if (internal->l_tracked_blob.diameter > ROI_OFFSET) {
-		offset = internal->l_tracked_blob.diameter;
-	}
+	// xrt_vec2 lastPos = internal->l_tracked_blob.center;
+	// float offset = ROI_OFFSET;
+	// if (internal->l_tracked_blob.diameter > ROI_OFFSET) {
+	//	offset = internal->l_tracked_blob.diameter;
+	// }
 
 	// cv::rectangle(internal->l_mask_gray,
 	// cv::Point2f(lastPos.x-offset,lastPos.y-offset),cv::Point2f(lastPos.x+offset,lastPos.y+offset),cv::Scalar(
@@ -559,10 +559,10 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 
 
-	char path_string[256]; // TODO: 256 maybe not enough
+	char path_string[512]; // TODO: 256 maybe not enough
 	// TODO: use multiple env vars?
 	char* config_path = secure_getenv("HOME");
-	snprintf(path_string, 256, "%s/.config/monado/%s.calibration",
+	snprintf(path_string, 512, "%s/.config/monado/%s.calibration",
 	         config_path,
 	         internal->configuration
 	             .configuration_filename); // TODO: hardcoded 256
@@ -631,7 +631,7 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 	cv::Size board_size(8, 6);
 	std::vector<cv::Point3f> chessboard_model;
 
-	for (uint32_t i = 0; i < board_size.width * board_size.height; i++) {
+	for (int i = 0; i < board_size.width * board_size.height; i++) {
 		cv::Point3f p(i / board_size.width, i % board_size.width, 0.0f);
 		chessboard_model.push_back(p);
 	}
@@ -829,7 +829,7 @@ tracker3D_sphere_stereo_calibrate(tracker_instance_t* inst)
 		}
 
 		snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
-		         internal->l_chessboards_measured.size() + 1,
+		         (uint32_t)internal->l_chessboards_measured.size() + 1,
 		         MAX_CALIBRATION_SAMPLES);
 	}
 
@@ -888,10 +888,11 @@ tracker3D_sphere_stereo_new_poses(tracker_instance_t* inst)
 	return internal->poses_consumed;
 }
 
-bool
+extern "C" bool
 tracker3D_sphere_stereo_configure(tracker_instance_t* inst,
-                                  tracker_stereo_configuration_t* config)
+                                  tracker_configuration_ptr void_config)
 {
+	auto config = (tracker_stereo_configuration_t*)void_config;
 	tracker3D_sphere_stereo_instance_t* internal =
 	    (tracker3D_sphere_stereo_instance_t*)inst->internal_instance;
 	// return false if we cannot handle this config

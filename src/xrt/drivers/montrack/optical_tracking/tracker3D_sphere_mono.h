@@ -39,7 +39,7 @@ bool
 tracker3D_sphere_mono_new_poses(tracker_instance_t* inst);
 bool
 tracker3D_sphere_mono_configure(tracker_instance_t* inst,
-                                tracker_mono_configuration_t* config);
+                                tracker_configuration_ptr config);
 void
 tracker3D_sphere_mono_register_measurement_callback(
     tracker_instance_t* inst,

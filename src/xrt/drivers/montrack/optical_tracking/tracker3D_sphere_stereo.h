@@ -41,7 +41,7 @@ bool
 tracker3D_sphere_stereo_new_poses(tracker_instance_t* inst);
 bool
 tracker3D_sphere_stereo_configure(tracker_instance_t* inst,
-                                  tracker_stereo_configuration_t* config);
+                                  tracker_configuration_ptr config);
 void
 tracker3D_sphere_stereo_register_measurement_callback(
     tracker_instance_t* inst,
