@@ -25,3 +25,19 @@ math_euler_to_quat(struct xrt_vec3 euler, struct xrt_quat* q)
 	q->w=1.0f;
 
 }
+
+int
+math_min(int a, int b) {
+    if (a > b) {
+        return b;
+    }
+    return a;
+}
+
+int
+math_max(int a, int b) {
+    if (a > b) {
+        return a;
+    }
+    return b;
+}

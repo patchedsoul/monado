@@ -224,8 +224,8 @@ tracker3D_sphere_mono_track(tracker_instance_t* inst)
 
 		// printf("%f %f %f\n",x,y,z);
 
-		m.has_position = true;
-		m.timestamp = 0;
+		m.flags = (tracker_measurement_flags_t)(MEASUREMENT_POSITION | MEASUREMENT_OPTICAL);
+		m.source_timestamp=0;
 		m.pose.position.x = x;
 		m.pose.position.y = y;
 		m.pose.position.z = z;

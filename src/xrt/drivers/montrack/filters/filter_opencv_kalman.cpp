@@ -40,10 +40,11 @@ filter_opencv_kalman_queue(filter_instance_t* inst,
 	filter_opencv_kalman_instance_t* internal =
 	    filter_opencv_kalman_instance(inst->internal_instance);
 	printf("queueing measurement in filter\n");
-	internal->observation.at<float>(0, 0) = measurement->pose.position.x;
-	internal->observation.at<float>(1, 0) = measurement->pose.position.y;
-	internal->observation.at<float>(2, 0) = measurement->pose.position.z;
-	internal->kalman_filter.correct(internal->observation);
+	measurement_queue_add(inst->measurement_queue,measurement);
+	//internal->observation.at<float>(0, 0) = measurement->pose.position.x;
+	//internal->observation.at<float>(1, 0) = measurement->pose.position.y;
+	//internal->observation.at<float>(2, 0) = measurement->pose.position.z;
+	//internal->kalman_filter.correct(internal->observation);
 	internal->running = true;
 	return false;
 }
@@ -68,6 +69,11 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
 	if (!internal->running) {
 		return false;
 	}
+	//get all our measurements including the last optical frame,
+	//and run our filter on them to make a prediction
+
+	tracker_measurement_t* measurement_array;
+
 	internal->prediction = internal->kalman_filter.predict();
 	state->has_position = true;
 	state->pose.position.x = internal->prediction.at<float>(0, 0);

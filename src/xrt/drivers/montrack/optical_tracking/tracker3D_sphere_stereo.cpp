@@ -477,8 +477,7 @@ tracker3D_sphere_stereo_track(tracker_instance_t* inst)
 		cv::Point3f world_point = world_points[tracked_index];
 
 		// create our measurement for the filter
-		m.has_position = true;
-		m.has_rotation = false;
+		m.flags = (tracker_measurement_flags_t)(MEASUREMENT_POSITION | MEASUREMENT_OPTICAL);
 		m.pose.position.x = world_point.x;
 		m.pose.position.y = world_point.y;
 		m.pose.position.z = world_point.z;

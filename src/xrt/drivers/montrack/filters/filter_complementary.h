@@ -4,6 +4,7 @@
 #include <xrt/xrt_defines.h>
 #include "common/filter.h"
 #include "common/measurementqueue.h"
+#include <stdlib.h>
 
 typedef struct filter_complementary_configuration
 {

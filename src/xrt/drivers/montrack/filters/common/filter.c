@@ -1,4 +1,5 @@
 #include "filter.h"
+#include "filter_complementary.h"
 #include "filter_opencv_kalman.h"
 #include <string.h>
 
@@ -18,9 +19,21 @@ filter_create(filter_type_t t)
 			    filter_opencv_kalman_predict_state;
 			i->filter_set_state = filter_opencv_kalman_set_state;
 			i->filter_queue = filter_opencv_kalman_queue;
-			i->internal_instance = (filter_internal_instance_ptr)
-			    filter_opencv_kalman_create(i);
+			i->internal_instance = filter_opencv_kalman_create(i);
+			i->measurement_queue = measurement_queue_create();
 			break;
+        case FILTER_TYPE_COMPLEMENTARY:
+            i->tracker_type = t;
+            i->filter_configure = filter_complementary_configure;
+            i->filter_get_state = filter_complementary_get_state;
+            i->filter_predict_state =
+                filter_complementary_predict_state;
+            i->filter_set_state = filter_complementary_set_state;
+            i->filter_queue = filter_complementary_queue;
+            i->internal_instance = filter_complementary_create(i);
+            i->measurement_queue = measurement_queue_create();
+
+            break;
 		case FILTER_TYPE_NONE:
 		default:
 			free(i);

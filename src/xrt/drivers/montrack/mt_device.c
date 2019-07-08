@@ -31,7 +31,7 @@
 //#IFDEF have_v4l2
 #include "frameservers/v4l2/v4l2_frameserver.h"
 
-#include "mt_framequeue.h"
+#include <mt_framequeue.h>
 
 
 static void

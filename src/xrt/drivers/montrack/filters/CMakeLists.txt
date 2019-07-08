@@ -10,8 +10,13 @@ include_directories(
 set(FILTER_SOURCE_FILES
 	common/filter.h
 	common/filter.c
+	common/measurementqueue.h
+	common/measurementqueue.c
 	filter_opencv_kalman.cpp
 	filter_opencv_kalman.h
+	filter_complementary.c
+	filter_complementary.h
+
 	)
 
 # Use OBJECT to not create a archive, since it just gets in the way.

@@ -3,17 +3,13 @@
 
 #include <xrt/xrt_defines.h>
 #include "common/filter.h"
+#include "common/measurementqueue.h"
 
 typedef struct opencv_filter_configuration
 {
 	float measurement_noise_cov;
 	float process_noise_cov;
 } opencv_filter_configuration_t;
-
-typedef struct opencv_kalman_filter_state
-{
-	struct xrt_pose pose;
-} opencv_kalman_filter_state_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,11 +22,11 @@ typedef struct filter_opencv_kalman_instance_t filter_opencv_kalman_instance_t;
 filter_opencv_kalman_instance_t*
 filter_opencv_kalman_create(filter_instance_t* inst);
 bool
-filter_opencv_kalman__destroy(filter_instance_t* inst);
-
+filter_opencv_kalman_destroy(filter_instance_t* inst);
 bool
 filter_opencv_kalman_queue(filter_instance_t* inst,
                            tracker_measurement_t* measurement);
+
 bool
 filter_opencv_kalman_get_state(filter_instance_t* inst, filter_state_t* state);
 bool
@@ -41,7 +37,7 @@ filter_opencv_kalman_predict_state(filter_instance_t* inst,
                                    timepoint_ns time);
 bool
 filter_opencv_kalman_configure(filter_instance_t* inst,
-                               filter_configuration_ptr config_generic);
+                               filter_configuration_ptr config);
 
 #ifdef __cplusplus
 } // extern "C"

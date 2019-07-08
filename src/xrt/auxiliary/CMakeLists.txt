@@ -8,6 +8,7 @@ set(MATH_SOURCE_FILES
 	math/m_hash.cpp
 	math/m_optics.c
 	math/m_quatexpmap.cpp
+	math/m_track.c
 	)
 
 set(OS_SOURCE_FILES

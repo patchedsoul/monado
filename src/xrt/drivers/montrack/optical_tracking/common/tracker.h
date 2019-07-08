@@ -12,12 +12,25 @@
 extern "C" {
 #endif
 
+typedef enum tracker_measurement_flags {MEASUREMENT_NONE=0,
+	                                    MEASUREMENT_POSITION=1,
+	                                    MEASUREMENT_ROTATION=2,
+	                                    MEASUREMENT_RAW_ACCEL=4,
+	                                    MEASUREMENT_RAW_GYRO=8,
+	                                    MEASUREMENT_RAW_MAG=16,
+	                                    MEASUREMENT_OPTICAL=32,
+	                                    MEASUREMENT_IMU=64,
+                                       } tracker_measurement_flags_t;
 typedef struct tracker_measurement
 {
 	struct xrt_pose pose;
-	bool has_position;
-	bool has_rotation;
-	timepoint_ns timestamp;
+	struct xrt_vec3 accel;
+	struct xrt_vec3 gyro;
+	struct xrt_vec3 mag;
+	tracker_measurement_flags_t flags;
+    int64_t source_timestamp;
+    uint8_t source_id;
+    uint64_t source_sequence;
 } tracker_measurement_t;
 
 typedef enum tracker_type

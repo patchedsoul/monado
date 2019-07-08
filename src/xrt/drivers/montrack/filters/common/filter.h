@@ -2,7 +2,8 @@
 #define FILTER_H
 #include <xrt/xrt_defines.h>
 #include <../auxiliary/util/u_time.h>
-#include <../optical_tracking/common/tracker.h>
+#include <optical_tracking/common/tracker.h>
+#include "measurementqueue.h"
 
 typedef void* filter_instance_ptr;
 typedef void* filter_internal_instance_ptr;
@@ -14,18 +15,20 @@ typedef struct filter_state
 	struct xrt_pose pose;
 	bool has_position;
 	bool has_rotation;
+	struct xrt_vec3 rotation_euler;
 	struct xrt_vec3 velocity;
 	struct xrt_vec3 acceleration;
 	struct xrt_quat angular_velocity;
 	struct xrt_quat angular_accel;
-	timepoint_ns timestamp;
+    int64_t timestamp;
 } filter_state_t;
 
 
 typedef enum filter_type
 {
 	FILTER_TYPE_NONE,
-	FILTER_TYPE_OPENCV_KALMAN
+	FILTER_TYPE_OPENCV_KALMAN,
+	FILTER_TYPE_COMPLEMENTARY
 } filter_type_t;
 
 typedef struct _filter_instance
@@ -43,6 +46,7 @@ typedef struct _filter_instance
 	bool (*filter_configure)(filter_instance_ptr inst,
 	                         filter_configuration_ptr config);
 	filter_internal_instance_ptr internal_instance;
+	measurement_queue_t* measurement_queue;
 } filter_instance_t;
 
 filter_instance_t*

@@ -24,8 +24,12 @@
 #include <unistd.h>
 
 #include <optical_tracking/common/tracker.h>
+#include <filters/filter_complementary.h>
+
+
 #include <mt_framequeue.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 
 /*
@@ -198,8 +202,13 @@ struct psmv_device
 	tracker_instance_t* tracker;
 	uint32_t tracked_objects;
 	tracked_object_t* tracked_object_array;
-    uint64_t last_frame_seq;
+
+	filter_instance_t* filter;
+
+	uint64_t last_frame_seq;
     pthread_t* tracking_thread;
+    int64_t start_us;
+
 
 	bool print_spew;
 	bool print_debug;
@@ -252,8 +261,8 @@ psmv_read_hid(struct psmv_device *psmv)
 		input.buttons |= data.input.buttons[1] << 16;
 		input.buttons |= data.input.buttons[2] << 8;
 		input.buttons |= data.input.buttons[3] & 0xf0;
-		input.timestamp |= data.input.timestamp_low;
-		input.timestamp |= data.input.timestamp_high << 8;
+        input.timestamp = data.input.timestamp_low;
+        input.timestamp |= data.input.timestamp_high << 8;
 
 		input.frame[0].trigger = data.input.trigger_f1;
 		psmv_vec3_from_16_be_to_32(&input.frame[0].accel,
@@ -266,7 +275,8 @@ psmv_read_hid(struct psmv_device *psmv)
 		psmv_vec3_from_16_be_to_32(&input.frame[1].gyro,
 		                           &data.input.gyro_f2);
 
-		int32_t diff = input.timestamp - psmv->last.timestamp;
+        int16_t diff = input.timestamp - psmv->last.timestamp;
+
 		bool missed = input.seq_no != ((psmv->last.seqno + 1) & 0x0f);
 
 		psmv->last.trigger = input.frame[1].trigger;
@@ -274,6 +284,26 @@ psmv_read_hid(struct psmv_device *psmv)
 		psmv->last.seqno = input.seq_no;
 		psmv->last.buttons = input.buttons;
 
+		if (psmv->filter) {
+			tracker_measurement_t m = {0};
+			m.flags = (tracker_measurement_flags_t)(MEASUREMENT_IMU | MEASUREMENT_RAW_ACCEL | MEASUREMENT_RAW_GYRO);
+            m.accel.x = input.frame[1].accel.x;
+            m.accel.y = input.frame[1].accel.y;
+            m.accel.z = input.frame[1].accel.z;
+			m.gyro.x = input.frame[1].gyro.x;
+			m.gyro.y = input.frame[1].gyro.y;
+			m.gyro.z = input.frame[1].gyro.z;
+            m.source_id = 0;
+			m.source_sequence = input.seq_no;
+
+            //m.source_timestamp = input.timestamp;
+
+
+            psmv->start_us += (diff*10000);
+            m.source_timestamp = psmv->start_us;
+            //printf("queueing timestamp %lld %d %d %d\n",m.source_timestamp,input.timestamp,diff,input.seq_no);
+			psmv->filter->filter_queue(psmv->filter,&m);
+		}
 
 		PSMV_SPEW(psmv,
 		          "\n\t"
@@ -298,6 +328,8 @@ psmv_read_hid(struct psmv_device *psmv)
 		          input.frame[0].gyro.z, input.frame[1].trigger,
 		          input.timestamp, diff, input.seq_no);
 	} while (true);
+
+
 
 	return 0;
 }
@@ -417,8 +449,9 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 	struct psmv_device *psmv = psmv_device(xdev);
 
 	psmv_read_hid(psmv);
-
-    //TODO: get the latest pose from the tracker and send it down the pipe
+	filter_state_t fs;
+	psmv->filter->filter_get_state(psmv->filter,&fs);
+	out_relation->pose = fs.pose;
 }
 
 static void
@@ -525,6 +558,17 @@ psmv_found(struct xrt_prober *xp,
 
 
     psmv->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
+	psmv->filter = filter_create(FILTER_TYPE_COMPLEMENTARY);
+
+    filter_complementary_configuration_t config;
+    config.bias = 0.1f;
+    config.scale = 3.14159 / 2.0f;
+    config.max_timestamp=65535; //ps move timestamps are 16 bit
+
+    psmv->filter->filter_configure(psmv->filter,&config);
+
+	//send our optical measurements to the filter
+	psmv->tracker->tracker_register_measurement_callback(psmv->tracker,psmv->filter,psmv->filter->filter_queue);
 
     // if we want to generate a calibration, we can use this calibration tracker,
     // instead of the above. this will move to a standalone application.
@@ -536,6 +580,9 @@ psmv_found(struct xrt_prober *xp,
     // initialise some info about how many objects are tracked, and the initial frame seq.
     psmv->tracker->tracker_get_poses(psmv->tracker,NULL,&psmv->tracked_objects);
     psmv->last_frame_seq = 0;
+    struct timeval tp;
+    gettimeofday(&tp,NULL);
+    psmv->start_us = tp.tv_sec * 1000000 + tp.tv_usec;
     pthread_create(&psmv->tracking_thread,NULL,psmv_tracking_run,psmv);
 
 	// And finally done
@@ -549,6 +596,7 @@ void* psmv_tracking_run(void* arg) {
     frame_t f;
     //TODO: orderly shutdown
     while(1) {
+
         if (frame_queue_ref_latest(fq,0,&f)) {
 
             if (! psmv->tracker->configured)

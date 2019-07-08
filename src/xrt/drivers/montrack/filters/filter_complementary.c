@@ -2,12 +2,15 @@
 #include "filter_complementary.h"
 #include "util/u_misc.h"
 
+
 struct filter_complementary_instance_t
 {
 	bool configured;
 	filter_complementary_configuration_t configuration;
 	filter_state_t last_state;
 	filter_state_t state;
+    float gyro_yaw_correction;
+    uint8_t avg_count;
 	float alpha;
 	bool running;
 };
@@ -44,39 +47,53 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
 {
 	filter_complementary_instance_t* internal =
 	    filter_complementary_instance(inst->internal_instance);
-	// printf("getting filtered pose\n");
-	if (!internal->running) {
+    if (!internal->running) {
 		return false;
 	}
 	tracker_measurement_t* measurement_array;
     uint64_t last_timestamp = internal->last_state.timestamp;
-    if (internal->configuration.max_timestamp > 0)
-    {
-        if (last_timestamp >= internal->configuration.max_timestamp){
-            //wrap timestamp
-            last_timestamp = internal->configuration.max_timestamp - last_timestamp;
-        }
-    }
     uint32_t count = measurement_queue_get_since_timestamp(inst->measurement_queue,0,last_timestamp,&measurement_array);
 	float one_minus_bias = 1.0f - internal->configuration.bias;
 	for (uint32_t i=0;i<count;i++)
 	{
 		tracker_measurement_t* m = &measurement_array[i];
-        float dt = (m->source_timestamp - internal->last_state.timestamp) * 0.0000001;
-        float normAccel = sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z+m->accel.z);
+        float dt = (m->source_timestamp - internal->last_state.timestamp) *0.00000001;
+        if (dt > 1.0f) {
+            internal->last_state.timestamp = m->source_timestamp;
+            return false; //this is our first frame, or something has gone wrong... big dt will blow up calculations.
+        }
+
+        float magAccel = sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z+m->accel.z);
+
+        //assume that, if acceleration is only gravity, then any change in the gyro is drift and update compensation
+        int avg_max = 32;
+        if (internal->avg_count < avg_max) {
+            internal->avg_count++;
+        }
+
+        printf("%f %f %f %f %f %f %f\n",m->accel.x,m->accel.y,m->accel.z,m->gyro.x,m->gyro.y,m->gyro.z,dt);
+
+        float accelDiff =1.0f;
+        if (internal->gyro_yaw_correction > 0.0f)
+        {
+            accelDiff = (magAccel - internal->gyro_yaw_correction) / internal->gyro_yaw_correction;
+        }
+
+        internal->gyro_yaw_correction = magAccel + (magAccel - internal->gyro_yaw_correction) / math_min(internal->avg_count,avg_max);
+        //printf("accelDiff %f magAccel: %f gyro.z %f yaw corr %f\n",accelDiff,magAccel,m->gyro.z, internal->gyro_yaw_correction);
 
 		//calculate filtered euler angles
-		internal->state.rotation_euler.z = internal->last_state.rotation_euler.z + m->gyro.z * dt;
-		internal->state.rotation_euler.y = internal->configuration.bias * (internal->last_state.rotation_euler.y + m->gyro.y * dt) + one_minus_bias * (m->accel.y * internal->configuration.scale/normAccel);
-		internal->state.rotation_euler.x = internal->configuration.bias * (internal->last_state.rotation_euler.x + m->gyro.x * dt) + one_minus_bias * (m->accel.x * internal->configuration.scale/normAccel);
+        internal->state.rotation_euler.z = internal->configuration.bias * (internal->last_state.rotation_euler.z + m->gyro.z * dt) + one_minus_bias * (m->accel.z * internal->configuration.scale/magAccel);
+        internal->state.rotation_euler.y = internal->configuration.bias * (internal->last_state.rotation_euler.y + m->gyro.y * dt) + one_minus_bias * (m->accel.y * internal->configuration.scale/magAccel);
+        internal->state.rotation_euler.x = internal->configuration.bias * (internal->last_state.rotation_euler.x + m->gyro.x * dt) + one_minus_bias * (m->accel.x * internal->configuration.scale/magAccel);
         internal->state.timestamp = m->source_timestamp;
         internal->last_state = internal->state;
-        printf("source tstamp: %lld\n",m->source_timestamp);
+        //printf("source tstamp: %lld\n",m->source_timestamp);
 	    }
 	//TODO: come up with a way to avoid alloc/free - use max length buffer?
 	free(measurement_array);
 	//convert to a quat for consumption as pose
-    printf(" integrated %d measurements after %lld X %f Y %f Z %f\n",count,last_timestamp,internal->state.rotation_euler.x,internal->state.rotation_euler.y,internal->state.rotation_euler.z);
+    //printf(" integrated %d measurements after %lld X %f Y %f Z %f\n",count,last_timestamp,internal->state.rotation_euler.x,internal->state.rotation_euler.y,internal->state.rotation_euler.z);
 	math_euler_to_quat(internal->state.rotation_euler,&internal->state.pose.orientation);
 	*state = internal->state;
 	return true;
@@ -108,6 +125,7 @@ filter_complementary_configure(filter_instance_t* inst,
 	filter_complementary_configuration_t* config =
 	    (filter_complementary_configuration_t*)config_generic;
 	internal->configuration = *config;
+    internal->gyro_yaw_correction=0.0f;
 	internal->configured = true;
 	return true;
 }
@@ -126,7 +144,11 @@ filter_complementary_create(filter_instance_t* inst)
 		// we a are a rotational-only filter
 		i->state.has_rotation = true;
 		i->state.has_position = false;
-		i->state.timestamp = 0;
+        i->state.timestamp = 0;
+        i->last_state.rotation_euler.x=0.0f;
+        i->last_state.rotation_euler.y=0.0f;
+        i->last_state.rotation_euler.z=0.0f;
+
 		i->last_state = i->state;
 		return i;
 	}

@@ -1,5 +1,5 @@
-#ifndef VECTOR_H
-#define VECTOR_H
+#ifndef MT_FRAMEQUEUE_H
+#define MT_FRAMEQUEUE_H
 
 #include <pthread.h>
 

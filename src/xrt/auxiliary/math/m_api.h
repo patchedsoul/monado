@@ -307,6 +307,16 @@ math_compute_fovs(double w_total,
                   double vertfov_total,
                   struct xrt_fov *fov);
 
+void
+math_euler_to_quat(struct xrt_vec3 euler, struct xrt_quat* q);
+
+int
+math_min(int a, int b);
+
+int
+math_max(int a, int b);
+
+
 #ifdef __cplusplus
 }
 #endif

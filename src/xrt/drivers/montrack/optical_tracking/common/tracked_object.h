@@ -8,6 +8,10 @@ typedef struct tracked_blob
 	struct xrt_vec2 center;
 	float diameter;
 	struct xrt_vec2 velocity;
+	uint32_t tracking_tag; // a tracker may assign an opaque tag to denote
+	                       // object type
+	uint32_t tracking_id; // a tracker may assign an opaque id to facilitate
+	                      // interframe correlation
 } tracked_blob_t;
 
 typedef struct tracked_object

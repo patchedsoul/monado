@@ -95,33 +95,33 @@ uint32_t measurement_queue_get_since_last_frame(measurement_queue_t* mq,uint32_t
 	return count;
 }
 
-uint32_t measurement_queue_get_since_timestamp(measurement_queue_t* mq,uint32_t source_id,uint64_t timestamp_ns,tracker_measurement_t** cm) {
+uint32_t measurement_queue_get_since_timestamp(measurement_queue_t* mq,uint32_t source_id,int64_t timestamp_us,tracker_measurement_t** cm) {
     pthread_mutex_lock(&mq->queue_lock);
     //iterate over our measurements, count the number of records we will copy
     //our starting timestamp is the one on our last frame
     uint32_t count=0;
     for (uint32_t i=mq->measurements.head_index;i<mq->measurements.size;i++) {
-        if (mq->measurements.items[i].source_timestamp > timestamp_ns) {
-           printf("H %lld\n",mq->measurements.items[i].source_timestamp);
+        if (mq->measurements.items[i].source_timestamp > timestamp_us) {
+           //printf("H %lld\n",mq->measurements.items[i].source_timestamp);
             count++;
         }
     }
     for (uint32_t i=0;i<mq->measurements.tail_index;i++) {
-        if (mq->measurements.items[i].source_timestamp > timestamp_ns) {
-            printf("0 %lld\n",mq->measurements.items[i].source_timestamp);
+        if (mq->measurements.items[i].source_timestamp > timestamp_us) {
+            //printf("0 %lld\n",mq->measurements.items[i].source_timestamp);
             count++;
         }
     }
     *cm = U_TYPED_ARRAY_CALLOC(tracker_measurement_t,count);
     count =0;
     for (uint32_t i=mq->measurements.head_index;i<mq->measurements.size;i++) {
-        if (mq->measurements.items[i].source_timestamp > timestamp_ns) {
+        if (mq->measurements.items[i].source_timestamp > timestamp_us) {
             memcpy(*cm+count,&mq->measurements.items[i],sizeof(tracker_measurement_t));
             count++;
         }
     }
     for (uint32_t i=0;i<mq->measurements.tail_index;i++) {
-        if (mq->measurements.items[i].source_timestamp > timestamp_ns) {
+        if (mq->measurements.items[i].source_timestamp > timestamp_us) {
             memcpy(*cm+count,&mq->measurements.items[i],sizeof(tracker_measurement_t));
             count++;
         }

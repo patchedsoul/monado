@@ -6,7 +6,7 @@ set (MONTRACK_SOURCE_FILES
 	mt_events.h
 	mt_framequeue.h
 	mt_framequeue.c
-	)
+)
 
 
 add_subdirectory(frameservers)
