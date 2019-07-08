@@ -61,14 +61,15 @@ enum fs_chroma_sampling
 	FS_CHROMA_SAMP_444,
 	FS_CHROMA_SAMP_422,
 	FS_CHROMA_SAMP_411
-}
-;
+};
+
 enum fs_plane_layout
 {
 	FS_PLANE_LAYOUT_COMPOSITE,
 	FS_PLANE_LAYOUT_SEPARATE
 
 };
+
 enum fs_sampling
 {
 	FS_SAMPLING_NONE,

@@ -406,9 +406,10 @@ tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
 			internal->event_target_callback(
 			    internal->event_target_instance, e);
 		} else {
-			snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
-			         (uint32_t)internal->chessboards_measured.size() + 1,
-			         MAX_CALIBRATION_SAMPLES);
+			snprintf(
+			    message, 128, "COLLECTING SAMPLE: %d/%d",
+			    (uint32_t)internal->chessboards_measured.size() + 1,
+			    MAX_CALIBRATION_SAMPLES);
 		}
 	}
 
