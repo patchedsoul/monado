@@ -208,6 +208,7 @@ struct psmv_device
 	uint64_t last_frame_seq;
     pthread_t* tracking_thread;
     int64_t start_us;
+    float accel_scale;
 
 
 	bool print_spew;
@@ -287,9 +288,9 @@ psmv_read_hid(struct psmv_device *psmv)
 		if (psmv->filter) {
 			tracker_measurement_t m = {0};
 			m.flags = (tracker_measurement_flags_t)(MEASUREMENT_IMU | MEASUREMENT_RAW_ACCEL | MEASUREMENT_RAW_GYRO);
-            m.accel.x = input.frame[1].accel.x;
-            m.accel.y = input.frame[1].accel.y;
-            m.accel.z = input.frame[1].accel.z;
+            m.accel.x = input.frame[1].accel.x * psmv->accel_scale;
+            m.accel.y = input.frame[1].accel.y * psmv->accel_scale;
+            m.accel.z = input.frame[1].accel.z * psmv->accel_scale;
 			m.gyro.x = input.frame[1].gyro.x;
 			m.gyro.y = input.frame[1].gyro.y;
 			m.gyro.z = input.frame[1].gyro.z;
@@ -451,7 +452,13 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 	psmv_read_hid(psmv);
 	filter_state_t fs;
 	psmv->filter->filter_get_state(psmv->filter,&fs);
-	out_relation->pose = fs.pose;
+    struct xrt_quat temp = fs.pose.orientation;
+    fs.pose.orientation.x=temp.y;
+
+    fs.pose.orientation.y=temp.z;
+    fs.pose.orientation.z=-temp.x;
+
+    out_relation->pose = fs.pose;
 }
 
 static void
@@ -547,6 +554,8 @@ psmv_found(struct xrt_prober *xp,
 	case 2: psmv->state.blue = 0xff; break;
 	}
 
+    psmv->accel_scale = 1.0f; //-8<->+8g (1G = ~4200 raw reading)
+
 	// Send the first update package
 	psmv_led_and_trigger_update(psmv, 1);
 
@@ -561,8 +570,9 @@ psmv_found(struct xrt_prober *xp,
 	psmv->filter = filter_create(FILTER_TYPE_COMPLEMENTARY);
 
     filter_complementary_configuration_t config;
-    config.bias = 0.1f;
-    config.scale = 3.14159 / 2.0f;
+    config.accel_to_radian = 0.000244f;
+    config.gyro_to_radian = 0.0001f;
+    config.drift_z_to_zero = 0.001f;
     config.max_timestamp=65535; //ps move timestamps are 16 bit
 
     psmv->filter->filter_configure(psmv->filter,&config);

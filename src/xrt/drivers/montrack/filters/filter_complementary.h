@@ -11,6 +11,9 @@ typedef struct filter_complementary_configuration
 	float bias;
 	float scale;
     uint64_t max_timestamp; //wrap timestamp here
+    float accel_to_radian;
+    float gyro_to_radian;
+    float drift_z_to_zero;
 } filter_complementary_configuration_t;
 
 #ifdef __cplusplus

@@ -13,6 +13,7 @@
 
 #define MAX_CALIBRATION_SAMPLES                                                \
     23 // mo' samples, mo' calibration accuracy, at the expense of time.
+static cv::Rect2f calibration_distrib_rectilinear[9] = {};
 
 static bool tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst);
 

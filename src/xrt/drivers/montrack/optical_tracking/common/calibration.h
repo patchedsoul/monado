@@ -8,6 +8,7 @@
 #define INTRINSICS_SIZE 9
 #define DISTORTION_SIZE 5
 #define DISTORTION_FISHEYE_SIZE 4
+
 \
 #ifdef __cplusplus
 extern "C" {

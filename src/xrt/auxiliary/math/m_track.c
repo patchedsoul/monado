@@ -18,11 +18,18 @@
 void
 math_euler_to_quat(struct xrt_vec3 euler, struct xrt_quat* q)
 {
-	//STUB
-	q->x=0.0f;
-	q->y=0.0f;
-	q->z=0.0f;
-	q->w=1.0f;
+
+        double cy = cos(euler.z* 0.5);
+        double sy = sin(euler.z * 0.5);
+        double cp = cos(euler.x * 0.5);
+        double sp = sin(euler.x * 0.5);
+        double cr = cos(euler.y * 0.5);
+        double sr = sin(euler.y * 0.5);
+
+        q->w = cy * cp * cr + sy * sp * sr;
+        q->x = cy * cp * sr - sy * sp * cr;
+        q->y = sy * cp * sr + cy * sp * cr;
+        q->z = sy * cp * cr - cy * sp * sr;
 
 }
 

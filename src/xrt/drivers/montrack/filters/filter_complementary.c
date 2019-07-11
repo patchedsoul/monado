@@ -9,8 +9,8 @@ struct filter_complementary_instance_t
 	filter_complementary_configuration_t configuration;
 	filter_state_t last_state;
 	filter_state_t state;
-    float gyro_yaw_correction;
-    uint8_t avg_count;
+    float gyro_x_bias,gyro_y_bias,gyro_z_bias;
+    uint16_t avg_count;
 	float alpha;
 	bool running;
 };
@@ -51,8 +51,7 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
 		return false;
 	}
 	tracker_measurement_t* measurement_array;
-    uint64_t last_timestamp = internal->last_state.timestamp;
-    uint32_t count = measurement_queue_get_since_timestamp(inst->measurement_queue,0,last_timestamp,&measurement_array);
+    uint32_t count = measurement_queue_get_since_timestamp(inst->measurement_queue,0,internal->last_state.timestamp,&measurement_array);
 	float one_minus_bias = 1.0f - internal->configuration.bias;
 	for (uint32_t i=0;i<count;i++)
 	{
@@ -63,29 +62,40 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
             return false; //this is our first frame, or something has gone wrong... big dt will blow up calculations.
         }
 
-        float magAccel = sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z+m->accel.z);
+        //convert our
+
+        float mag_accel = sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z * m->accel.z) * internal->configuration.accel_to_radian;
+
+        float roll = atan2(-1.0f * m->accel.x,sqrt(m->accel.y * m->accel.y + m->accel.z * m->accel.z));
+        float pitch = atan2(m->accel.y,m->accel.z);
+
 
         //assume that, if acceleration is only gravity, then any change in the gyro is drift and update compensation
-        int avg_max = 32;
-        if (internal->avg_count < avg_max) {
-            internal->avg_count++;
-        }
+        //if acceleration magnitude is close to 1.0f, we assume its just gravity, and can integrate our gyro reading
+        //as drift compensation - we can  assume controller is static at startup, and gather data then, or continuously
+        //sample
 
-        printf("%f %f %f %f %f %f %f\n",m->accel.x,m->accel.y,m->accel.z,m->gyro.x,m->gyro.y,m->gyro.z,dt);
 
-        float accelDiff =1.0f;
-        if (internal->gyro_yaw_correction > 0.0f)
-        {
-            accelDiff = (magAccel - internal->gyro_yaw_correction) / internal->gyro_yaw_correction;
-        }
-
-        internal->gyro_yaw_correction = magAccel + (magAccel - internal->gyro_yaw_correction) / math_min(internal->avg_count,avg_max);
-        //printf("accelDiff %f magAccel: %f gyro.z %f yaw corr %f\n",accelDiff,magAccel,m->gyro.z, internal->gyro_yaw_correction);
-
-		//calculate filtered euler angles
-        internal->state.rotation_euler.z = internal->configuration.bias * (internal->last_state.rotation_euler.z + m->gyro.z * dt) + one_minus_bias * (m->accel.z * internal->configuration.scale/magAccel);
-        internal->state.rotation_euler.y = internal->configuration.bias * (internal->last_state.rotation_euler.y + m->gyro.y * dt) + one_minus_bias * (m->accel.y * internal->configuration.scale/magAccel);
-        internal->state.rotation_euler.x = internal->configuration.bias * (internal->last_state.rotation_euler.x + m->gyro.x * dt) + one_minus_bias * (m->accel.x * internal->configuration.scale/magAccel);
+        int avg_max =16;
+        if (fabs(1.0f - mag_accel) < 0.05 ) {             //looks like gravity only
+            //fill up the running average count as fast as possible, but subsequently
+            //only integrate measurements that are not outliers w/respect to the average
+            if (internal->avg_count < avg_max || fabs(m->gyro.z - internal->gyro_z_bias) < (internal->gyro_z_bias / 4)) {
+                if (internal->avg_count < avg_max) {
+                    internal->avg_count++;
+                }
+                internal->gyro_x_bias = internal->gyro_x_bias + (m->gyro.x - internal->gyro_x_bias) / math_min(internal->avg_count, avg_max);
+                internal->gyro_y_bias = internal->gyro_y_bias + (m->gyro.y - internal->gyro_y_bias) / math_min(internal->avg_count, avg_max);
+                internal->gyro_z_bias = internal->gyro_z_bias + (m->gyro.z - internal->gyro_z_bias) / math_min(internal->avg_count, avg_max);
+                //printf("yaw correction: %f %f %f\n",internal->gyro_x_bias,internal->gyro_y_bias,internal->gyro_z_bias);
+            }
+            }
+        //printf("roll %f pitch %f gbc,%f,%f,%f,axyz,%f,%f,%f,gxyz,%f,%f,%f,dt,%f\n",roll,pitch,internal->gyro_x_bias,internal->gyro_y_bias,internal->gyro_z_bias,m->accel.x,m->accel.y,m->accel.z,m->gyro.x,m->gyro.y,m->gyro.z,dt);;
+        internal->state.rotation_euler.z = internal->last_state.rotation_euler.z + (m->gyro.z - internal->gyro_z_bias) * internal->configuration.gyro_to_radian * dt;
+        //push back towards zero, as 'returning to 0 slowly' is better than 'just drift', probably
+        internal->state.rotation_euler.z -=internal->state.rotation_euler.z * internal->configuration.drift_z_to_zero; //0.001;
+        internal->state.rotation_euler.y = internal->last_state.rotation_euler.y + (0.99 * ((m->gyro.y - internal->gyro_y_bias) * internal->configuration.gyro_to_radian * dt)) - 0.01 * (internal->last_state.rotation_euler.y - roll);
+        internal->state.rotation_euler.x = internal->last_state.rotation_euler.x + (0.99 * ((m->gyro.x - internal->gyro_x_bias) * internal->configuration.gyro_to_radian * dt)) - 0.01 * (internal->last_state.rotation_euler.x - pitch);
         internal->state.timestamp = m->source_timestamp;
         internal->last_state = internal->state;
         //printf("source tstamp: %lld\n",m->source_timestamp);
@@ -93,8 +103,9 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
 	//TODO: come up with a way to avoid alloc/free - use max length buffer?
 	free(measurement_array);
 	//convert to a quat for consumption as pose
-    //printf(" integrated %d measurements after %lld X %f Y %f Z %f\n",count,last_timestamp,internal->state.rotation_euler.x,internal->state.rotation_euler.y,internal->state.rotation_euler.z);
-	math_euler_to_quat(internal->state.rotation_euler,&internal->state.pose.orientation);
+    //printf(" integrated %d measurements after %lld X %f Y %f Z %f\n",count,internal->last_state.timestamp,internal->state.rotation_euler.x,internal->state.rotation_euler.y,internal->state.rotation_euler.z);
+    struct xrt_quat integrate_quat;
+    math_euler_to_quat(internal->state.rotation_euler,&internal->state.pose.orientation);
 	*state = internal->state;
 	return true;
 }
@@ -125,8 +136,10 @@ filter_complementary_configure(filter_instance_t* inst,
 	filter_complementary_configuration_t* config =
 	    (filter_complementary_configuration_t*)config_generic;
 	internal->configuration = *config;
-    internal->gyro_yaw_correction=0.0f;
-	internal->configured = true;
+    internal->gyro_x_bias=0.0f;
+    internal->gyro_y_bias=0.0f;
+    internal->gyro_z_bias=0.0f;
+    internal->configured = true;
 	return true;
 }
 
