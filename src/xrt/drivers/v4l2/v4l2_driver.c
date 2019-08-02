@@ -118,6 +118,7 @@ struct v4l2_fs
 	struct
 	{
 		bool ps4_cam;
+		bool dell_cam;
 		bool set_auto_exposure;
 		bool set_exposure_absolute;
 		int value_exposure_absolute;
@@ -286,10 +287,21 @@ v4l2_query_cap_and_validate(struct v4l2_fs *vid)
 	vid->quirks.ps4_cam =
 	    strcmp(card, "USB Camera-OV580: USB Camera-OV") == 0;
 
+	vid->quirks.dell_cam =
+	    strcmp(card, "Integrated_Webcam_HD: Integrate") == 0;
+
 	if (vid->quirks.ps4_cam) {
 		// The experimented best controls to best track things.
 		vid->quirks.set_auto_exposure = true;
 		vid->quirks.value_auto_exposure = 2;
+		vid->quirks.set_exposure_absolute = true;
+		vid->quirks.value_exposure_absolute =
+		    debug_get_num_option_v4l2_exposure_absolute();
+	}
+	if (vid->quirks.dell_cam) {
+		// The experimented best controls to best track things.
+		vid->quirks.set_auto_exposure = true;
+		vid->quirks.value_auto_exposure = 1;
 		vid->quirks.set_exposure_absolute = true;
 		vid->quirks.value_exposure_absolute =
 		    debug_get_num_option_v4l2_exposure_absolute();
