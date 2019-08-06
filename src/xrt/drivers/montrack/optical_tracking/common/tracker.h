@@ -40,8 +40,15 @@ typedef enum tracker_type
 	TRACKER_TYPE_SPHERE_MONO,
     TRACKER_TYPE_UVBI,
     TRACKER_TYPE_CALIBRATION_STEREO,
-    TRACKER_TYPE_CALIBRATION_MONO
+    TRACKER_TYPE_CALIBRATION_MONO,
+    TRACKER_TYPE_PSVR_STEREO,
 } tracker_type_t;
+
+typedef enum tracker_source_type {
+    TRACKER_SOURCE_TYPE_NONE,
+    TRACKER_SOURCE_TYPE_RECTILINEAR,
+    TRACKER_SOURCE_TYPE_FISHEYE
+} tracker_source_type_t;
 
 
 
@@ -56,26 +63,25 @@ typedef void (*measurement_consumer_callback_func)(
 
 typedef struct tracker_mono_configuration
 {
-	char configuration_filename[256]; // TODO: maybe too small?
-    // camera_calibration_t calibration;
-	frame_format_t format;
+    tracker_source_type_t source_type;
+    char camera_configuration_filename[256]; // TODO: maybe too small?
+    char room_setup_filename[256];
+    frame_format_t format;
 	uint64_t source_id;
 } tracker_mono_configuration_t;
 
 typedef struct tracker_stereo_configuration
 {
-	char configuration_filename[256]; // TODO: maybe too small?
-    // camera_calibration_t l_calibration;
-	// camera_calibration_t r_calibration;
-	frame_format_t l_format;
+    tracker_source_type_t source_type;
+    char camera_configuration_filename[256]; // TODO: maybe too small?
+    char room_setup_filename[256];
+    frame_format_t l_format;
 	uint64_t l_source_id;
 	frame_format_t r_format;
 	uint64_t r_source_id;
 	bool split_left; // single-frame stereo will split the left frame
 	frame_rect_t l_rect;
 	frame_rect_t r_rect;
-
-
 } tracker_stereo_configuration_t;
 
 

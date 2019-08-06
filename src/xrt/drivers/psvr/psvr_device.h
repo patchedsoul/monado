@@ -16,6 +16,15 @@
 
 #include <hidapi.h>
 
+#include <optical_tracking/common/calibration.h>
+#include <optical_tracking/common/tracker.h>
+#include <filters/filter_complementary.h>
+
+
+#include <mt_framequeue.h>
+#include <pthread.h>
+#include <sys/time.h>
+
 
 #ifdef __cplusplus
 extern "C" {

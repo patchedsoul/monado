@@ -77,7 +77,7 @@ oxr_xdev_get_pose_at(struct oxr_logger *log,
 
 	// clang-format off
 	bool valid_pos = (relation.relation_flags & XRT_SPACE_RELATION_POSITION_VALID_BIT) != 0;
-    bool valid_ori = true; //(relation.relation_flags & XRT_SPACE_RELATION_ORIENTATION_VALID_BIT) != 0;
+    bool valid_ori = (relation.relation_flags & XRT_SPACE_RELATION_ORIENTATION_VALID_BIT) != 0;
 	// clang-format on
 
 	if (valid_ori) {

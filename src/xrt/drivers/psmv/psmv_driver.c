@@ -14,6 +14,7 @@
 #include <wchar.h>
 
 #include "xrt/xrt_prober.h"
+#include "xrt/xrt_defines.h"
 
 #include "util/u_time.h"
 #include "util/u_misc.h"
@@ -22,7 +23,7 @@
 
 #include "psmv_interface.h"
 #include <unistd.h>
-
+#include <optical_tracking/common/calibration.h>
 #include <optical_tracking/common/tracker.h>
 #include <filters/filter_complementary.h>
 
@@ -208,7 +209,6 @@ struct psmv_device
 	uint64_t last_frame_seq;
     pthread_t* tracking_thread;
     int64_t start_us;
-    float accel_scale;
 
 
 	bool print_spew;
@@ -288,9 +288,9 @@ psmv_read_hid(struct psmv_device *psmv)
 		if (psmv->filter) {
 			tracker_measurement_t m = {0};
 			m.flags = (tracker_measurement_flags_t)(MEASUREMENT_IMU | MEASUREMENT_RAW_ACCEL | MEASUREMENT_RAW_GYRO);
-            m.accel.x = input.frame[1].accel.x * psmv->accel_scale;
-            m.accel.y = input.frame[1].accel.y * psmv->accel_scale;
-            m.accel.z = input.frame[1].accel.z * psmv->accel_scale;
+            m.accel.x = input.frame[1].accel.x;
+            m.accel.y = input.frame[1].accel.y;
+            m.accel.z = input.frame[1].accel.z;
 			m.gyro.x = input.frame[1].gyro.x;
 			m.gyro.y = input.frame[1].gyro.y;
 			m.gyro.z = input.frame[1].gyro.z;
@@ -298,11 +298,13 @@ psmv_read_hid(struct psmv_device *psmv)
 			m.source_sequence = input.seq_no;
 
             //m.source_timestamp = input.timestamp;
+            struct timeval tp;
+            gettimeofday(&tp,NULL);
+            psmv->start_us += (diff * 10 );
 
-
-            psmv->start_us += (diff*10000);
+           // psmv->start_us += (diff);
             m.source_timestamp = psmv->start_us;
-            //printf("queueing timestamp %lld %d %d %d\n",m.source_timestamp,input.timestamp,diff,input.seq_no);
+            //printf("PSMV queueing timestamp %lld\n",m.source_timestamp);
 			psmv->filter->filter_queue(psmv->filter,&m);
 		}
 
@@ -449,16 +451,25 @@ psmv_device_get_tracked_pose(struct xrt_device *xdev,
 {
 	struct psmv_device *psmv = psmv_device(xdev);
 
+    out_relation->relation_flags = (enum xrt_space_relation_flags)(
+        XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
+        XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT | XRT_SPACE_RELATION_POSITION_TRACKED_BIT | XRT_SPACE_RELATION_POSITION_VALID_BIT);
+
 	psmv_read_hid(psmv);
 	filter_state_t fs;
 	psmv->filter->filter_get_state(psmv->filter,&fs);
-    struct xrt_quat temp = fs.pose.orientation;
-    fs.pose.orientation.x=temp.y;
-
-    fs.pose.orientation.y=temp.z;
-    fs.pose.orientation.z=-temp.x;
 
     out_relation->pose = fs.pose;
+    //change quaternion axes to align with xrt coordinate system.
+    // TODO: use a matrix transform here.
+    out_relation->pose.orientation.x = -fs.pose.orientation.x;
+    out_relation->pose.orientation.y = fs.pose.orientation.z;
+    out_relation->pose.orientation.z = -fs.pose.orientation.y;
+
+    //translate and rotate according to calibration
+
+
+
 }
 
 static void
@@ -544,7 +555,7 @@ psmv_found(struct xrt_prober *xp,
 	// We only have one output.
 	psmv->base.outputs[0].name = XRT_OUTPUT_NAME_PSMV_RUMBLE_VIBRATION;
 
-	static int hack = 0;
+    static int hack = 2;
 	switch (hack++ % 3) {
 	case 0: psmv->state.red = 0xff; break;
 	case 1:
@@ -553,8 +564,6 @@ psmv_found(struct xrt_prober *xp,
 		break;
 	case 2: psmv->state.blue = 0xff; break;
 	}
-
-    psmv->accel_scale = 1.0f; //-8<->+8g (1G = ~4200 raw reading)
 
 	// Send the first update package
 	psmv_led_and_trigger_update(psmv, 1);
@@ -565,27 +574,28 @@ psmv_found(struct xrt_prober *xp,
     // create our tracker and determine tracked object count
     // we will defer full configuration until a frame is available
 
-
     psmv->tracker = tracker_create(TRACKER_TYPE_SPHERE_STEREO);
-	psmv->filter = filter_create(FILTER_TYPE_COMPLEMENTARY);
 
-    filter_complementary_configuration_t config;
-    config.accel_to_radian = 0.000244f;
-    config.gyro_to_radian = 0.0001f;
-    config.drift_z_to_zero = 0.001f;
-    config.max_timestamp=65535; //ps move timestamps are 16 bit
-
-    psmv->filter->filter_configure(psmv->filter,&config);
-
-	//send our optical measurements to the filter
-	psmv->tracker->tracker_register_measurement_callback(psmv->tracker,psmv->filter,psmv->filter->filter_queue);
 
     // if we want to generate a calibration, we can use this calibration tracker,
     // instead of the above. this will move to a standalone application.
     // TODO: note the config in the tracker run thread will determine the filename,
     // this should be passed through from the frameserver.
+    //psmv->tracker = tracker_create(TRACKER_TYPE_CALIBRATION_STEREO);
 
-    // psmv->tracker = tracker_create(TRACKER_TYPE_CALIBRATION_STEREO);
+	psmv->filter = filter_create(FILTER_TYPE_COMPLEMENTARY);
+
+    filter_complementary_configuration_t config;
+    config.bias = 0.02;
+    config.accel_to_g = 0.000244f;
+    config.gyro_to_radians_per_second = 0.00125f;
+    config.drift_z_to_zero = 0.001f;
+    psmv->filter->filter_configure(psmv->filter,&config);
+
+	//send our optical measurements to the filter
+	psmv->tracker->tracker_register_measurement_callback(psmv->tracker,psmv->filter,psmv->filter->filter_queue);
+
+
 
     // initialise some info about how many objects are tracked, and the initial frame seq.
     psmv->tracker->tracker_get_poses(psmv->tracker,NULL,&psmv->tracked_objects);
@@ -621,8 +631,8 @@ void* psmv_tracking_run(void* arg) {
                    frame_t* source = &fq->source_frames[0];
                    tracker_stereo_configuration_t tc;
                    //TODO: pass this through the framequeue
-                   snprintf(tc.configuration_filename,256,"PETE");
-
+                   snprintf(tc.camera_configuration_filename,256,"PETE");
+                   snprintf(tc.room_setup_filename,256,"PSMV");
                    // set up our side-by-side split.
                    // TODO: this should probably be camera-specific.
                    tc.l_format = source->format;
@@ -648,7 +658,7 @@ void* psmv_tracking_run(void* arg) {
             //printf("psmv ref %d\n",f.source_sequence);
             if (f.source_sequence > psmv->last_frame_seq)
             {
-                //printf("psmv tracking\n");
+                printf("psmv tracking\n");
                 psmv->tracker->tracker_queue(psmv->tracker,&f);
                 psmv->last_frame_seq = f.source_sequence;
                 //printf("unrefing tracked %d\n",f.source_sequence);

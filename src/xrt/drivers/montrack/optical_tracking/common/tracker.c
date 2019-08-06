@@ -1,6 +1,7 @@
 #include "tracker.h"
 #include "tracker3D_sphere_mono.h"
 #include "tracker3D_sphere_stereo.h"
+#include "tracker3D_psvr_stereo.h"
 #include "tracker3D_uvbi.h"
 
 #include "util/u_misc.h"
@@ -80,6 +81,26 @@ tracker_create(tracker_type_t t)
 			i->tracker_configure =
 			    tracker3D_sphere_stereo_configure;
 			break;
+        case TRACKER_TYPE_PSVR_STEREO:
+            i->tracker_type = t;
+            i->internal_instance =
+                tracker3D_psvr_stereo_create(i);
+            i->tracker_get_capture_params =
+                tracker3D_psvr_stereo_get_capture_params;
+            i->tracker_get_poses =
+                tracker3D_psvr_stereo_get_poses;
+            i->tracker_get_debug_frame =
+                tracker3D_psvr_stereo_get_debug_frame;
+            i->tracker_queue = tracker3D_psvr_stereo_queue;
+            i->tracker_register_measurement_callback =
+                tracker3D_psvr_stereo_register_measurement_callback;
+            i->tracker_register_event_callback =
+                tracker3D_psvr_stereo_register_event_callback;
+            i->tracker_has_new_poses =
+                tracker3D_psvr_stereo_new_poses;
+            i->tracker_configure =
+                tracker3D_psvr_stereo_configure;
+            break;
 #ifdef XRT_HAVE_UVBI
 		case TRACKER_TYPE_UVBI:
 			i->tracker_type = t;

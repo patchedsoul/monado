@@ -214,12 +214,12 @@ vk_swapchain_select_extent(struct vk_swapchain *sc,
 static void
 vk_swapchain_destroy_old(struct vk_swapchain *sc, VkSwapchainKHR old)
 {
-	for (uint32_t i = 0; i < sc->image_count; i++) {
-		sc->vk->vkDestroyImageView(sc->vk->device, sc->buffers[i].view,
-		                           NULL);
-	}
+    for (uint32_t i = 0; i < sc->image_count; i++) {
+        sc->vk->vkDestroyImageView(sc->vk->device, sc->buffers[i].view,
+                                   NULL);
+    }
 
-	sc->vk->vkDestroySwapchainKHR(sc->vk->device, old, NULL);
+    sc->vk->vkDestroySwapchainKHR(sc->vk->device, old, NULL);
 }
 
 VkResult

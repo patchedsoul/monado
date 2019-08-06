@@ -9,8 +9,6 @@
 
 static bool
 tracker3D_sphere_mono_track(tracker_instance_t* inst);
-static bool
-tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
 
 typedef struct tracker3D_sphere_mono_instance
 {
@@ -242,176 +240,6 @@ tracker3D_sphere_mono_track(tracker_instance_t* inst)
 
 	return true;
 }
-/*
-bool
-tracker3D_sphere_mono_calibrate(tracker_instance_t* inst)
-{
-	printf("calibrating...\n");
-	tracker3D_sphere_mono_instance_t* internal =
-	    (tracker3D_sphere_mono_instance_t*)inst->internal_instance;
-	cv::Size image_size(internal->frame_gray.cols,
-	                    internal->frame_gray.rows);
-
-	bool ret = cv::imwrite("/tmp/out.jpg", internal->frame_gray);
-
-
-	// TODO: use multiple env vars? - centralise this
-	char path_string[1024];
-	char* config_path = secure_getenv("HOME");
-	snprintf(path_string, 1024, "%s/.config/monado/%s.calibration",
-	         config_path, internal->configuration.configuration_filename);
-
-	printf("TRY LOADING CONFIG FROM %s\n", path_string);
-	FILE* calib_file = fopen(path_string, "rb");
-	if (calib_file) {
-		// read our calibration from this file
-		read_mat(calib_file, &internal->intrinsics);
-		read_mat(calib_file, &internal->distortion);
-		read_mat(calib_file, &internal->distortion_fisheye);
-
-		// TODO: save data indicating calibration image size
-		// and multiply intrinsics accordingly
-
-		cv::initUndistortRectifyMap(
-		    internal->intrinsics, internal->distortion, cv::noArray(),
-		    internal->intrinsics, image_size, CV_32FC1,
-		    internal->undistort_map_x, internal->undistort_map_y);
-
-		printf("calibrated cameras! setting tracking mode\n");
-		internal->calibrated = true;
-
-		internal->configuration.calibration_mode =
-		    CALIBRATION_MODE_NONE;
-		// send an event to notify our driver of the switch into
-		// tracking mode.
-		driver_event_t e = {};
-		e.type = EVENT_TRACKER_RECONFIGURED;
-		internal->event_target_callback(internal->event_target_instance,
-		                                e);
-		return true;
-	}
-
-	// no saved file - perform interactive calibration.
-	// try and find a chessboard in the image, and run the calibration.
-	// TODO: we need to define some mechanism for UI/user interaction.
-
-	// TODO: initialise this on construction and move this to internal state
-	cv::Size board_size(8, 6);
-	std::vector<cv::Point3f> chessboard_model;
-
-	for (uint32_t i = 0; i < board_size.width * board_size.height; i++) {
-		cv::Point3f p(i / board_size.width, i % board_size.width, 0.0f);
-		chessboard_model.push_back(p);
-	}
-
-	cv::Mat chessboard_measured;
-
-	// clear our debug image
-	cv::rectangle(
-	    internal->debug_rgb, cv::Point2f(0, 0),
-	    cv::Point2f(internal->debug_rgb.cols, internal->debug_rgb.rows),
-	    cv::Scalar(0, 0, 0), -1, 0);
-
-	// we will collect samples continuously - the user should be able to
-	// wave a chessboard around randomly while the system calibrates..
-
-	// TODO: we need a coverage measurement and an accuracy measurement,
-	// so we can converge to something that is as complete and correct as
-	// possible.
-
-	bool found_board = cv::findChessboardCorners(
-	    internal->frame_gray, board_size, chessboard_measured);
-	char message[128];
-	message[0] = 0x0;
-
-	if (found_board) {
-		// we will use the last n samples to calculate our calibration
-		if (internal->chessboards_measured.size() >
-		    MAX_CALIBRATION_SAMPLES) {
-			internal->chessboards_measured.erase(
-			    internal->chessboards_measured.begin());
-		} else {
-			internal->chessboards_model.push_back(chessboard_model);
-		}
-
-		internal->chessboards_measured.push_back(chessboard_measured);
-
-		if (internal->chessboards_measured.size() ==
-		    MAX_CALIBRATION_SAMPLES) {
-			// TODO - run this if coverage test passes
-			cv::Mat rvecs, tvecs;
-
-			float rp_error = cv::calibrateCamera(
-			    internal->chessboards_model,
-			    internal->chessboards_measured, image_size,
-			    internal->intrinsics, internal->distortion, rvecs,
-			    tvecs);
-
-			cv::initUndistortRectifyMap(
-			    internal->intrinsics, internal->distortion,
-			    cv::noArray(), internal->intrinsics, image_size,
-			    CV_32FC1, internal->undistort_map_x,
-			    internal->undistort_map_y);
-
-			char path_string[PATH_MAX];
-			char file_string[PATH_MAX];
-			// TODO: use multiple env vars?
-			char* config_path = secure_getenv("HOME");
-			snprintf(path_string, PATH_MAX, "%s/.config/monado",
-			         config_path);
-			snprintf(
-			    file_string, PATH_MAX,
-			    "%s/.config/monado/%s.calibration", config_path,
-			    internal->configuration.configuration_filename);
-
-			printf("TRY WRITING CONFIG TO %s\n", file_string);
-			FILE* calib_file = fopen(file_string, "wb");
-			if (!calib_file) {
-				mkpath(path_string);
-			}
-			calib_file = fopen(file_string, "wb");
-			if (!calib_file) {
-				printf(
-				    "ERROR. could not create calibration file "
-				    "%s\n",
-				    file_string);
-			} else {
-				write_mat(calib_file, &internal->intrinsics);
-				write_mat(calib_file, &internal->distortion);
-				write_mat(calib_file,
-				          &internal->distortion_fisheye);
-				fclose(calib_file);
-			}
-
-			printf("calibrated cameras! setting tracking mode\n");
-			internal->calibrated = true;
-			internal->configuration.calibration_mode =
-			    CALIBRATION_MODE_NONE;
-			// send an event to notify our driver of the switch into
-			// tracking mode.
-			driver_event_t e = {};
-			e.type = EVENT_TRACKER_RECONFIGURED;
-			internal->event_target_callback(
-			    internal->event_target_instance, e);
-		} else {
-			snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
-			         internal->chessboards_measured.size() + 1,
-			         MAX_CALIBRATION_SAMPLES);
-		}
-	}
-
-	cv::drawChessboardCorners(internal->debug_rgb, board_size,
-	                          chessboard_measured, found_board);
-
-	cv::putText(internal->debug_rgb, "CALIBRATION MODE",
-	            cv::Point2i(160, 240), 0, 1.0f, cv::Scalar(192, 192, 192));
-	cv::putText(internal->debug_rgb, message, cv::Point2i(160, 460), 0,
-	            0.5f, cv::Scalar(192, 192, 192));
-
-	tracker_send_debug_frame(inst);
-
-	return true;
-}*/
 
 bool
 tracker3D_sphere_mono_get_poses(tracker_instance_t* inst,
@@ -464,16 +292,16 @@ tracker3D_sphere_mono_configure(tracker_instance_t* inst,
         char path_string[1024];
         char* config_path = secure_getenv("HOME");
         snprintf(path_string, 1024, "%s/.config/monado/%s.calibration",
-                 config_path, internal->configuration.configuration_filename);
+                 config_path, internal->configuration.camera_configuration_filename);
 
         printf("TRY LOADING CONFIG FROM %s\n", path_string);
         FILE* calib_file = fopen(path_string, "rb");
         if (calib_file) {
             // read our calibration from this file
-            read_mat(calib_file, &intrinsics);
-            read_mat(calib_file, &distortion);
-            read_mat(calib_file, &distortion_fisheye);
-            read_mat(calib_file, &mat_image_size);
+            read_cv_mat(calib_file, &intrinsics);
+            read_cv_mat(calib_file, &distortion);
+            read_cv_mat(calib_file, &distortion_fisheye);
+            read_cv_mat(calib_file, &mat_image_size);
 
             cv::Size image_size(mat_image_size.at<float>(0,0),mat_image_size.at<float>(0,1));
 

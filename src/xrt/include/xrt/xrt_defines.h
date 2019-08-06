@@ -90,9 +90,22 @@ struct xrt_vec3
 };
 
 /*!
+ * A 4 element vector with single floats.
+ *
+ * @ingroup xrt_iface math
+ */
+struct xrt_vec4
+{
+        float x;
+        float y;
+        float z;
+        float w;
+};
+
+/*!
  * A pose composed of a position and orientation.
  *
- * @see xrt_qaut
+ * @see xrt_quat
  * @see xrt_vec3
  * @ingroup xrt_iface math
  */
@@ -129,13 +142,29 @@ struct xrt_matrix_2x2
 };
 
 /*!
+ * A tightly packed 3x3 matrix of floats.
+ *
+ * @ingroup xrt_iface math
+ */
+struct xrt_matrix_3x3
+{
+        union {
+                float v[9];
+                struct xrt_vec3 vecs[3];
+        };
+};
+
+/*!
  * A tightly packed 4x4 matrix of floats.
  *
  * @ingroup xrt_iface math
  */
 struct xrt_matrix_4x4
 {
-	float v[16];
+    union {
+            float v[16];
+            struct xrt_vec4 vecs[4];
+    };
 };
 
 /*!

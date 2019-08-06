@@ -7,6 +7,7 @@ include_directories(
 
 set(OPTICAL_TRACKING_SOURCE_FILES
         common/calibration.cpp
+        common/calibration_opencv.hpp
 	common/calibration.h
 	common/tracked_object.h
 	common/tracked_object.c
@@ -17,8 +18,8 @@ set(OPTICAL_TRACKING_SOURCE_FILES
 	tracker3D_sphere_stereo.h
 	tracker3D_sphere_mono.cpp
 	tracker3D_sphere_mono.h
-	track_psvr.h
-	track_psvr.cpp
+        tracker3D_psvr_stereo.h
+        tracker3D_psvr_stereo.cpp
 	)
 if(BUILD_WITH_UVBI)
 	list(APPEND OPTICAL_TRACKING_SOURCE_FILES

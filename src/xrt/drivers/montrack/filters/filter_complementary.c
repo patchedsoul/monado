@@ -53,22 +53,32 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
 	tracker_measurement_t* measurement_array;
     uint32_t count = measurement_queue_get_since_timestamp(inst->measurement_queue,0,internal->last_state.timestamp,&measurement_array);
 	float one_minus_bias = 1.0f - internal->configuration.bias;
-	for (uint32_t i=0;i<count;i++)
-	{
+    int avg_max =8;
+    for (uint32_t i=0;i<count;i++) {
 		tracker_measurement_t* m = &measurement_array[i];
-        float dt = (m->source_timestamp - internal->last_state.timestamp) *0.00000001;
-        if (dt > 1.0f) {
-            internal->last_state.timestamp = m->source_timestamp;
-            return false; //this is our first frame, or something has gone wrong... big dt will blow up calculations.
+
+        if (m->flags & ( MEASUREMENT_OPTICAL | MEASUREMENT_POSITION) ) {
+            //we can just stuff our position into our state for now, ignoring  timestamps.
+            internal->state.pose.position = m->pose.position;
+            internal->state.pose.orientation = m->pose.orientation;
+
+            internal->state.timestamp = m->source_timestamp;
+            internal->last_state = internal->state;
         }
+        if (m->flags & ( MEASUREMENT_IMU | MEASUREMENT_RAW_ACCEL | MEASUREMENT_RAW_GYRO) ) {
+            float dt = (m->source_timestamp - internal->last_state.timestamp) * 0.000001;
+            //printf("dt %f\n",dt);
+            if (dt > 1.0f) {
+                internal->last_state.timestamp = m->source_timestamp;
+                return false; //this is our first frame, or something has gone wrong... big dt will blow up calculations.
+            }
 
-        //convert our
+        float raw_mag_accel =  sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z * m->accel.z);
+        float mag_accel = raw_mag_accel * internal->configuration.accel_to_g;
 
-        float mag_accel = sqrt(m->accel.x * m->accel.x + m->accel.y * m->accel.y + m->accel.z * m->accel.z) * internal->configuration.accel_to_radian;
-
+        //determine roll/pitch angles with gravity as a reference
         float roll = atan2(-1.0f * m->accel.x,sqrt(m->accel.y * m->accel.y + m->accel.z * m->accel.z));
-        float pitch = atan2(m->accel.y,m->accel.z);
-
+        float pitch = atan2(m->accel.y, m->accel.z);
 
         //assume that, if acceleration is only gravity, then any change in the gyro is drift and update compensation
         //if acceleration magnitude is close to 1.0f, we assume its just gravity, and can integrate our gyro reading
@@ -76,7 +86,6 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
         //sample
 
 
-        int avg_max =16;
         if (fabs(1.0f - mag_accel) < 0.05 ) {             //looks like gravity only
             //fill up the running average count as fast as possible, but subsequently
             //only integrate measurements that are not outliers w/respect to the average
@@ -89,24 +98,29 @@ filter_complementary_get_state(filter_instance_t* inst, filter_state_t* state)
                 internal->gyro_z_bias = internal->gyro_z_bias + (m->gyro.z - internal->gyro_z_bias) / math_min(internal->avg_count, avg_max);
                 //printf("yaw correction: %f %f %f\n",internal->gyro_x_bias,internal->gyro_y_bias,internal->gyro_z_bias);
             }
-            }
-        //printf("roll %f pitch %f gbc,%f,%f,%f,axyz,%f,%f,%f,gxyz,%f,%f,%f,dt,%f\n",roll,pitch,internal->gyro_x_bias,internal->gyro_y_bias,internal->gyro_z_bias,m->accel.x,m->accel.y,m->accel.z,m->gyro.x,m->gyro.y,m->gyro.z,dt);;
-        internal->state.rotation_euler.z = internal->last_state.rotation_euler.z + (m->gyro.z - internal->gyro_z_bias) * internal->configuration.gyro_to_radian * dt;
+        }
+        //printf("roll %f pitch %f yaw 0.0f,gbc,%f,%f,%f,axyz,%f,%f,%f,gxyz,%f,%f,%f,dt,%f\n",roll,pitch,internal->gyro_x_bias,internal->gyro_y_bias,internal->gyro_z_bias,m->accel.x,m->accel.y,m->accel.z,m->gyro.x,m->gyro.y,m->gyro.z,dt);;
+        internal->state.rotation_euler.z = internal->last_state.rotation_euler.z + (m->gyro.z - internal->gyro_z_bias) * internal->configuration.gyro_to_radians_per_second * dt;
         //push back towards zero, as 'returning to 0 slowly' is better than 'just drift', probably
-        internal->state.rotation_euler.z -=internal->state.rotation_euler.z * internal->configuration.drift_z_to_zero; //0.001;
-        internal->state.rotation_euler.y = internal->last_state.rotation_euler.y + (0.99 * ((m->gyro.y - internal->gyro_y_bias) * internal->configuration.gyro_to_radian * dt)) - 0.01 * (internal->last_state.rotation_euler.y - roll);
-        internal->state.rotation_euler.x = internal->last_state.rotation_euler.x + (0.99 * ((m->gyro.x - internal->gyro_x_bias) * internal->configuration.gyro_to_radian * dt)) - 0.01 * (internal->last_state.rotation_euler.x - pitch);
-        internal->state.timestamp = m->source_timestamp;
-        internal->last_state = internal->state;
+        internal->state.rotation_euler.z -=internal->state.rotation_euler.z * internal->configuration.drift_z_to_zero * dt;
+        internal->state.rotation_euler.y = internal->last_state.rotation_euler.y + (one_minus_bias * ((m->gyro.y - internal->gyro_y_bias) * internal->configuration.gyro_to_radians_per_second * dt)) - internal->configuration.bias * (internal->last_state.rotation_euler.y - roll);
+        internal->state.rotation_euler.x = internal->last_state.rotation_euler.x + (one_minus_bias * ((m->gyro.x - internal->gyro_x_bias) * internal->configuration.gyro_to_radians_per_second * dt)) - internal->configuration.bias * (internal->last_state.rotation_euler.x - pitch);
+
+        //DISABLED FOR POS TRQCKER TESTING
+        //internal->state.timestamp = m->source_timestamp;
+        //internal->last_state = internal->state;
         //printf("source tstamp: %lld\n",m->source_timestamp);
-	    }
-	//TODO: come up with a way to avoid alloc/free - use max length buffer?
-	free(measurement_array);
-	//convert to a quat for consumption as pose
+        }
+    }
+    //TODO: come up with a way to avoid alloc/free - use max length buffer?
+    free(measurement_array);
+    //convert to a quat for consumption as pose
     //printf(" integrated %d measurements after %lld X %f Y %f Z %f\n",count,internal->last_state.timestamp,internal->state.rotation_euler.x,internal->state.rotation_euler.y,internal->state.rotation_euler.z);
-    struct xrt_quat integrate_quat;
-    math_euler_to_quat(internal->state.rotation_euler,&internal->state.pose.orientation);
-	*state = internal->state;
+
+    //removed for debugging pos tracking
+    //math_euler_to_quat(internal->state.rotation_euler,&internal->state.pose.orientation);
+
+    *state = internal->state;
 	return true;
 }
 bool

@@ -77,6 +77,15 @@ oxr_space_action_create(struct oxr_logger *log,
 	spc->sub_paths = sub_paths;
 	memcpy(&spc->pose, &createInfo->poseInActionSpace, sizeof(spc->pose));
 
+    //use an identity quaternion if we are passed an uninitialised one
+    if (math_quat_magnitude(spc->pose.orientation) == 0) {
+        spc->pose.orientation.x = 0.0f;
+        spc->pose.orientation.y = 0.0f;
+        spc->pose.orientation.z = 0.0f;
+        spc->pose.orientation.w = 1.0f;
+
+    }
+
 	*out_space = spc;
 
 	return XR_SUCCESS;

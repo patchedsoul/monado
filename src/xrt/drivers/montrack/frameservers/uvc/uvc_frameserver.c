@@ -349,9 +349,9 @@ uvc_frameserver_stream_run(void* ptr)
 					    f.width * 3; // jpg format does not
 					                 // supply stride
 					// decode our jpg frame.
-					if (!temp_data) {
-						temp_data = malloc(
-						    frame_size_in_bytes(&f));
+                    f.size_bytes = frame_size_in_bytes(&f);
+                    if (!temp_data) {
+                        temp_data = malloc(f.size_bytes);
 					}
 					jpeg_mem_src(&cinfo, frame->data,
 					             frame->data_bytes);

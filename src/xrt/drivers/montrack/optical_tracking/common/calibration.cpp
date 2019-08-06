@@ -4,6 +4,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "calibration.h"
+#include "calibration_opencv.hpp"
 #include "common/opencv_utils.hpp"
 
 #include <sys/stat.h>
@@ -11,9 +12,44 @@
 
 #include "util/u_misc.h"
 
-#define MAX_CALIBRATION_SAMPLES                                                \
-    23 // mo' samples, mo' calibration accuracy, at the expense of time.
-static cv::Rect2f calibration_distrib_rectilinear[9] = {};
+#define MAX_CALIBRATION_SAMPLES 15
+
+//set up our calibration rectangles, we will collect chessboard samples
+// that 'fill' these rectangular regions to get good coverage
+#define COVERAGE_X_RECTI 0.8f
+#define COVERAGE_Y_RECTI 0.8f
+#define COVERAGE_X_FISHEYE 0.6f
+#define COVERAGE_Y_FISHEYE 0.8f
+
+static cv::Rect2f calibration_rect_rectilinear[] = {
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f + COVERAGE_Y_RECTI / 3.0f ,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f+ COVERAGE_Y_RECTI / 3.0f ,0.3f,0.3f),
+
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+
+
+};
+static cv::Rect2f calibration_rect_fisheye[9] = {
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f,0.3f,0.3f),
+
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f + COVERAGE_Y_RECTI / 3.0f ,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f+ COVERAGE_Y_RECTI / 3.0f ,0.3f,0.3f),
+
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + COVERAGE_X_RECTI / 3.0f ,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+    cv::Rect2f((1.0f - COVERAGE_X_RECTI)/2.0f + 2 * COVERAGE_X_RECTI / 3.0f,(1.0f - COVERAGE_Y_RECTI)/2.0f + 2 * COVERAGE_Y_RECTI / 3.0f,0.3f,0.3f),
+
+};
 
 static bool tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst);
 
@@ -46,20 +82,20 @@ bool calibration_get_stereo(char* configuration_filename,bool use_fisheye, cv::M
     FILE* calib_file = fopen(path_string, "rb");
     if (calib_file) {
         // read our calibration from this file
-        read_mat(calib_file, &l_intrinsics);
-        read_mat(calib_file, &r_intrinsics);
-        read_mat(calib_file, &l_distortion);
-        read_mat(calib_file, &r_distortion);
-        read_mat(calib_file, &l_distortion_fisheye);
-        read_mat(calib_file, &r_distortion_fisheye);
-        read_mat(calib_file, &l_rotation);
-        read_mat(calib_file, &r_rotation);
-        read_mat(calib_file, &l_translation);
-        read_mat(calib_file, &r_translation);
-        read_mat(calib_file, &l_projection);
-        read_mat(calib_file, &r_projection);
-        read_mat(calib_file,disparity_to_depth); //provided by caller
-        read_mat(calib_file,&mat_image_size);
+        read_cv_mat(calib_file, &l_intrinsics);
+        read_cv_mat(calib_file, &r_intrinsics);
+        read_cv_mat(calib_file, &l_distortion);
+        read_cv_mat(calib_file, &r_distortion);
+        read_cv_mat(calib_file, &l_distortion_fisheye);
+        read_cv_mat(calib_file, &r_distortion_fisheye);
+        read_cv_mat(calib_file, &l_rotation);
+        read_cv_mat(calib_file, &r_rotation);
+        read_cv_mat(calib_file, &l_translation);
+        read_cv_mat(calib_file, &r_translation);
+        read_cv_mat(calib_file, &l_projection);
+        read_cv_mat(calib_file, &r_projection);
+        read_cv_mat(calib_file,disparity_to_depth); //provided by caller
+        read_cv_mat(calib_file,&mat_image_size);
 
         cv::Size image_size(mat_image_size.at<float>(0,0),mat_image_size.at<float>(0,1));
 
@@ -135,6 +171,8 @@ typedef struct tracker3D_calibration_stereo_instance
     bool got_left;
     bool got_right;
 
+    uint32_t calibration_count;
+
 } tracker3D_calibration_stereo_instance_t;
 
 
@@ -153,6 +191,7 @@ tracker3D_calibration_stereo_create(tracker_instance_t* inst)
 
         // alloc our debug frame here - opencv is h,w, not w,h
         i->debug_rgb = cv::Mat(480, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+        i->calibration_count =0;
         return i;
     }
     return NULL;
@@ -300,7 +339,7 @@ bool
 tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
 {
 
-    printf("calibrating...\n");
+    //printf("calibrating...\n");
 
     // check if we have saved calibration data. if so, just use it.
     tracker3D_calibration_stereo_instance_t* internal =
@@ -324,6 +363,17 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
         internal->debug_rgb, cv::Point2f(0, 0),
         cv::Point2f(internal->debug_rgb.cols, internal->debug_rgb.rows),
         cv::Scalar(0, 0, 0), -1, 0);
+
+    cv::Point2f bound_tl = calibration_rect_rectilinear[internal->calibration_count].tl();
+    bound_tl.x *= internal->l_frame_gray.cols;
+    bound_tl.y *= internal->l_frame_gray.rows;
+
+    cv::Point2f bound_br = calibration_rect_rectilinear[internal->calibration_count].br();
+    bound_br.x *= internal->l_frame_gray.cols;
+    bound_br.y *= internal->l_frame_gray.rows;
+
+    cv::rectangle(internal->debug_rgb, bound_tl,bound_br, cv::Scalar(0, 64, 32));
+
     cv::Mat disp8;
     cv::cvtColor(internal->r_frame_gray, disp8, CV_GRAY2BGR);
     // disp8.copyTo(internal->debug_rgb);
@@ -337,34 +387,58 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
     bool found_right = cv::findChessboardCorners(
         internal->r_frame_gray, board_size, r_chessboard_measured);
     char message[128];
-    message[0] = 0x0;
+    char message2[128];
+
+    snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
+             internal->l_chessboards_measured.size() + 1,
+             MAX_CALIBRATION_SAMPLES);
+
+
+    std::vector<cv::Point2f> coverage;
+    for (uint32_t i = 0;
+         i < internal->l_chessboards_measured.size(); i++) {
+        cv::Rect brect = cv::boundingRect(
+            internal->l_chessboards_measured[i]);
+        cv::rectangle(internal->debug_rgb, brect.tl(),
+                      brect.br(), cv::Scalar(0, 64, 32));
+
+        coverage.push_back(cv::Point2f(brect.tl()));
+        coverage.push_back(cv::Point2f(brect.br()));
+    }
+    cv::Rect pre_rect = cv::boundingRect(coverage);
+
+
+    // std::cout << "COVERAGE: " << brect.area() << "\n";
+
+    cv::rectangle(internal->debug_rgb, pre_rect.tl(),
+                  pre_rect.br(), cv::Scalar(0, 255, 0));
 
     if (found_left && found_right) {
-        std::vector<cv::Point2f> coverage;
-        for (uint32_t i = 0;
-             i < internal->l_chessboards_measured.size(); i++) {
-            cv::Rect brect = cv::boundingRect(
-                internal->l_chessboards_measured[i]);
-            cv::rectangle(internal->debug_rgb, brect.tl(),
-                          brect.br(), cv::Scalar(0, 64, 32));
-
-            coverage.push_back(cv::Point2f(brect.tl()));
-            coverage.push_back(cv::Point2f(brect.br()));
-        }
-        cv::Rect pre_rect = cv::boundingRect(coverage);
         cv::Rect brect = cv::boundingRect(l_chessboard_measured);
         coverage.push_back(cv::Point2f(brect.tl()));
         coverage.push_back(cv::Point2f(brect.br()));
         cv::Rect post_rect = cv::boundingRect(coverage);
-
         // std::cout << "COVERAGE: " << brect.area() << "\n";
 
         cv::rectangle(internal->debug_rgb, post_rect.tl(),
                       post_rect.br(), cv::Scalar(0, 255, 0));
+        bool add_sample=false;
+        uint32_t coverage_threshold = internal->l_frame_gray.cols * 0.3f * internal->l_frame_gray.rows * 0.3f;
 
-        if (post_rect.area() > pre_rect.area() + 500) {
-            // we will use the last n samples to calculate our
-            // calibration
+        snprintf(message2, 128, "TRY TO 'PUSH OUT EDGES' WITH LARGE BOARD IMAGES");
+
+        if (internal->calibration_count < 9) {
+            snprintf(message2, 128, "POSITION CHESSBOARD IN BOX");
+        }
+
+        if (internal->calibration_count < 9 && brect.tl().x >= bound_tl.x && brect.tl().y >= bound_tl.y  && brect.br().x <= bound_br.x && brect.br().y <= bound_br.y) {
+            add_sample=true;
+        }
+        printf(" THRESH %d BRECT AREA %d coverage_diff %d\n",coverage_threshold, brect.area(),post_rect.area() - pre_rect.area());
+        if (internal->calibration_count >= 9 && brect.area() > coverage_threshold && post_rect.area() > pre_rect.area() + coverage_threshold/5) {
+            add_sample=true;
+        }
+        if (add_sample) {
 
             if (internal->l_chessboards_measured.size() >
                 MAX_CALIBRATION_SAMPLES) {
@@ -381,6 +455,7 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
                 l_chessboard_measured);
             internal->r_chessboards_measured.push_back(
                 r_chessboard_measured);
+            internal->calibration_count++;
         }
 
         if (internal->l_chessboards_measured.size() ==
@@ -444,7 +519,7 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
                 disparity_to_depth,
                 cv::CALIB_ZERO_DISPARITY);
 
-
+            snprintf(message2, 128, "CALIBRATION DONE RP ERROR %f",rp_error);
             char path_string[PATH_MAX];
             char file_string[PATH_MAX];
             // TODO: centralise this - use multiple env vars?
@@ -454,7 +529,7 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
             snprintf(
                 file_string, PATH_MAX,
                 "%s/.config/monado/%s.calibration", config_path,
-                internal->configuration.configuration_filename);
+                internal->configuration.camera_configuration_filename);
 
             printf("TRY WRITING CONFIG TO %s\n", file_string);
             FILE* calib_file = fopen(file_string, "wb");
@@ -469,25 +544,25 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
                     "%s\n",
                     file_string);
             } else {
-                write_mat(calib_file, &l_intrinsics);
-                write_mat(calib_file, &r_intrinsics);
-                write_mat(calib_file, &l_distortion);
-                write_mat(calib_file, &r_distortion);
-                write_mat(calib_file, &l_distortion_fisheye);
-                write_mat(calib_file, &r_distortion_fisheye);
-                write_mat(calib_file, &l_rotation);
-                write_mat(calib_file, &r_rotation);
-                write_mat(calib_file, &l_translation);
-                write_mat(calib_file, &r_translation);
-                write_mat(calib_file, &l_projection);
-                write_mat(calib_file, &r_projection);
-                write_mat(calib_file, &disparity_to_depth);
+                write_cv_mat(calib_file, &l_intrinsics);
+                write_cv_mat(calib_file, &r_intrinsics);
+                write_cv_mat(calib_file, &l_distortion);
+                write_cv_mat(calib_file, &r_distortion);
+                write_cv_mat(calib_file, &l_distortion_fisheye);
+                write_cv_mat(calib_file, &r_distortion_fisheye);
+                write_cv_mat(calib_file, &l_rotation);
+                write_cv_mat(calib_file, &r_rotation);
+                write_cv_mat(calib_file, &l_translation);
+                write_cv_mat(calib_file, &r_translation);
+                write_cv_mat(calib_file, &l_projection);
+                write_cv_mat(calib_file, &r_projection);
+                write_cv_mat(calib_file, &disparity_to_depth);
 
                 cv::Mat mat_image_size;
                 mat_image_size.create(1,2,CV_32F);
                 mat_image_size.at<float>(0,0) = image_size.width;
                 mat_image_size.at<float>(0,1) = image_size.height;
-                write_mat(calib_file, &mat_image_size);
+                write_cv_mat(calib_file, &mat_image_size);
 
                 fclose(calib_file);
             }
@@ -496,9 +571,11 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
             internal->calibrated = true;
             driver_event_t e = {};
             e.type = EVENT_CALIBRATION_DONE;
-            internal->event_target_callback(
-                internal->event_target_instance, e);
-        }
+            if (internal->event_target_callback){
+                internal->event_target_callback(
+                    internal->event_target_instance, e);
+            }
+       }
 
         snprintf(message, 128, "COLLECTING SAMPLE: %d/%d",
                  internal->l_chessboards_measured.size() + 1,
@@ -511,19 +588,22 @@ tracker3D_calibration_stereo_calibrate(tracker_instance_t* inst)
     cv::drawChessboardCorners(internal->debug_rgb, board_size,
                               r_chessboard_measured, found_right);
 
-    cv::putText(internal->debug_rgb, "CALIBRATION MODE",
-                cv::Point2i(160, 240), 0, 1.0f, cv::Scalar(192, 192, 192));
-    cv::putText(internal->debug_rgb, message, cv::Point2i(160, 460), 0,
+    cv::putText(internal->debug_rgb,
+                "CALIBRATION MODE",
+                cv::Point2i(160, 240),
+                0, 1.0f,
+                cv::Scalar(192, 192, 192) );
+
+    if (internal->calibration_count <= MAX_CALIBRATION_SAMPLES) {
+        cv::putText(internal->debug_rgb,
+                    message, cv::Point2i(160, 460),
+                    0,
+                    0.5f,
+                    cv::Scalar(192, 192, 192) );
+    }
+    cv::putText(internal->debug_rgb, message2, cv::Point2i(160, 30), 0,
                 0.5f, cv::Scalar(192, 192, 192));
 
-    // DEBUG: write out our image planes to confirm imagery is arriving as
-    // expected
-    /*cv::imwrite("/tmp/l_out_y.jpg",internal->l_frame_gray);
-    cv::imwrite("/tmp/r_out_y.jpg",internal->r_frame_gray);
-    cv::imwrite("/tmp/l_out_u.jpg",internal->l_frame_u);
-    cv::imwrite("/tmp/r_out_u.jpg",internal->r_frame_u);
-    cv::imwrite("/tmp/l_out_v.jpg",internal->l_frame_v);
-    cv::imwrite("/tmp/r_out_v.jpg",internal->r_frame_v);*/
     tracker_send_debug_frame(inst);
     return true;
 }
@@ -572,15 +652,6 @@ tracker3D_calibration_stereo_register_event_callback(
     internal->event_target_callback = target_func;
 }
 
-
-#include <opencv2/opencv.hpp>
-
-#include "tracker3D_sphere_mono.h"
-#include "common/opencv_utils.hpp"
-
-#include "util/u_misc.h"
-
-#define MAX_CALIBRATION_SAMPLES 23
 
 static bool
 tracker3D_sphere_mono_calibrate(tracker_instance_t* inst);
@@ -739,7 +810,7 @@ tracker3D_calibration_mono_calibrate(tracker_instance_t* inst)
             snprintf(
                 file_string, PATH_MAX,
                 "%s/.config/monado/%s.calibration", config_path,
-                internal->configuration.configuration_filename);
+                internal->configuration.camera_configuration_filename);
 
             printf("TRY WRITING CONFIG TO %s\n", file_string);
             FILE* calib_file = fopen(file_string, "wb");
@@ -757,10 +828,10 @@ tracker3D_calibration_mono_calibrate(tracker_instance_t* inst)
                 mat_image_size.create(1,2,CV_32F);
                 mat_image_size.at<float>(0,0) = image_size.width;
                 mat_image_size.at<float>(0,0) = image_size.height;
-                write_mat(calib_file, &intrinsics);
-                write_mat(calib_file, &distortion);
-                write_mat(calib_file, &distortion_fisheye);
-                write_mat(calib_file, &mat_image_size);
+                write_cv_mat(calib_file, &intrinsics);
+                write_cv_mat(calib_file, &distortion);
+                write_cv_mat(calib_file, &distortion_fisheye);
+                write_cv_mat(calib_file, &mat_image_size);
                 fclose(calib_file);
             }
 
@@ -841,3 +912,26 @@ tracker3D_calibration_register_measurement_callback(
 {
     //do nothing
 }
+
+
+//TODO: have a roomsetup type, rather than the bare matrix and scale
+bool calibration_get_roomsetup(char* configuration_filename,room_setup_t* rs)
+{
+    char path_string[256]; // TODO: 256 maybe not enough
+    // TODO: use multiple env vars?
+    char* config_path = secure_getenv("HOME");
+    snprintf(path_string, 256, "%s/.config/monado/%s.calibration",
+             config_path, configuration_filename); // TODO: hardcoded 256
+
+    printf("TRY LOADING CONFIG FROM %s\n", path_string);
+    FILE* calib_file = fopen(path_string, "rb");
+    if (calib_file) {
+        // read our calibration from this file
+        read_xrt_matrix44(calib_file, &rs->origin_transform);
+        read_xrt_vec3(calib_file, &rs->metric_scale);
+        fclose(calib_file);
+        return true;
+    }
+    return false;
+}
+

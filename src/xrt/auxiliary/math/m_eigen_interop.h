@@ -110,3 +110,16 @@ position(struct xrt_pose& pose)
 {
 	return map_vec3(pose.position);
 }
+
+/*!
+ * @brief Wrap an internal 4x4 matrix  struct in an Eigen type, non-const
+ * overload.
+ *
+ * Permits zero-overhead manipulation of `xrt_matrix_4x4&` by Eigen routines as
+ * if it were a `Eigen::Matrix4f&`.
+ */
+static inline Eigen::Map<Eigen::MatrixXf>
+map_mat4x4(struct xrt_matrix_4x4& m)
+{
+    return Eigen::Map<Eigen::MatrixXf>(m.v,4,4);
+}

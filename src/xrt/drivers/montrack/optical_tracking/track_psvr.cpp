@@ -137,58 +137,56 @@ psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t)
 	return true;
 }
 
-/*//TODO: we don't need to pass a TrackData* here
-bool psvr_compute_svd()
+//TODO: we don't need to pass a TrackData* here
+bool psvr_compute_svd(psvr_track_data* t)
 {
-        //compute SVD for the points we have found, assuming we have at least 3
-points
+    //compute SVD for the points we have found, assuming we have at least 3 points
+    uint8_t point_count=0;
+    for (uint32_t i=0;i<NUM_LEDS;i++)
+    {
+            if (t->confidence[i] > 0)
+            {
+                    point_count++;
+            }
+    }
 
-        uint8_t pointCount=0;
-        for (uint32_t i=0;i<MAX_POINTS;i++)
+    if (point_count > 2)
+    {
+        cv::Mat measurement(point_count, 3, cv::DataType<float>::type);
+        cv::Mat model(point_count, 3, cv::DataType<float>::type);
+        cv::Mat xCovar;
+        uint8_t c = 0;
+        for (uint32_t i=0;i<NUM_LEDS;i++)
         {
                 if (t->confidence[i] > 0)
                 {
-                        pointCount++;
+                        measurement.at<float>(c,0) = t->positions_3d[i].x;
+                        measurement.at<float>(c,1) = t->positions_3d[i].y;
+                        measurement.at<float>(c,2) = t->positions_3d[i].z;
+                        model.at<float>(c,0) = physical_led_positions[i].x;
+                        model.at<float>(c,1) = physical_led_positions[i].y;
+                        model.at<float>(c,2) = physical_led_positions[i].z;
+                        c++;
                 }
         }
 
-        if (pointCount > 2)
-        {
-                cv::Mat measurement(pointCount, 3, cv::DataType<float>::type);
-                cv::Mat model(pointCount, 3, cv::DataType<float>::type);
-                cv::Mat xCovar;
-                uint8_t c = 0;
-                for (uint32_t i=0;i<MAX_POINTS;i++)
-                {
-                        if (t->confidence[i] > 0)
-                        {
-                                measurement.at<float>(c,0) = t->positions[i].x;
-                                measurement.at<float>(c,1) = t->positions[i].y;
-                                measurement.at<float>(c,2) = t->positions[i].z;
-                                model.at<float>(c,0) = ledPositions[i].x;
-                                model.at<float>(c,1) = ledPositions[i].y;
-                                model.at<float>(c,2) = ledPositions[i].z;
-                                c++;
-                        }
-                }
+        // create our cross-covariance matrix
+        cv::transpose(model,model);
+        xCovar =  model * measurement;
+        cv::Mat w,u,v,ut;
+        cv::SVD::compute(xCovar,w,u,v);
+        cv::transpose(u,ut);
+        //TODO: compute determinant
+        cv::Mat rot = v * ut;
 
-                // create our cross-covariance matrix
-                cv::transpose(model,model);
-                xCovar =  model * measurement;
-                cv::Mat w,u,v,ut;
-                decomposer->compute(xCovar,w,u,v);
-                cv::transpose(u,ut);
-                //TODO: compute determinant
-                cv::Mat rot = v * ut;
-                glm::mat3 glmRot;
-                memcpy((void*)&(glmRot[0][0]),rot.data, 9 * sizeof(float));
-                glm::mat3 tRot = glm::transpose(glmRot);
-                t->rotationMatrix = glm::mat4(tRot);
-                //cout << "R = "<< endl << " "  << rotationMatrix << endl <<
-endl; return true;
-        }
-        else
-        {
-                return false;
-        }
-}*/
+        cv::transpose(rot,rot);
+        // we assume this is a 3x3 matrix
+        memcpy(t->rotation_matrix.v,rot.data, 9 * sizeof(float));
+
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}

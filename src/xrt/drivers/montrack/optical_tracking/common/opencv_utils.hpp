@@ -4,10 +4,10 @@
 #include <sys/stat.h>
 #include <opencv2/opencv.hpp>
 
-#include "xrt/xrt_compiler.h"
+#include <xrt/xrt_defines.h>
 
 
-static bool write_mat(FILE* f, cv::Mat* m)
+static bool write_cv_mat(FILE* f, cv::Mat* m)
 {
 	uint32_t header[3];
 	header[0] = m->elemSize();
@@ -18,7 +18,7 @@ static bool write_mat(FILE* f, cv::Mat* m)
 	return true;
 }
 
-static bool read_mat(FILE* f, cv::Mat* m)
+static bool read_cv_mat(FILE* f, cv::Mat* m)
 {
 	uint32_t header[3];
 	fread((void*)header,sizeof(uint32_t),3,f);
@@ -32,9 +32,54 @@ static bool read_mat(FILE* f, cv::Mat* m)
 	return true;
 }
 
-XRT_MAYBE_UNUSED static float dist_3d(cv::Point3f& p, cv::Point3f& q) {
+
+
+
+static bool write_xrt_matrix44(FILE* f, struct xrt_matrix_4x4* m)
+{
+    fwrite((void*)m->v,sizeof(float),16,f);
+    return true;
+}
+
+static bool read_xrt_matrix44(FILE* f, struct xrt_matrix_4x4* m)
+{
+    fread((void*)m->v,sizeof(float),16,f);
+    return true;
+}
+
+static bool write_xrt_vec3(FILE* f, struct xrt_vec3* m)
+{
+    fwrite((void*)&m->x,sizeof(float),3,f);
+    return true;
+}
+
+static bool read_xrt_vec3(FILE* f, struct xrt_vec3* m)
+{
+    fread((void*)&m->x,sizeof(float),3,f);
+    return true;
+}
+
+static bool write_xrt_quat(FILE* f, struct xrt_quat* m)
+{
+    fwrite((void*)&m->x,sizeof(float),4,f);
+    return true;
+}
+
+static bool read_xrt_quat(FILE* f, struct xrt_quat* m)
+{
+    fread((void*)&m->x,sizeof(float),4,f);
+    return true;
+}
+
+
+static float cv_dist_3d(cv::Point3f& p, cv::Point3f& q) {
 	cv::Point3f d = p - q;
 	return cv::sqrt(d.x*d.x + d.y*d.y + d.z * d.z);
+}
+
+static float cv_dist_3d(cv::Vec3f& p, cv::Vec3f& q) {
+    cv::Point3f d = p - q;
+    return cv::sqrt(d.x*d.x + d.y*d.y + d.z * d.z);
 }
 
 

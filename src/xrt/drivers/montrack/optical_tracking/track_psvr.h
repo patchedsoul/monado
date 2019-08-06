@@ -10,6 +10,16 @@
 static const char* LED_LABELS[] = {"LU", "RU", "C",  "LL", "RL",
                                    "LS", "RS", "LB", "RB"};
 
+static const xrt_vec3 physical_led_positions[] = {
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+    {0.0f,0.0f,0.0f},
+};
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,7 +35,7 @@ typedef struct psvr_track_data
 	xrt_vec2 r_positions_2d[NUM_LEDS];
 	int8_t confidence[NUM_LEDS]; //-1 if point is not tracked, TODO: 0-128
 	                             // for confidence
-	xrt_matrix_4x4 rotation_matrix; // SVD-fitted head rotation matrix
+    xrt_matrix_3x3 rotation_matrix; // SVD-fitted head rotation matrix
 	xrt_vec3 translation;           // head translation
 } psvr_track_data_t;
 
@@ -56,7 +66,7 @@ typedef struct psvr_led
 bool
 psvr_disambiguate_5points(std::vector<psvr_led_t>* leds, psvr_track_data* t);
 
-// bool psvr_computeSVD();
+bool psvr_computeSVD(psvr_track_data* t);
 
 
 #ifdef __cplusplus

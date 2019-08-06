@@ -63,6 +63,16 @@ struct psvr_device
 
 	bool print_spew;
 	bool print_debug;
+
+    tracker_instance_t* tracker;
+    uint32_t tracked_objects;
+    tracked_object_t* tracked_object_array;
+
+    filter_instance_t* filter;
+
+    uint64_t last_frame_seq;
+    pthread_t* tracking_thread;
+    int64_t start_us;
 };
 
 
@@ -93,6 +103,8 @@ enum psvr_leds
 	PSVR_LED_BACK = PSVR_LED_H | PSVR_LED_I,
 
 	PSVR_LED_ALL = PSVR_LED_FRONT | PSVR_LED_BACK,
+    PSVR_LED_FRONT_5 = PSVR_LED_A | PSVR_LED_B | PSVR_LED_C | PSVR_LED_D | PSVR_LED_E,
+    PSVR_LED_CENTER =  PSVR_LED_E ,
 };
 
 
@@ -101,6 +113,9 @@ enum psvr_leds
  * Helpers and internal functions.
  *
  */
+
+
+static void* psvr_tracking_run(void* arg);
 
 static inline struct psvr_device *
 psvr_device(struct xrt_device *p)
@@ -613,12 +628,18 @@ psvr_device_get_tracked_pose(struct xrt_device *xdev,
 	//! @todo adjust for latency here
 	*out_timestamp = now;
 
-	out_relation->pose.orientation.w = 1.0f;
+    filter_state_t fs;
+    psvr->filter->filter_get_state(psvr->filter,&fs);
+
+    printf("setting pose orientation: %f %f %f %f\n",fs.pose.orientation.x,fs.pose.orientation.y,fs.pose.orientation.z,fs.pose.orientation.w);
+    out_relation->pose = fs.pose;
+
+    //translate and rotate according to calibration
 
 	//! @todo assuming that orientation is actually currently tracked.
 	out_relation->relation_flags = (enum xrt_space_relation_flags)(
 	    XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
-	    XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT);
+        XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT | XRT_SPACE_RELATION_POSITION_VALID_BIT | XRT_SPACE_RELATION_POSITION_TRACKED_BIT);
 
 	PSVR_SPEW(psvr, "\n\taccel = %f %f %f\n\tgyro = %f %f %f",
 	          psvr->raw.accel.x, psvr->raw.accel.y, psvr->raw.accel.z,
@@ -705,7 +726,9 @@ psvr_device_create(struct hid_device_info *hmd_handle_info,
 	if (debug_get_bool_option_psvr_disco()) {
 		ret = disco_leds(psvr);
 	} else {
-		ret = control_leds(psvr, PSVR_LED_ALL, PSVR_LED_POWER_MAX,
+        //ret = control_leds(psvr, PSVR_LED_ALL, PSVR_LED_POWER_OFF,
+        //                   (enum psvr_leds)0);
+        ret = control_leds(psvr, PSVR_LED_FRONT_5, PSVR_LED_POWER_MAX,
 		                   (enum psvr_leds)0);
 	}
 	if (ret < 0) {
@@ -742,6 +765,39 @@ psvr_device_create(struct hid_device_info *hmd_handle_info,
 		u_device_dump_config(&psvr->base, __func__, "Sony PSVR");
 	}
 
+    psvr->tracker = tracker_create(TRACKER_TYPE_PSVR_STEREO);
+
+
+    // if we want to generate a calibration, we can use this calibration tracker,
+    // instead of the above. this will move to a standalone application.
+    // TODO: note the config in the tracker run thread will determine the filename,
+    // this should be passed through from the frameserver.
+    //psmv->tracker = tracker_create(TRACKER_TYPE_CALIBRATION_STEREO);
+
+    psvr->filter = filter_create(FILTER_TYPE_COMPLEMENTARY);
+
+    filter_complementary_configuration_t config;
+    config.bias = 0.02;
+    config.accel_to_g = 0.000244f;
+    config.gyro_to_radians_per_second = 0.00125f;
+    config.drift_z_to_zero = 0.001f;
+    psvr->filter->filter_configure(psvr->filter,&config);
+
+    //send our optical measurements to the filter
+    psvr->tracker->tracker_register_measurement_callback(psvr->tracker,psvr->filter,psvr->filter->filter_queue);
+
+
+
+    // initialise some info about how many objects are tracked, and the initial frame seq.
+    psvr->tracker->tracker_get_poses(psvr->tracker,NULL,&psvr->tracked_objects);
+    psvr->last_frame_seq = 0;
+    struct timeval tp;
+    gettimeofday(&tp,NULL);
+    psvr->start_us = tp.tv_sec * 1000000 + tp.tv_usec;
+    pthread_create(&psvr->tracking_thread,NULL,psvr_tracking_run,psvr);
+
+
+
 	PSVR_DEBUG(psvr, "YES!");
 
 	return &psvr->base;
@@ -754,4 +810,68 @@ cleanup:
 	free(psvr);
 
 	return NULL;
+}
+
+
+void* psvr_tracking_run(void* arg) {
+    struct psvr_device* psvr = (struct psvr_device*) arg;
+    frame_queue_t* fq = frame_queue_instance();
+    frame_t f;
+    //TODO: orderly shutdown
+    while(1) {
+
+        if (frame_queue_ref_latest(fq,0,&f)) {
+
+            if (! psvr->tracker->configured)
+            {
+                // we need to set up our tracker. currently
+                // we hardcode the source id to 0 - assuming only one camera
+                // is running.
+
+                // we also assume our calibration will be available in the specified filename.
+                // this should come from the framserver source descriptor, somehow.
+                if (fq->source_frames[0].format == FORMAT_YUV444_UINT8) {
+                   frame_t* source = &fq->source_frames[0];
+                   tracker_stereo_configuration_t tc;
+                   //TODO: pass this through the framequeue
+                   snprintf(tc.camera_configuration_filename,256,"PETE");
+                   snprintf(tc.room_setup_filename,256,"PSMV");
+                   // set up our side-by-side split.
+                   // TODO: this should probably be camera-specific.
+                   tc.l_format = source->format;
+                   tc.r_format = FORMAT_NONE;
+                   tc.split_left = true;
+                   tc.l_source_id = source->source_id;
+                   tc.l_rect.tl.x=0.0f;
+                   tc.l_rect.tl.y=0.0f;
+                   tc.l_rect.br.x=source->width/2.0f;
+                   tc.l_rect.br.y=source->height;
+                   tc.r_rect.tl.x=source->width/2.0f;
+                   tc.r_rect.tl.y=0.0f;
+                   tc.r_rect.br.x=source->width;
+
+                   tc.r_rect.br.y=source->height;
+                   // TODO: if this fails, we will just keep trying.. not ideal
+                   psvr->tracker->tracker_configure(psvr->tracker,&tc);
+               }
+            }
+
+
+
+            //printf("psmv ref %d\n",f.source_sequence);
+            if (f.source_sequence > psvr->last_frame_seq)
+            {
+                //printf("psvr tracking\n");
+                psvr->tracker->tracker_queue(psvr->tracker,&f);
+                psvr->last_frame_seq = f.source_sequence;
+                //printf("unrefing tracked %d\n",f.source_sequence);
+                frame_queue_unref(fq,&f);
+                usleep(1000);
+            } else {
+                //printf("unrefing unused %d\n",f.source_sequence);
+                frame_queue_unref(fq,&f);
+                usleep(1000);
+            }
+        }
+    }
 }

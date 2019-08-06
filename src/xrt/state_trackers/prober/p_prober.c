@@ -16,6 +16,7 @@
 
 #include <frameservers/common/frameserver.h>
 #include <frameservers/v4l2/v4l2_frameserver.h>
+#include <frameservers/uvc/uvc_frameserver.h>
 
 
 /*
@@ -474,26 +475,49 @@ probe(struct xrt_prober* xp)
 		return -1;
 	}
 
-	printf("we are done with our probe, now start up a tracking camera");
-	frameserver_instance_t* fs = frameserver_create(FRAMESERVER_TYPE_V4L2);
-	//get our count of source descriptors
-	uint32_t source_count;
-	fs->frameserver_enumerate_sources(fs,NULL,&source_count);
-	v4l2_source_descriptor_t* source_descriptor_array = malloc(sizeof(v4l2_source_descriptor_t) * source_count);
-	fs->frameserver_enumerate_sources(fs,source_descriptor_array,&source_count);
+    printf("we are done with our probe, now start up a tracking camera\n");
 
-	for (uint32_t i=0;i<source_count;i++){
-		v4l2_source_descriptor_t source = source_descriptor_array[i];
-		//just use whatever
-		printf("source width: %d source height %d source rate %d\n",source.width,source.height,source.rate);
-            if (strcmp(source.model,"USB Camera-OV580: USB Camera-OV") == 0 && source.format == FORMAT_YUV444_UINT8) {
-                if (source.width == 1748 && source.height == 408 && source.rate == 166666) {
+    //start up PS4 camera
+
+    //frameserver_instance_t* fs = frameserver_create(FRAMESERVER_TYPE_V4L2);
+    //uint32_t source_count;
+    //fs->frameserver_enumerate_sources(fs,NULL,&source_count);
+    //v4l2_source_descriptor_t* source_descriptor_array = U_TYPED_ARRAY_CALLOC(v4l2_source_descriptor_t,source_count);;
+    //fs->frameserver_enumerate_sources(fs,source_descriptor_array,&source_count);
+
+    //for (uint32_t i=0;i<source_count;i++){
+        //v4l2_source_descriptor_t source = source_descriptor_array[i];
+        //if (strcmp(source.model,"USB Camera-OV580: USB Camera-OV") == 0 && source.format == FORMAT_YUV444_UINT8) {
+        //        if (source.width == 1748 && source.height == 408 && source.rate == 166666) {
+        //            fs->frameserver_stream_start(fs,&source);
+        //        }
+        //    }
+    //}
+    //free (source_descriptor_array);
+
+
+    //start up ELP camera
+
+    frameserver_instance_t* fs = frameserver_create(FRAMESERVER_TYPE_UVC);
+    uint32_t source_count;
+    fs->frameserver_enumerate_sources(fs,NULL,&source_count);
+    uvc_source_descriptor_t* source_descriptor_array = U_TYPED_ARRAY_CALLOC(uvc_source_descriptor_t,source_count);
+    fs->frameserver_enumerate_sources(fs,source_descriptor_array,&source_count);
+
+    for (uint32_t i=0;i<source_count;i++){
+        uvc_source_descriptor_t source = source_descriptor_array[i];
+        if (source.product_id == 0x9750 && source.vendor_id == 0x05a3 && source.format == FORMAT_YUV444_UINT8) {
+                if (source.width == 1280 && source.height == 480 && source.rate == 166666) {
                     fs->frameserver_stream_start(fs,&source);
                 }
             }
-	}
-	free (source_descriptor_array);
-	return 0;
+    }
+    free (source_descriptor_array);
+
+
+
+
+    return 0;
 }
 
 static int

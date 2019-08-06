@@ -108,7 +108,7 @@ mt_device_update_inputs(struct xrt_device *xdev,
         //configure our tracker to work with our source - hardcoded to first source
         frame_t source_config = fq->source_frames[0];
         tracker_stereo_configuration_t tc;
-        snprintf(tc.configuration_filename,256,"PETE");
+        snprintf(tc.camera_configuration_filename,256,"PETE");
         tc.l_format= source_config.format;
         tc.split_left=true;
         tc.l_source_id = 0;

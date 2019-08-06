@@ -316,6 +316,9 @@ math_min(int a, int b);
 int
 math_max(int a, int b);
 
+float math_quat_magnitude(struct xrt_quat q);
+
+float math_distance(struct xrt_vec3 a, struct xrt_vec3 b);
 
 #ifdef __cplusplus
 }

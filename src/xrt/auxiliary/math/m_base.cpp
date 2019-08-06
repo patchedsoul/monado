@@ -424,7 +424,7 @@ math_relation_openxr_locate(const struct xrt_pose* space_pose,
 	math_relation_accumulate_relation(relative_relation,
 	                                  &accumulating_relation);
 
-	// Apply the space pose.
+	// Apply the space pose.    
 	math_relation_accumulate_transform(&spc, &accumulating_relation);
 
 	*result = accumulating_relation;
