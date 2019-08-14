@@ -121,6 +121,33 @@ tracker_create(tracker_type_t t)
 }
 
 bool
+tracker_destroy(tracker_instance_t* inst)
+{
+	if (inst == NULL) {
+		return false;
+	}
+
+	switch (inst->tracker_type) {
+	case TRACKER_TYPE_SPHERE_MONO:
+		//! @todo not implemented
+		// tracker3D_sphere_mono_destroy(inst);
+		break;
+	case TRACKER_TYPE_SPHERE_STEREO:
+		//! @todo not implemented
+		// tracker3D_sphere_stereo_destroy(inst);
+		break;
+#ifdef XRT_HAVE_UVBI
+	case TRACKER_TYPE_UVBI:
+		//! @todo not implemented
+		// tracker3D_uvbi_destroy(inst);
+		break;
+#endif
+	}
+	free(inst);
+	return true;
+}
+
+bool
 tracker_send_debug_frame(tracker_instance_t* inst)
 {
 	struct fs_frame f = {};
