@@ -17,6 +17,7 @@ set(OS_SOURCE_FILES
 	)
 
 set(UTIL_SOURCE_FILES
+	util/u_abi.h
 	util/u_misc.c
 	util/u_misc.h
 	util/u_debug.c
