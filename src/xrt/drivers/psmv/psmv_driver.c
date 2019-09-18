@@ -14,6 +14,7 @@
 #include "os/os_threading.h"
 
 #include "math/m_api.h"
+#include "math/m_imu.h"
 
 #include "util/u_var.h"
 #include "util/u_time.h"
@@ -488,6 +489,9 @@ struct psmv_device
 		struct
 		{
 			struct xrt_quat rot;
+			struct imu_filter *filter;
+			float gyro_variance;
+			float accel_variance;
 		} fusion;
 	};
 
@@ -511,6 +515,7 @@ struct psmv_device
 		bool control;
 		bool calibration;
 		bool last_frame;
+		bool fusion;
 	} gui;
 };
 
@@ -595,6 +600,7 @@ psmv_update_trigger_value(struct psmv_device *psmv, int index, int64_t now)
  *
  */
 
+static const struct xrt_vec3 PSMV_GRAV_VECTOR = {0.f, 0.f, 1.f};
 static void
 update_fusion(struct psmv_device *psmv,
               struct psmv_parsed_sample *sample,
@@ -634,9 +640,27 @@ update_fusion(struct psmv_device *psmv,
 	} else {
 		float dt = time_ns_to_s(delta_ns);
 
+#if 0
 		// Super simple fusion.
 		math_quat_integrate_velocity(
 		    &psmv->fusion.rot, &psmv->read.gyro, dt, &psmv->fusion.rot);
+#else
+		struct xrt_vec3 gyro_variance = {psmv->fusion.gyro_variance,
+		                                 psmv->fusion.gyro_variance,
+		                                 psmv->fusion.gyro_variance};
+		imu_filter_incorporate_gyros(psmv->fusion.filter, dt,
+		                             &psmv->read.gyro, &gyro_variance);
+		struct xrt_vec3 accel_variance = {psmv->fusion.accel_variance,
+		                                  psmv->fusion.accel_variance,
+		                                  psmv->fusion.accel_variance};
+		imu_filter_incorporate_accelerometer(
+		    psmv->fusion.filter, 0, &psmv->read.accel,
+		    1.f / MATH_GRAVITY_M_S2, &PSMV_GRAV_VECTOR,
+		    &accel_variance);
+		struct xrt_vec3 angvel_dummy;
+		imu_filter_get_prediction(psmv->fusion.filter, 0,
+		                          &psmv->fusion.rot, &angvel_dummy);
+#endif
 	}
 }
 
@@ -807,6 +831,9 @@ psmv_device_destroy(struct xrt_device *xdev)
 	// Now that the thread is not running we can destroy the lock.
 	os_mutex_destroy(&psmv->lock);
 
+	// Destroy the IMU kalman filter.
+	imu_filter_destroy(psmv->fusion.filter);
+
 	// Remove the variable tracking.
 	u_var_remove_root(psmv);
 
@@ -941,10 +968,14 @@ psmv_found(struct xrt_prober *xp,
 	psmv->base.set_output = psmv_device_set_output;
 	psmv->base.name = XRT_DEVICE_PSMV;
 	psmv->fusion.rot.w = 1.0f;
+	psmv->fusion.filter = imu_filter_create();
+	psmv->fusion.accel_variance = 0.00001f;
+	psmv->fusion.gyro_variance = 0.00001f;
 	psmv->pid = devices[index]->product_id;
 	psmv->hid = hid;
 	snprintf(psmv->base.str, XRT_DEVICE_NAME_LEN, "%s",
 	         "PS Move Controller");
+
 
 	// Setup inputs.
 	SET_INPUT(PS_CLICK);
@@ -1078,6 +1109,10 @@ psmv_found(struct xrt_prober *xp,
 	u_var_add_ro_vec3_i32(psmv, &psmv->last.samples[1].gyro, "last.samples[1].gyro");
 	u_var_add_ro_vec3_f32(psmv, &psmv->read.accel, "read.accel");
 	u_var_add_ro_vec3_f32(psmv, &psmv->read.gyro, "read.gyro");
+	u_var_add_gui_header(psmv, &psmv->gui.fusion, "fusion");
+	u_var_add_f32(psmv, &psmv->fusion.accel_variance, "fusion.accel_variance");
+	u_var_add_f32(psmv, &psmv->fusion.gyro_variance, "fusion.gyro_variance");
+	u_var_add_ro_quat_f32(psmv, &psmv->fusion.rot, "fusion.rot");
 	u_var_add_gui_header(psmv, &psmv->gui.control, "Control");
 	u_var_add_rgb_u8(psmv, &psmv->wants.led, "Led");
 	u_var_add_u8(psmv, &psmv->wants.rumble, "Rumble");
