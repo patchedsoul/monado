@@ -62,6 +62,8 @@ lib_aux_math = static_library(
 		'math/m_base.cpp',
 		'math/m_eigen_interop.h',
 		'math/m_hash.cpp',
+		'math/m_imu.cpp',
+		'math/m_imu.h',
 		'math/m_optics.c',
 		'math/m_quatexpmap.cpp',
 	),
