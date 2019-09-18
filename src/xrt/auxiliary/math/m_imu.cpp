@@ -20,7 +20,6 @@
 
 using ProcessModel = flexkalman::OrientationConstantVelocityProcessModel;
 using State = ProcessModel::State;
-using Filter = flexkalman::FlexibleKalmanFilter<ProcessModel>;
 
 namespace {
 namespace types = flexkalman::types;
@@ -31,11 +30,9 @@ class WorldDirectionMeasurement
 {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	static const types::DimensionType DIMENSION = 3;
-	static const types::DimensionType STATE_DIMENSION =
-	    types::Dimension<State>::value;
-	using MeasurementVector = types::Vector<DIMENSION>;
-	using MeasurementSquareMatrix = types::SquareMatrix<DIMENSION>;
+	static constexpr size_t Dimension = 3;
+	using MeasurementVector = types::Vector<Dimension>;
+	using MeasurementSquareMatrix = types::SquareMatrix<Dimension>;
 	WorldDirectionMeasurement(types::Vector<3> const &direction,
 	                          types::Vector<3> const &reference,
 	                          types::Vector<3> const &variance)
@@ -111,21 +108,14 @@ unscentedPredictCorrect(imu_filter &filter,
 	if (dt != 0) {
 		flexkalman::predict(filter.state, filter.processModel, dt);
 	}
-	auto correctionInProgress =
-	    flexkalman::beginUnscentedCorrection(filter.state, meas);
-	if (!correctionInProgress.stateCorrectionFinite) {
+	if (!flexkalman::correctUnscented(filter.state, meas)) {
 		fprintf(stderr,
-		        "Non-finite state correction in applying "
-		        "%s\n",
+		        "Non-finite results in correcting filter using %s - "
+		        "update canceled.\n",
 		        meas_desc);
 		return -2;
 	}
 
-	if (!correctionInProgress.finishCorrection(true)) {
-		fprintf(stderr, "Non-finite covariance after applying %s\n",
-		        meas_desc);
-		return -3;
-	}
 
 	return 0;
 }
@@ -170,7 +160,7 @@ imu_filter_incorporate_gyros(struct imu_filter *filter,
 	assert(ang_vel);
 	assert(variance);
 
-	auto meas = flexkalman::AngularVelocityMeasurement<State>(
+	auto meas = flexkalman::AngularVelocityMeasurement(
 	    map_vec3(*ang_vel).cast<double>(),
 	    map_vec3(*variance).cast<double>());
 	return unscentedPredictCorrect(*filter, dt, meas, "gyros");
@@ -216,12 +206,12 @@ imu_filter_get_prediction(struct imu_filter const *filter,
 
 	// Copy the state so we don't advance the internal clock.
 	State temp{filter->state};
+	// Copy the process model so we have one to modify.
+	ProcessModel process{filter->processModel};
 
 	// Now, just predict + update the state itself, not the covariance (save
 	// time)
-	temp.setStateVector(filter->processModel.computeEstimate(temp, dt));
-	// Post-correct to incorporate incremental orientation
-	temp.postCorrect();
+	flexkalman::predictAndPostCorrectStateOnly(temp, process, dt);
 
 	return imu_filter_output_prediction(temp, *out_quat, *out_ang_vel);
 } catch (...) {
