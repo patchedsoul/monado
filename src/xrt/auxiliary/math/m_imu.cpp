@@ -14,7 +14,14 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+#ifdef FLEXKALMAN_COMBINED
 #include "../../external/flexkalman/FlexKalman.h"
+#else
+#include "../../external/flexkalman/OrientationConstantVelocity.h"
+#include "../../external/flexkalman/AngularVelocityMeasurement.h"
+#include "../../external/flexkalman/FlexibleUnscentedCorrect.h"
+#include "../../external/flexkalman/FlexibleKalmanFilter.h"
+#endif
 
 #include <memory>
 
