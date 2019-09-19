@@ -490,8 +490,11 @@ struct psmv_device
 		{
 			struct xrt_quat rot;
 			struct imu_filter *filter;
-			float gyro_variance;
-			float accel_variance;
+			struct
+			{
+				struct xrt_vec3 accel;
+				struct xrt_vec3 gyro;
+			} variance;
 		} fusion;
 	};
 
@@ -601,7 +604,7 @@ psmv_update_trigger_value(struct psmv_device *psmv, int index, int64_t now)
  */
 
 static FILE *csv;
-static const struct xrt_vec3 PSMV_GRAV_VECTOR = {0.f, 0.f, 1.f};
+static const struct xrt_vec3 PSMV_GRAV_VECTOR = {0.f, 1.f, 0.f};
 static void
 update_fusion(struct psmv_device *psmv,
               struct psmv_parsed_sample *sample,
@@ -654,18 +657,13 @@ update_fusion(struct psmv_device *psmv,
 		math_quat_integrate_velocity(
 		    &psmv->fusion.rot, &psmv->read.gyro, dt, &psmv->fusion.rot);
 #else
-		struct xrt_vec3 gyro_variance = {psmv->fusion.gyro_variance,
-		                                 psmv->fusion.gyro_variance,
-		                                 psmv->fusion.gyro_variance};
 		imu_filter_incorporate_gyros(psmv->fusion.filter, dt,
-		                             &psmv->read.gyro, &gyro_variance);
-		struct xrt_vec3 accel_variance = {psmv->fusion.accel_variance,
-		                                  psmv->fusion.accel_variance,
-		                                  psmv->fusion.accel_variance};
+		                             &psmv->read.gyro,
+		                             &psmv->fusion.variance.gyro);
 		imu_filter_incorporate_accelerometer(
 		    psmv->fusion.filter, 0, &psmv->read.accel,
 		    1.f / MATH_GRAVITY_M_S2, &PSMV_GRAV_VECTOR,
-		    &accel_variance);
+		    &psmv->fusion.variance.accel);
 		struct xrt_vec3 angvel_dummy;
 		imu_filter_get_prediction(psmv->fusion.filter, 0,
 		                          &psmv->fusion.rot, &angvel_dummy);
@@ -996,13 +994,35 @@ psmv_found(struct xrt_prober *xp,
 	psmv->base.name = XRT_DEVICE_PSMV;
 	psmv->fusion.rot.w = 1.0f;
 	psmv->fusion.filter = imu_filter_create();
-	psmv->fusion.accel_variance = 0.00001f;
-	psmv->fusion.gyro_variance = 0.00001f;
 	psmv->pid = devices[index]->product_id;
 	psmv->hid = hid;
 	snprintf(psmv->base.str, XRT_DEVICE_NAME_LEN, "%s",
 	         "PS Move Controller");
 
+
+	// Default variance
+	switch (devices[index]->product_id) {
+	case PSMV_PID_ZCM1:
+		// Note that there is one axis "weird" in each - this model has
+		// 2-axis sensors.
+		psmv->fusion.variance.accel.x = 0.00046343013089f;
+		psmv->fusion.variance.accel.y = 0.000358375519793f;
+		psmv->fusion.variance.accel.z = 0.000358375519793f;
+		psmv->fusion.variance.gyro.x = 7.85920759635965E-05f;
+		psmv->fusion.variance.gyro.y = 7.85920759635965E-05f;
+		psmv->fusion.variance.gyro.z = 0.00051253981244f;
+		break;
+	case PSMV_PID_ZCM2:
+		//! @todo measure!
+		psmv->fusion.variance.accel.x = 0.00046343013089f;
+		psmv->fusion.variance.accel.y = 0.000358375519793f;
+		psmv->fusion.variance.accel.z = 0.000358375519793f;
+		psmv->fusion.variance.gyro.x = 7.85920759635965E-05f;
+		psmv->fusion.variance.gyro.y = 7.85920759635965E-05f;
+		psmv->fusion.variance.gyro.z = 0.00051253981244f;
+		break;
+	default: return -1;
+	}
 
 	// Setup inputs.
 	SET_INPUT(PS_CLICK);
@@ -1136,9 +1156,9 @@ psmv_found(struct xrt_prober *xp,
 	u_var_add_ro_vec3_i32(psmv, &psmv->last.samples[1].gyro, "last.samples[1].gyro");
 	u_var_add_ro_vec3_f32(psmv, &psmv->read.accel, "read.accel");
 	u_var_add_ro_vec3_f32(psmv, &psmv->read.gyro, "read.gyro");
-	u_var_add_gui_header(psmv, &psmv->gui.fusion, "fusion");
-	u_var_add_f32(psmv, &psmv->fusion.accel_variance, "fusion.accel_variance");
-	u_var_add_f32(psmv, &psmv->fusion.gyro_variance, "fusion.gyro_variance");
+	u_var_add_gui_header(psmv, &psmv->gui.fusion, "Fusion");
+	u_var_add_vec3_f32(psmv, &psmv->fusion.variance.accel, "fusion.variance.accel");
+	u_var_add_vec3_f32(psmv, &psmv->fusion.variance.gyro, "fusion.variance.gyro");
 	u_var_add_ro_quat_f32(psmv, &psmv->fusion.rot, "fusion.rot");
 	u_var_add_gui_header(psmv, &psmv->gui.control, "Control");
 	u_var_add_rgb_u8(psmv, &psmv->wants.led, "Led");
