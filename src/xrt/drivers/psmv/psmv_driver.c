@@ -606,6 +606,7 @@ psmv_update_trigger_value(struct psmv_device *psmv, int index, int64_t now)
  *
  */
 
+static FILE *csv;
 static const struct xrt_vec3 PSMV_GRAV_VECTOR = {0.f, 1.f, 0.f};
 static void
 update_fusion(struct psmv_device *psmv,
@@ -620,6 +621,7 @@ update_fusion(struct psmv_device *psmv,
 	struct xrt_vec3_i32 *ra = &sample->accel;
 	struct xrt_vec3_i32 *rg = &sample->gyro;
 
+	fprintf(csv, "%f,", time_ns_to_s(delta_ns));
 	psmv->read.accel.x = (ra->x - psmv->calibration.accel.bias.x) /
 	                     psmv->calibration.accel.factor.x *
 	                     MATH_GRAVITY_M_S2;
@@ -629,6 +631,9 @@ update_fusion(struct psmv_device *psmv,
 	psmv->read.accel.z = (ra->z - psmv->calibration.accel.bias.z) /
 	                     psmv->calibration.accel.factor.z *
 	                     MATH_GRAVITY_M_S2;
+	fprintf(csv, "%d,%d,%d,", ra->x, ra->y, ra->z);
+	fprintf(csv, "%f,%f,%f,", psmv->read.accel.x, psmv->read.accel.y,
+	        psmv->read.accel.z);
 
 	psmv->read.gyro.x = (rg->x - psmv->calibration.gyro.bias.x) /
 	                    psmv->calibration.gyro.factor.x;
@@ -645,6 +650,10 @@ update_fusion(struct psmv_device *psmv,
 		xrt_tracked_psmv_push_imu(psmv->ball, delta_ns, &sample);
 	} else {
 		float dt = time_ns_to_s(delta_ns);
+		fprintf(csv, "%d,%d,%d,", rg->x, rg->y, rg->z);
+		fprintf(csv, "%f,%f,%f,", psmv->read.gyro.x, psmv->read.gyro.y,
+		        psmv->read.gyro.z);
+		fprintf(csv, "\n");
 
 #if 0
 		// Super simple fusion.
@@ -723,6 +732,15 @@ psmv_run_thread(void *ptr)
 
 	timepoint_ns then_ns = time_state_get_now(time);
 
+	csv = fopen("psmv.csv", "w");
+	assert(csv);
+	fprintf(
+	    csv,
+	    "timestamp,dt,accel_raw_x,accel_raw_y,accel_raw_z,accel_calibrated_"
+	    "x,accel_"
+	    "calibrated_y,accel_calibrated_z,gyro_raw_x,gyro_raw_y,gyro_raw_z,"
+	    "gyro_calibrated_x,gyro_calibrated_y,gyro_calibrated_z\n");
+
 	while (psmv_read_one_packet(psmv, data.buffer, sizeof(data))) {
 
 		timepoint_ns now_ns = time_state_get_now(time);
@@ -741,10 +759,13 @@ psmv_run_thread(void *ptr)
 		// Process the parsed data.
 		if (num == 2) {
 			// ZCM1
+			fprintf(csv, "%d,", input.timestamp);
 			update_fusion(psmv, &input.samples[0], delta_ns / 2.0);
+			fprintf(csv, "%d,", input.timestamp);
 			update_fusion(psmv, &input.samples[1], delta_ns / 2.0);
 		} else if (num == 1) {
 			// ZCM2
+			fprintf(csv, "%d,", input.timestamp);
 			update_fusion(psmv, &input.sample, delta_ns);
 		} else {
 			assert(false);
