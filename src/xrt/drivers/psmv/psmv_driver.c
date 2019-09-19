@@ -749,6 +749,12 @@ psmv_run_thread(void *ptr)
 
 		// Lock last and the fusion.
 		os_mutex_lock(&psmv->lock);
+		float now_ts = input.timestamp;
+		float prev_ts = psmv->last.timestamp;
+		if (psmv->last.timestamp > input.timestamp) {
+			now_ts += 65536;
+		}
+		float dt = (now_ts - prev_ts) * 1e-5f;
 
 		// Copy to device.
 		psmv->last = input;
