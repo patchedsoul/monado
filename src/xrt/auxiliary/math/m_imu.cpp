@@ -67,7 +67,7 @@ public:
 	getResidual(MeasurementVector const &predictedMeasurement,
 	            State const &s) const
 	{
-		return direction_ - reference_.normalized();
+		return predictedMeasurement - reference_.normalized();
 	}
 
 	template <typename State>
