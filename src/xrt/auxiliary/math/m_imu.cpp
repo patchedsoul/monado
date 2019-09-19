@@ -30,6 +30,7 @@ using State = ProcessModel::State;
 
 namespace {
 namespace types = flexkalman::types;
+using flexkalman::types::Vector;
 
 //! For things like accelerometers, which on some level measure the local vector
 //! of a world direction.
@@ -144,8 +145,14 @@ imu_filter_output_prediction(State const &state,
 struct imu_filter *
 imu_filter_create() try
 {
-	auto obj = std::make_unique<imu_filter>();
-	return obj.release();
+	auto filter = std::make_unique<imu_filter>();
+	// Arbitrarily high since we have no idea where we are.
+	filter->state.setErrorCovariance(
+	    Vector<6>::Constant(10).asDiagonal());
+
+	filter->processModel.setNoiseAutocorrelation(
+	    Vector<3>::Constant(1.3e-1));
+	return filter.release();
 } catch (...) {
 	return NULL;
 }
@@ -167,6 +174,7 @@ imu_filter_incorporate_gyros(struct imu_filter *filter,
 	assert(ang_vel);
 	assert(variance);
 
+	// the filter runs on doubles, not floats
 	auto meas = flexkalman::AngularVelocityMeasurement(
 	    map_vec3(*ang_vel).cast<double>(),
 	    map_vec3(*variance).cast<double>());
@@ -175,6 +183,7 @@ imu_filter_incorporate_gyros(struct imu_filter *filter,
 	assert(false && "Caught exception on incorporate gyros");
 	return -1;
 }
+
 int
 imu_filter_incorporate_accelerometer(struct imu_filter *filter,
                                      float dt,
@@ -186,6 +195,7 @@ imu_filter_incorporate_accelerometer(struct imu_filter *filter,
 	assert(accel);
 	assert(variance);
 
+	// the filter runs on doubles, not floats
 	auto meas =
 	    WorldDirectionMeasurement(map_vec3(*accel).cast<double>() * scale,
 	                              map_vec3(*reference).cast<double>(),
