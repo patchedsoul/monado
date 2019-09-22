@@ -489,6 +489,7 @@ struct psmv_device
 		struct
 		{
 			struct xrt_quat rot;
+			struct xrt_vec3 rotvec;
 			struct imu_filter *filter;
 			struct
 			{
@@ -667,6 +668,8 @@ update_fusion(struct psmv_device *psmv,
 		struct xrt_vec3 angvel_dummy;
 		imu_filter_get_prediction(psmv->fusion.filter, 0,
 		                          &psmv->fusion.rot, &angvel_dummy);
+		imu_filter_get_prediction_rotation_vec(psmv->fusion.filter, 0,
+		                                       &psmv->fusion.rotvec);
 #endif
 	}
 }
@@ -1160,6 +1163,7 @@ psmv_found(struct xrt_prober *xp,
 	u_var_add_vec3_f32(psmv, &psmv->fusion.variance.accel, "fusion.variance.accel");
 	u_var_add_vec3_f32(psmv, &psmv->fusion.variance.gyro, "fusion.variance.gyro");
 	u_var_add_ro_quat_f32(psmv, &psmv->fusion.rot, "fusion.rot");
+	u_var_add_ro_vec3_f32(psmv, &psmv->fusion.rotvec, "fusion.rotvec");
 	u_var_add_gui_header(psmv, &psmv->gui.control, "Control");
 	u_var_add_rgb_u8(psmv, &psmv->wants.led, "Led");
 	u_var_add_u8(psmv, &psmv->wants.rumble, "Rumble");
