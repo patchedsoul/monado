@@ -36,6 +36,18 @@ if(BUILD_DRIVER_HYDRA)
 	set_property(TARGET drv_hydra PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 
+if(BUILD_DRIVER_LGR100)
+	set(LGR100_SOURCE_FILES
+		lgr100/lgr100_device.c
+		lgr100/lgr100_device.h
+		lgr100/lgr100_interface.h
+		)
+
+	# Use OBJECT to not create a archive, since it just gets in the way.
+	add_library(drv_lgr100 OBJECT ${LGR100_SOURCE_FILES})
+	set_property(TARGET drv_lgr100 PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if(BUILD_DRIVER_OHMD)
 	set(OHMD_SOURCE_FILES
 		ohmd/oh_device.c

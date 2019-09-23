@@ -133,6 +133,7 @@ if(TRUE)
 	# Uses the Monado internal hid wrapper.
 	set(BUILD_DRIVER_HDK TRUE)
 	set(BUILD_DRIVER_PSMV TRUE)
+	set(BUILD_DRIVER_LGR100 TRUE)
 
 	add_definitions(-DXRT_BUILD_HYDRA)
 	set(BUILD_DRIVER_HYDRA TRUE)
