@@ -14,6 +14,10 @@
 #include "hdk/hdk_interface.h"
 #endif
 
+#ifdef XRT_BUILD_LGR100
+#include "lgr100/lgr100_interface.h"
+#endif
+
 #ifdef XRT_BUILD_OHMD
 #include "ohmd/oh_interface.h"
 #endif
@@ -61,6 +65,10 @@ struct xrt_prober_entry target_entry_list[] = {
 #ifdef XRT_BUILD_HDK
     {HDK_VID, HDK_PID, hdk_found, "OSVR HDK"},
 #endif // XRT_BUILD_HDK
+
+#ifdef XRT_BUILD_LGR100
+    {LGR100_VID, LGR100_PID, lgr100_found, "LG R100"},
+#endif // XRT_BUILD_LGR100
 
     {0x0000, 0x0000, NULL, NULL}, // Terminate
 };
