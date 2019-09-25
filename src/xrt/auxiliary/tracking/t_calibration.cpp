@@ -113,6 +113,8 @@ public:
 
 	} state;
 
+	bool clear_frame = false;
+
 	cv::Mat grey;
 
 	char text[512];
@@ -210,10 +212,13 @@ make_calibration_frame(class Calibration &c)
 	if (rgb.rows == 0 || rgb.cols == 0) {
 		ensure_buffers_are_allocated(c, 480, 640);
 	}
-	// clear  our gui frame
-	cv::rectangle(c.gui.rgb, cv::Point2f(0, 0),
-	              cv::Point2f(rgb.cols, rgb.rows), cv::Scalar(0, 0, 0), -1,
-	              0);
+
+	if (c.clear_frame) {
+		// clear our gui frame
+		cv::rectangle(c.gui.rgb, cv::Point2f(0, 0),
+		              cv::Point2f(rgb.cols, rgb.rows),
+		              cv::Scalar(0, 0, 0), -1, 0);
+	}
 
 	// split left and right eyes
 	cv::Mat l_chans[] = {c.state.l_frame_grey};
