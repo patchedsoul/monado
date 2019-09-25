@@ -418,12 +418,6 @@ make_calibration_frame(class Calibration &c)
 		bool add_sample = false;
 		int coverage_threshold = cols * 0.3f * rows * 0.3f;
 
-		if (c.state.calibration_count < 9) {
-			P("POSITION CHESSBOARD IN BOX");
-		} else {
-			P("TRY TO 'PUSH OUT EDGES' WITH LARGE BOARD IMAGES");
-		}
-
 		if (c.state.calibration_count < 9 &&
 		    brect.tl().x >= bound_tl.x && brect.tl().y >= bound_tl.y &&
 		    brect.br().x <= bound_br.x && brect.br().y <= bound_br.y) {
@@ -448,6 +442,12 @@ make_calibration_frame(class Calibration &c)
 			printf("SAMPLE: %ld\n",
 			       c.state.view[0].measured.size());
 		}
+	}
+
+	if (c.state.calibration_count < 9) {
+		P("POSITION CHESSBOARD IN BOX");
+	} else {
+		P("TRY TO 'PUSH OUT EDGES' WITH LARGE BOARD IMAGES");
 	}
 
 	if (c.state.view[0].measured.size() == CALIBRATION_SAMPLES) {
