@@ -373,8 +373,8 @@ make_calibration_frame(class Calibration &c)
 		    image_size, camera_rotation, camera_translation,
 		    camera_essential, camera_fundamental, errors, 0);
 
-		std::cout << "calibration rp_error" << rp_error << "\n";
-		std::cout << "calibration camera_translation"
+		std::cout << "calibration rp_error: " << rp_error << "\n";
+		std::cout << "calibration camera_translation:\n"
 		          << camera_translation << "\n";
 
 		cv::stereoRectify(cp.l_intrinsics, zero_distortion,
