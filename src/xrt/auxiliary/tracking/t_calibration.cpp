@@ -381,7 +381,7 @@ make_calibration_frame(class Calibration &c)
 	int cols = rgb.cols / 2;
 	int rows = rgb.rows;
 
-	// split left and right eyes
+	// Split left and right eyes, don't make any copies.
 	cv::Mat l_grey(rows, cols, CV_8UC1, grey.data, grey.cols);
 	cv::Mat r_grey(rows, cols, CV_8UC1, grey.data + cols, grey.cols);
 	cv::Mat l_rgb(rows, cols, CV_8UC3, c.gui.frame->data,
