@@ -480,6 +480,7 @@ process_frame_yuv(class Calibration &c, struct xrt_frame *xf)
 
 	cv::Mat data(h, w, CV_8UC3, xf->data, xf->stride);
 	ensure_buffers_are_allocated(c, data.rows, data.cols);
+	c.gui.frame->source_sequence = xf->source_sequence;
 
 	cv::cvtColor(data, c.gui.rgb, cv::COLOR_YUV2RGB);
 	cv::cvtColor(c.gui.rgb, c.grey, cv::COLOR_RGB2GRAY);
@@ -501,6 +502,7 @@ process_frame_yuyv(class Calibration &c, struct xrt_frame *xf)
 	f.data_half = cv::Mat(h, half_w, CV_8UC4, xf->data, xf->stride);
 	f.data_full = cv::Mat(h, w, CV_8UC2, xf->data, xf->stride);
 	ensure_buffers_are_allocated(c, f.data_full.rows, f.data_full.cols);
+	c.gui.frame->source_sequence = xf->source_sequence;
 
 	cv::cvtColor(f.data_full, c.gui.rgb, cv::COLOR_YUV2RGB_YUYV);
 	cv::cvtColor(f.data_full, c.grey, cv::COLOR_YUV2GRAY_YUYV);
