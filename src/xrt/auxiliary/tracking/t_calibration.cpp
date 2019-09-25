@@ -166,10 +166,6 @@ ensure_buffers_are_allocated(class Calibration &c, int rows, int cols)
 	}
 
 	c.grey = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
-	c.state.l_frame_grey =
-	    cv::Mat(rows, cols / 2, CV_8UC1, cv::Scalar(0, 0, 0));
-	c.state.r_frame_grey =
-	    cv::Mat(rows, cols / 2, CV_8UC1, cv::Scalar(0, 0, 0));
 
 	refresh_gui_frame(c, rows, cols);
 }
@@ -221,12 +217,10 @@ make_calibration_frame(class Calibration &c)
 	}
 
 	// split left and right eyes
-	cv::Mat l_chans[] = {c.state.l_frame_grey};
-	cv::Mat r_chans[] = {c.state.r_frame_grey};
 	cv::Rect lr(0.0, 0.0, c.grey.cols / 2, c.grey.rows);
 	cv::Rect rr(c.grey.cols / 2, 0.0, c.grey.cols / 2, c.grey.rows);
-	cv::split(c.grey(lr), l_chans);
-	cv::split(c.grey(rr), r_chans);
+	c.state.l_frame_grey = c.grey(lr);
+	c.state.r_frame_grey = c.grey(rr);
 
 	bool found_left =
 	    cv::findChessboardCorners(c.state.l_frame_grey, c.chessboard_size,
