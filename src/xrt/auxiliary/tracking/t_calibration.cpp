@@ -337,7 +337,7 @@ make_calibration_frame(class Calibration &c)
 		cv::Size image_size(c.state.l_frame_grey.cols,
 		                    c.state.l_frame_grey.rows);
 
-		// we dont serialise these
+		// we don't serialise these
 		cv::Mat errors;
 		cv::Mat camera_rotation;
 		cv::Mat camera_translation;
