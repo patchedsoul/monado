@@ -239,8 +239,6 @@ make_calibration_frame(class Calibration &c)
 	bound_br.x *= rgb.cols / 2;
 	bound_br.y *= rgb.rows;
 
-	cv::rectangle(c.gui.rgb, bound_tl, bound_br, cv::Scalar(0, 64, 32));
-
 	// compute our 'pre sample' coverage for this frame, and
 	// display it
 	std::vector<cv::Point2f> coverage;
@@ -254,7 +252,11 @@ make_calibration_frame(class Calibration &c)
 	}
 	cv::Rect pre_rect = cv::boundingRect(coverage);
 
+	// What area of the camera have we calibrated.
 	cv::rectangle(rgb, pre_rect.tl(), pre_rect.br(), cv::Scalar(0, 255, 0));
+
+	// Draw the target rect last so it is the most visible.
+	cv::rectangle(c.gui.rgb, bound_tl, bound_br, cv::Scalar(255, 0, 0));
 
 	// if we have a valid sample (left and right), display it
 	if (found_left && found_right) {
