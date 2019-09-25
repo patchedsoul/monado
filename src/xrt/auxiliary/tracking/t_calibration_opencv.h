@@ -65,7 +65,7 @@ read_cv_mat(FILE* f, cv::Mat* m)
 	return true;
 }
 
-static bool
+XRT_MAYBE_UNUSED static bool
 calibration_get_stereo(char* configuration_filename,
                        uint32_t frame_w,
                        uint32_t frame_h,
@@ -182,14 +182,14 @@ mkpath(char* path)
 
 
 // TODO: templatise these 2?
-static float
+XRT_MAYBE_UNUSED static float
 cv_dist3d_point(cv::Point3f& p, cv::Point3f& q)
 {
 	cv::Point3f d = p - q;
 	return cv::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
 }
 
-static float
+XRT_MAYBE_UNUSED static float
 cv_dist3d_vec(cv::Vec3f& p, cv::Vec3f& q)
 {
 	cv::Point3f d = p - q;

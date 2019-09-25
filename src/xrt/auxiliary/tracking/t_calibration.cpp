@@ -273,8 +273,8 @@ make_calibration_frame(class Calibration &c)
 		// samples and now want to 'push out the edges'
 
 		bool add_sample = false;
-		uint32_t coverage_threshold = c.state.l_frame_grey.cols * 0.3f *
-		                              c.state.l_frame_grey.rows * 0.3f;
+		int coverage_threshold = c.state.l_frame_grey.cols * 0.3f *
+		                         c.state.l_frame_grey.rows * 0.3f;
 
 		// snprintf(message2, 128, "TRY TO 'PUSH OUT EDGES' WITH LARGE
 		// BOARD IMAGES");
@@ -558,8 +558,8 @@ t_calibration_create(struct xrt_frame_context *xfctx,
 	u_sink_create_to_yuv_or_yuyv(xfctx, *out_sink, out_sink);
 
 	c.chessboard_size = cv::Size(CHESSBOARD_COLS, CHESSBOARD_ROWS);
-	for (uint32_t i = 0;
-	     i < c.chessboard_size.width * c.chessboard_size.height; i++) {
+	for (int i = 0; i < c.chessboard_size.width * c.chessboard_size.height;
+	     i++) {
 		cv::Point3f p(i / c.chessboard_size.width,
 		              i % c.chessboard_size.width, 0.0f);
 		c.chessboard_model.push_back(p);
