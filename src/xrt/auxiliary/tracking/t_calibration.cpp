@@ -340,7 +340,6 @@ make_calibration_frame(class Calibration &c)
 		                    c.state.l_frame_grey.rows);
 
 		// we don't serialise these
-		cv::Mat errors;
 		cv::Mat camera_rotation;
 		cv::Mat camera_translation;
 		cv::Mat camera_essential;
@@ -371,7 +370,7 @@ make_calibration_frame(class Calibration &c)
 		    c.state.r_chessboards_measured, cp.l_intrinsics,
 		    cp.l_distortion, cp.r_intrinsics, cp.r_distortion,
 		    image_size, camera_rotation, camera_translation,
-		    camera_essential, camera_fundamental, errors, 0);
+		    camera_essential, camera_fundamental, 0);
 
 		std::cout << "calibration rp_error: " << rp_error << "\n";
 		std::cout << "calibration camera_translation:\n"
