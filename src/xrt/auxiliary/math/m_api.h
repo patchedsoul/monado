@@ -348,6 +348,32 @@ math_compute_fovs(double w_total,
                   double vertfov_total,
                   struct xrt_fov *fov);
 
+struct math_autoranging_vec3
+{
+	struct xrt_vec3 minimums;
+	struct xrt_vec3 maximums;
+};
+
+void
+math_autoranging_vec3_init(struct math_autoranging_vec3 *ranging);
+
+/*!
+ * @return false if this is the first sample.
+ */
+bool
+math_autoranging_vec3_update(struct math_autoranging_vec3 *ranging,
+                             const struct xrt_vec3 *vec);
+
+/*!
+ * Remaps to [-1, 1] for each component.
+ *
+ * @return false if no map occurred (due to first sample, or minumum = maximum
+ * for a component, or...).
+ */
+bool
+math_autoranging_vec3_update_and_map(struct math_autoranging_vec3 *ranging,
+                                     struct xrt_vec3 *vec);
+
 #ifdef __cplusplus
 }
 #endif

@@ -424,6 +424,11 @@ math_relation_accumulate_relation(
 	}
 }
 
+static inline float
+remap(float minimum, float maximum, float val)
+{
+	return (val - minimum) / (maximum - minimum) * 2 - 1;
+}
 extern "C" void
 math_relation_openxr_locate(const struct xrt_pose* space_pose,
                             const struct xrt_space_relation* relative_relation,
@@ -452,4 +457,98 @@ math_relation_openxr_locate(const struct xrt_pose* space_pose,
 	math_relation_accumulate_transform(&spc, &accumulating_relation);
 
 	*result = accumulating_relation;
+}
+
+
+
+extern "C" void
+math_autoranging_vec3_init(struct math_autoranging_vec3* ranging)
+{
+	assert(ranging);
+	// Use a non-finite value for our sentinel.
+	ranging->maximums.x = 1.f / 0.f;
+	ranging->maximums.y = 1.f / 0.f;
+	ranging->maximums.z = 1.f / 0.f;
+	ranging->minimums.x = 1.f / 0.f;
+	ranging->minimums.y = 1.f / 0.f;
+	ranging->minimums.z = 1.f / 0.f;
+}
+
+template <typename A, typename B, typename Functor>
+static inline void
+applyToParallelVectors(A&& a, B&& b, Functor&& f)
+{
+	f(a.x, b.x);
+	f(a.y, b.y);
+	f(a.z, b.z);
+}
+
+bool
+math_autoranging_vec3_update(struct math_autoranging_vec3* ranging,
+                             const struct xrt_vec3* vec)
+{
+	if (ranging->maximums.x != ranging->maximums.x) {
+		// initial
+		ranging->maximums.x = vec->x;
+		ranging->maximums.y = vec->y;
+		ranging->maximums.z = vec->z;
+		ranging->minimums.x = vec->x;
+		ranging->minimums.y = vec->y;
+		ranging->minimums.z = vec->z;
+		return false;
+	}
+
+	applyToParallelVectors(*vec, ranging->minimums,
+	                       [](float a, float& minimum) {
+		                       if (a < minimum) {
+			                       minimum = a;
+		                       }
+	                       });
+	applyToParallelVectors(*vec, ranging->maximums,
+	                       [](float a, float& maximum) {
+		                       if (a > maximum) {
+			                       maximum = a;
+		                       }
+	                       });
+#define HANDLE_DIMENSION(MEMBER)                                               \
+	if (vec->MEMBER < ranging->minimums->MEMBER) {                         \
+		ranging->minimums->MEMBER = vec->MEMBER;                       \
+	}                                                                      \
+	if (vec->MEMBER > ranging->maximums->MEMBER) {                         \
+		ranging->maximums->MEMBER = vec->MEMBER;                       \
+	}
+	// HANDLE_DIMENSION(x);
+	// HANDLE_DIMENSION(y);
+	// HANDLE_DIMENSION(z);
+	return true;
+}
+
+
+bool
+math_autoranging_vec3_update_and_map(struct math_autoranging_vec3* ranging,
+                                     struct xrt_vec3* vec)
+{
+
+	// assert(1 == remap(0, 1, 1));
+	// assert(1 == remap(-1, 1, 1));
+	// assert(-1 == remap(-1, 1, -1));
+	// assert(-1 == remap(-2, 1, -2));
+
+	if (!math_autoranging_vec3_update(ranging, vec)) {
+		// Can't map.
+		return false;
+	}
+	if (ranging->minimums.x == ranging->maximums.x) {
+		return false;
+	}
+	if (ranging->minimums.y == ranging->maximums.y) {
+		return false;
+	}
+	if (ranging->minimums.z == ranging->maximums.z) {
+		return false;
+	}
+	vec->x = remap(ranging->minimums.x, ranging->maximums.x, vec->x);
+	vec->y = remap(ranging->minimums.y, ranging->maximums.y, vec->y);
+	vec->z = remap(ranging->minimums.z, ranging->maximums.z, vec->z);
+	return false;
 }
