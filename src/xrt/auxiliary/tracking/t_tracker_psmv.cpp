@@ -49,166 +49,168 @@ public:
 	} fusion;
 
 
-    cv::Mat l_frame_grey;
-    cv::Mat r_frame_grey;
+	cv::Mat l_undistort_map_x;
+	cv::Mat l_undistort_map_y;
+	cv::Mat l_rectify_map_x;
+	cv::Mat l_rectify_map_y;
+	cv::Mat r_undistort_map_x;
+	cv::Mat r_undistort_map_y;
+	cv::Mat r_rectify_map_x;
+	cv::Mat r_rectify_map_y;
+	cv::Mat disparity_to_depth;
+	bool calibrated;
 
-    cv::Mat l_undistort_map_x;
-    cv::Mat l_undistort_map_y;
-    cv::Mat l_rectify_map_x;
-    cv::Mat l_rectify_map_y;
-    cv::Mat r_undistort_map_x;
-    cv::Mat r_undistort_map_y;
-    cv::Mat r_rectify_map_x;
-    cv::Mat r_rectify_map_y;
-    cv::Mat disparity_to_depth;
-    bool calibrated;
+	std::vector<cv::KeyPoint> l_keypoints;
+	std::vector<cv::KeyPoint> r_keypoints;
+	cv::Ptr<cv::SimpleBlobDetector> sbd;
 
-    std::vector<cv::KeyPoint> l_keypoints;
-    std::vector<cv::KeyPoint> r_keypoints;
-    cv::Ptr<cv::SimpleBlobDetector> sbd;
-
-    xrt_vec3 tracked_object_position;
-
+	xrt_vec3 tracked_object_position;
 };
 
 static void
 procces(TrackerPSMV &t, struct xrt_frame *xf)
 {
-    // Only IMU data
-    if (xf == NULL) {
+	// Only IMU data
+	if (xf == NULL) {
 		return;
 	}
 
-    if (! t.calibrated) {
-        if ( calibration_get_stereo("PS4_EYE",xf->width,xf->height,false,
-            &t.l_undistort_map_x,
-            &t.l_undistort_map_y,
-            &t.l_rectify_map_x,
-            &t.l_rectify_map_y,
-            &t.r_undistort_map_x,
-            &t.r_undistort_map_y,
-            &t.r_rectify_map_x,
-            &t.r_rectify_map_y,
-            &t.disparity_to_depth) ) {
-            printf("loaded calibration for camera!\n");
-            t.calibrated = true;
-            }
-    }
-    t.l_keypoints.clear();
-    t.r_keypoints.clear();
+	if (!t.calibrated) {
+		if (calibration_get_stereo(
+		        "PS4_EYE", xf->width, xf->height, false,
+		        &t.l_undistort_map_x, &t.l_undistort_map_y,
+		        &t.l_rectify_map_x, &t.l_rectify_map_y,
+		        &t.r_undistort_map_x, &t.r_undistort_map_y,
+		        &t.r_rectify_map_x, &t.r_rectify_map_y,
+		        &t.disparity_to_depth)) {
+			printf("loaded calibration for camera!\n");
+			t.calibrated = true;
+		}
+	}
+	t.l_keypoints.clear();
+	t.r_keypoints.clear();
 
-    cv::Mat l_frame_undist;
-    cv::Mat r_frame_undist;
+	// TODO: we assume L8 format here, this may be a bad assumption
 
-    // undistort the whole image
-    cv::remap(t.l_frame_grey, l_frame_undist,
-                t.l_undistort_map_x, t.l_undistort_map_y,
-                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
-    cv::remap(t.r_frame_grey, r_frame_undist,
-                t.r_undistort_map_x, t.r_undistort_map_y,
-                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+	cv::Mat l_grey(xf->height, xf->width / 2, CV_8UC1, xf->data,
+	               xf->height);
+	cv::Mat r_grey(xf->height, xf->width / 2, CV_8UC1,
+	               xf->data + xf->width / 2, xf->height);
 
-      // rectify the whole image
-      cv::remap(l_frame_undist, t.l_frame_grey,
-                t.l_rectify_map_x, t.l_rectify_map_y,
-                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
-      cv::remap(r_frame_undist, t.r_frame_grey,
-                t.r_rectify_map_x, t.r_rectify_map_y,
-                cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+	cv::Mat l_frame_undist;
+	cv::Mat r_frame_undist;
 
-      cv::threshold(t.l_frame_grey, t.l_frame_grey, 32.0, 255.0, 0);
-      cv::threshold(t.r_frame_grey, t.r_frame_grey, 32.0, 255.0, 0);
+	// undistort the whole image
+	cv::remap(l_grey, l_frame_undist, t.l_undistort_map_x,
+	          t.l_undistort_map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT,
+	          cv::Scalar(0, 0, 0));
+	cv::remap(r_grey, r_frame_undist, t.r_undistort_map_x,
+	          t.r_undistort_map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT,
+	          cv::Scalar(0, 0, 0));
 
-      //tracker_measurement_t m = {};
+	// rectify the whole image
+	cv::remap(l_frame_undist, l_grey, t.l_rectify_map_x, t.l_rectify_map_y,
+	          cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+	cv::remap(r_frame_undist, r_grey, t.r_rectify_map_x, t.r_rectify_map_y,
+	          cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
-      // do blob detection with our masks
-      // TODO: re-enable masks
-      t.sbd->detect(t.l_frame_grey,t.l_keypoints); //,internal->l_mask_gray);
-      t.sbd->detect(t.r_frame_grey,t.r_keypoints); //,internal->r_mask_gray);
-      // do some basic matching to come up with likely disparity-pairs
-      std::vector<cv::KeyPoint> l_blobs, r_blobs;
-      for (uint32_t i = 0; i < t.l_keypoints.size(); i++) {
-          cv::KeyPoint l_blob = t.l_keypoints[i];
-          int l_index = -1;
-          int r_index = -1;
-          for (uint32_t j = 0; j < t.r_keypoints.size(); j++) {
-              float lowest_dist = 128;
-              cv::KeyPoint r_blob = t.r_keypoints[j];
-              // find closest point on same-ish scanline
-              if ((l_blob.pt.y < r_blob.pt.y + 3) &&
-                  (l_blob.pt.y > r_blob.pt.y - 3) &&
-                  ((r_blob.pt.x - l_blob.pt.x) < lowest_dist)) {
-                  lowest_dist = r_blob.pt.x - l_blob.pt.x;
-                  r_index = j;
-                  l_index = i;
-              }
-          }
-          if (l_index > -1 && r_index > -1) {
-              l_blobs.push_back(t.l_keypoints.at(l_index));
-              r_blobs.push_back(t.r_keypoints.at(r_index));
-          }
-      }
+	cv::threshold(l_grey, l_grey, 32.0, 255.0, 0);
+	cv::threshold(r_grey, r_grey, 32.0, 255.0, 0);
 
-      // convert our 2d point + disparities into 3d points.
+	// tracker_measurement_t m = {};
 
-      std::vector<cv::Point3f> world_points;
-      if (l_blobs.size() > 0) {
-          for (uint32_t i = 0; i < l_blobs.size(); i++) {
-              float disp = r_blobs[i].pt.x - l_blobs[i].pt.x;
-              cv::Vec4d xydw(l_blobs[i].pt.x, l_blobs[i].pt.y, disp,
-                             1.0f);
-              // Transform
-              cv::Vec4d h_world = (cv::Matx44d)t.disparity_to_depth * xydw;
-              // Divide by scale to get 3D vector from homogeneous
-              // coordinate. invert x while we are here.
-              world_points.push_back(cv::Point3f(
-                  -h_world[0] / h_world[3], h_world[1] / h_world[3],
-                  h_world[2] / h_world[3]));
-          }
-      }
+	// do blob detection with our masks
+	// TODO: re-enable masks
+	t.sbd->detect(l_grey, t.l_keypoints); //,internal->l_mask_gray);
+	t.sbd->detect(r_grey, t.r_keypoints); //,internal->r_mask_gray);
+	// do some basic matching to come up with likely disparity-pairs
+	std::vector<cv::KeyPoint> l_blobs, r_blobs;
+	for (uint32_t i = 0; i < t.l_keypoints.size(); i++) {
+		cv::KeyPoint l_blob = t.l_keypoints[i];
+		int l_index = -1;
+		int r_index = -1;
+		for (uint32_t j = 0; j < t.r_keypoints.size(); j++) {
+			float lowest_dist = 128;
+			cv::KeyPoint r_blob = t.r_keypoints[j];
+			// find closest point on same-ish scanline
+			if ((l_blob.pt.y < r_blob.pt.y + 3) &&
+			    (l_blob.pt.y > r_blob.pt.y - 3) &&
+			    ((r_blob.pt.x - l_blob.pt.x) < lowest_dist)) {
+				lowest_dist = r_blob.pt.x - l_blob.pt.x;
+				r_index = j;
+				l_index = i;
+			}
+		}
+		if (l_index > -1 && r_index > -1) {
+			l_blobs.push_back(t.l_keypoints.at(l_index));
+			r_blobs.push_back(t.r_keypoints.at(r_index));
+		}
+	}
 
-      int tracked_index = -1;
-      float lowest_dist = 65535.0f;
+	// convert our 2d point + disparities into 3d points.
 
-      cv::Point3f last_point(t.tracked_object_position.x, t.tracked_object_position.y, t.tracked_object_position.z);
+	std::vector<cv::Point3f> world_points;
+	if (l_blobs.size() > 0) {
+		for (uint32_t i = 0; i < l_blobs.size(); i++) {
+			float disp = r_blobs[i].pt.x - l_blobs[i].pt.x;
+			cv::Vec4d xydw(l_blobs[i].pt.x, l_blobs[i].pt.y, disp,
+			               1.0f);
+			// Transform
+			cv::Vec4d h_world =
+			    (cv::Matx44d)t.disparity_to_depth * xydw;
+			// Divide by scale to get 3D vector from homogeneous
+			// coordinate. invert x while we are here.
+			world_points.push_back(cv::Point3f(
+			    -h_world[0] / h_world[3], h_world[1] / h_world[3],
+			    h_world[2] / h_world[3]));
+		}
+	}
 
-      for (uint32_t i = 0; i < world_points.size(); i++) {
-        cv::Point3f world_point = world_points[i];
-        float dist = cv_dist3d_point(world_point, last_point);
-        if (dist < lowest_dist) {
-            tracked_index = i;
-            lowest_dist = dist;
-        }
-    }
+	int tracked_index = -1;
+	float lowest_dist = 65535.0f;
 
-    if (tracked_index != -1) {
-        cv::Point3f world_point = world_points[tracked_index];
+	cv::Point3f last_point(t.tracked_object_position.x,
+	                       t.tracked_object_position.y,
+	                       t.tracked_object_position.z);
 
-        /*
-        //apply our room setup transform
-        Eigen::Vector3f p = Eigen::Map<Eigen::Vector3f>(&world_point.x);
-        Eigen::Vector4f pt;
-        pt.x() = p.x();
-        pt.y() = p.y();
-        pt.z() = p.z();
-        pt.w() = 1.0f;
+	for (uint32_t i = 0; i < world_points.size(); i++) {
+		cv::Point3f world_point = world_points[i];
+		float dist = cv_dist3d_point(world_point, last_point);
+		if (dist < lowest_dist) {
+			tracked_index = i;
+			lowest_dist = dist;
+		}
+	}
 
-        //this is a glm mat4 written out 'flat'
-        Eigen::Matrix4f mat = Eigen::Map<Eigen::Matrix<float,4,4>>(internal->rs.origin_transform.v);
-        pt = mat * pt;
+	if (tracked_index != -1) {
+		cv::Point3f world_point = world_points[tracked_index];
 
-        m.pose.position.x = pt.x();
-        m.pose.position.y = pt.y();
-        m.pose.position.z = pt.z();
-        */
-        // update internal state
+		/*
+		//apply our room setup transform
+		Eigen::Vector3f p = Eigen::Map<Eigen::Vector3f>(&world_point.x);
+		Eigen::Vector4f pt;
+		pt.x() = p.x();
+		pt.y() = p.y();
+		pt.z() = p.z();
+		pt.w() = 1.0f;
 
-        t.tracked_object_position.x = world_point.x;
-        t.tracked_object_position.y = world_point.y;
-        t.tracked_object_position.z = world_point.z;
-    }
+		//this is a glm mat4 written out 'flat'
+		Eigen::Matrix4f mat =
+		Eigen::Map<Eigen::Matrix<float,4,4>>(internal->rs.origin_transform.v);
+		pt = mat * pt;
 
-    xrt_frame_reference(&xf, NULL);
+		m.pose.position.x = pt.x();
+		m.pose.position.y = pt.y();
+		m.pose.position.z = pt.z();
+		*/
+		// update internal state
+
+		t.tracked_object_position.x = world_point.x;
+		t.tracked_object_position.y = world_point.y;
+		t.tracked_object_position.z = world_point.z;
+	}
+
+	xrt_frame_reference(&xf, NULL);
 }
 
 
@@ -262,7 +264,8 @@ get_pose(TrackerPSMV &t,
 		return;
 	}
 
-	out_relation->pose.position = t.fusion.pos;
+	// out_relation->pose.position = t.fusion.pos;
+	out_relation->pose.position = t.tracked_object_position;
 	out_relation->pose.orientation = t.fusion.rot;
 
 	//! @todo assuming that orientation is actually currently tracked.
@@ -455,20 +458,22 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 		break;
 	}
 
-    cv::SimpleBlobDetector::Params blob_params;
-    blob_params.filterByArea = false;
-    blob_params.filterByConvexity = false;
-    blob_params.filterByInertia = false;
-    blob_params.filterByColor = true;
-    blob_params.blobColor = 255; // 0 or 255 - color comes from binarized image?
-    blob_params.minArea = 1;
-    blob_params.maxArea = 1000;
-    blob_params.maxThreshold = 51; // using a wide threshold span slows things down bigtime
-    blob_params.minThreshold = 50;
-    blob_params.thresholdStep = 1;
-    blob_params.minDistBetweenBlobs = 5;
-    blob_params.minRepeatability = 1; // need this to avoid error?
-    t.sbd = cv::SimpleBlobDetector::create(blob_params);
+	cv::SimpleBlobDetector::Params blob_params;
+	blob_params.filterByArea = false;
+	blob_params.filterByConvexity = false;
+	blob_params.filterByInertia = false;
+	blob_params.filterByColor = true;
+	blob_params.blobColor =
+	    255; // 0 or 255 - color comes from binarized image?
+	blob_params.minArea = 1;
+	blob_params.maxArea = 1000;
+	blob_params.maxThreshold =
+	    51; // using a wide threshold span slows things down bigtime
+	blob_params.minThreshold = 50;
+	blob_params.thresholdStep = 1;
+	blob_params.minDistBetweenBlobs = 5;
+	blob_params.minRepeatability = 1; // need this to avoid error?
+	t.sbd = cv::SimpleBlobDetector::create(blob_params);
 	xrt_frame_context_add(xfctx, &t.node);
 
 	*out_sink = &t.sink;
