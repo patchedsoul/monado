@@ -239,6 +239,8 @@ procces(TrackerPSMV &t, struct xrt_frame *xf)
 		}
 	}
 
+	fprintf(stderr, "%i %i\n", (int)l_blobs.size(), (int)r_blobs.size());
+
 	// Convert our 2d point + disparities into 3d points.
 	std::vector<cv::Point3f> world_points;
 	if (l_blobs.size() > 0) {
@@ -295,10 +297,15 @@ procces(TrackerPSMV &t, struct xrt_frame *xf)
 		m.pose.position.z = pt.z();
 		*/
 		// update internal state
+		struct xrt_vec3 hack = {0, 1.0, -1.5};
 
-		t.tracked_object_position.x = world_point.x;
-		t.tracked_object_position.y = world_point.y;
-		t.tracked_object_position.z = world_point.z;
+		t.tracked_object_position.x = (world_point.x * -1.0) + hack.x;
+		t.tracked_object_position.y = (world_point.y * +1.0) + hack.y;
+		t.tracked_object_position.z = (world_point.z * -1.0) + hack.z;
+
+		fprintf(stderr, "%+f %+f %+f\n", t.tracked_object_position.x,
+		        t.tracked_object_position.y,
+		        t.tracked_object_position.z);
 	}
 
 	if (t.debug.frame != NULL) {
