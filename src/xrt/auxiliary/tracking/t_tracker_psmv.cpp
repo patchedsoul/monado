@@ -116,42 +116,62 @@ static void
 do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 {
 	// Undistort the whole image.
-	cv::remap(grey,                 // src
-	          view.frame_undist,    // dst
-	          view.undistort_map_x, // map1
-	          view.undistort_map_y, // map2
-	          cv::INTER_LINEAR,     // interpolation
-	          cv::BORDER_CONSTANT,  // borderMode
-	          cv::Scalar(0, 0, 0)); // borderValue
+	/*   cv::remap(grey,                 // src
+	                 view.frame_undist,    // dst
+	                 view.undistort_map_x, // map1
+	                 view.undistort_map_y, // map2
+	                 cv::INTER_LINEAR,     // interpolation
+	                 cv::BORDER_CONSTANT,  // borderMode
+	                 cv::Scalar(0, 0, 0)); // borderValue
 
-	// Rectify the whole image.
-	cv::remap(view.frame_undist,    // src
-	          view.frame_rectified, // dst
-	          view.rectify_map_x,   // map1
-	          view.rectify_map_y,   // map2
-	          cv::INTER_LINEAR,     // interpolation
-	          cv::BORDER_CONSTANT,  // borderMode
-	          cv::Scalar(0, 0, 0)); // borderValue
+	       // Rectify the whole image.
+	       cv::remap(view.frame_undist,    // src
+	                 view.frame_rectified, // dst
+	                 view.rectify_map_x,   // map1
+	                 view.rectify_map_y,   // map2
+	                 cv::INTER_LINEAR,     // interpolation
+	                 cv::BORDER_CONSTANT,  // borderMode
+	                 cv::Scalar(0, 0, 0)); // borderValue
 
-	cv::threshold(view.frame_rectified, // src
-	              view.frame_rectified, // dst
-	              32.0,                 // thresh
-	              255.0,                // maxval
-	              0);                   // type
-
+	   cv::threshold(grey, // src
+	                 grey, // dst
+	                     32.0,                 // thresh
+	                     255.0,                // maxval
+	                     0);                   // type
+       */
 	// tracker_measurement_t m = {};
 
 	// Do blob detection with our masks.
 	//! @todo Re-enable masks.
-	t.sbd->detect(view.frame_rectified, // image
-	              view.keypoints,       // keypoints
-	              cv::noArray());       // mask
+	t.sbd->detect(grey,           // image
+	              view.keypoints, // keypoints
+	              cv::noArray()); // mask
 
+	// undistort and rectify the blob centers using our maps
+	// TODO: interpolation
+	for (uint32_t i = 0; i < view.keypoints.size(); i++) {
+		cv::KeyPoint *kp = &view.keypoints.at(i);
+		int ux = int(kp->pt.x);
+		int uy = int(kp->pt.y);
+		// clamp to bounds
+		if (ux >= grey.cols) {
+			ux = grey.cols - 1;
+		}
+		if (uy >= grey.rows) {
+			uy = grey.rows - 1;
+		}
+		kp->pt.x = view.undistort_map_x.at<float>(uy, ux);
+		kp->pt.y = view.undistort_map_y.at<float>(uy, ux);
+		int rx = int(kp->pt.x);
+		int ry = int(kp->pt.y);
+		kp->pt.x = view.rectify_map_x.at<float>(ry, rx);
+		kp->pt.y = view.rectify_map_y.at<float>(ry, rx);
+	}
 
 	// Debug is wanted, draw the keypoints.
 	if (rgb.cols > 0) {
 		cv::drawKeypoints(
-		    view.frame_rectified,                       // image
+		    grey,                                       // image
 		    view.keypoints,                             // keypoints
 		    rgb,                                        // outImage
 		    cv::Scalar(255, 0, 0),                      // color
@@ -217,6 +237,11 @@ procces(TrackerPSMV &t, struct xrt_frame *xf)
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
 	for (uint32_t i = 0; i < t.view[0].keypoints.size(); i++) {
 		cv::KeyPoint l_blob = t.view[0].keypoints[i];
+
+		if (l_blob.pt.x < 0 || l_blob.pt.x > l_grey.cols ||
+		    l_blob.pt.y < 0 || l_blob.pt.y > l_grey.rows) {
+			return;
+		}
 		int l_index = -1;
 		int r_index = -1;
 
