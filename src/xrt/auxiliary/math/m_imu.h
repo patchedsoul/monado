@@ -14,6 +14,25 @@
 extern "C" {
 #endif
 
+struct imu_sensor_config
+{
+	struct xrt_vec3 initial_scale;
+	struct xrt_vec3 initial_bias;
+	bool present;
+};
+
+struct imu_sensor_measurement
+{
+	struct xrt_vec3 raw_measurement;
+	struct xrt_vec3 scaled_variance;
+};
+
+struct imu_filter_config
+{
+	struct imu_sensor_config accel_config;
+	struct imu_sensor_config gyro_config;
+};
+
 struct imu_filter;
 /*!
  * Create a struct imu_filter.
