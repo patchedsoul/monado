@@ -5,6 +5,7 @@
  * @brief  PS Move tracker code.
  * @author Pete Black <pblack@collabora.com>
  * @author Jakob Bornecrantz <jakob@collabora.com>
+ * @ingroup aux_tracking
  */
 
 #include "xrt/xrt_tracking.h"
@@ -23,10 +24,84 @@
 
 #include "os/os_threading.h"
 
+
+#include "flexkalman/AbsoluteOrientationMeasurement.h"
+#include "flexkalman/FlexibleKalmanFilter.h"
+#include "flexkalman/FlexibleUnscentedCorrect.h"
+#include "flexkalman/PoseSeparatelyDampedConstantVelocity.h"
+#include "flexkalman/PoseState.h"
+
 #include <stdio.h>
 #include <assert.h>
 #include <pthread.h>
 
+namespace xrt_fusion {
+namespace types = flexkalman::types;
+using flexkalman::types::Vector;
+/*!
+ * For PS Move-like things, where there's a directly-computed absolute position
+ * that is not at the tracked body's origin.
+ */
+class AbsolutePositionLeverArmMeasurement
+    : public flexkalman::MeasurementBase<AbsolutePositionLeverArmMeasurement>
+{
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+	using State = flexkalman::pose_externalized_rotation::State;
+	static constexpr size_t Dimension = 3;
+	using MeasurementVector = types::Vector<Dimension>;
+	using MeasurementSquareMatrix = types::SquareMatrix<Dimension>;
+
+	/*!
+	 * @todo the point we get from the camera isn't the center of the ball,
+	 * but the center of the visible surface of the ball - a closer
+	 * approximation would be translation along the vector to the center of
+	 * projection....
+	 */
+	AbsolutePositionLeverArmMeasurement(
+	    MeasurementVector const &measurement,
+	    MeasurementVector const &knownLocationInBodySpace,
+	    MeasurementVector const &variance)
+	    : measurement_(measurement),
+	      knownLocationInBodySpace_(knownLocationInBodySpace),
+	      covariance_(variance.asDiagonal())
+	{}
+
+	MeasurementSquareMatrix const &
+	getCovariance(State const & /*s*/)
+	{
+		return covariance_;
+	}
+
+	types::Vector<3>
+	predictMeasurement(State const &s) const
+	{
+		return s.getIsometry() * knownLocationInBodySpace_;
+	}
+
+	MeasurementVector
+	getResidual(MeasurementVector const &predictedMeasurement,
+	            State const & /*s*/) const
+	{
+		return measurement_ - predictedMeasurement;
+	}
+
+	MeasurementVector
+	getResidual(State const &s) const
+	{
+		return getResidual(predictMeasurement(s), s);
+	}
+
+private:
+	MeasurementVector measurement_;
+	MeasurementVector knownLocationInBodySpace_;
+	MeasurementSquareMatrix covariance_;
+};
+} // namespace xrt_fusion
+
+using State = flexkalman::pose_externalized_rotation::State;
+using ProcessModel =
+    flexkalman::PoseSeparatelyDampedConstantVelocityProcessModel;
 
 /*!
  * Single camera.
@@ -44,9 +119,9 @@ struct View
 	cv::Mat frame_rectified;
 };
 
-class TrackerPSMV
+struct TrackerPSMV
 {
-public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	struct xrt_tracked_psmv base = {};
 	struct xrt_frame_sink sink = {};
 	struct xrt_frame_node node = {};
@@ -81,6 +156,9 @@ public:
 	cv::Mat disparity_to_depth;
 
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
+
+	State filter_state;
+	ProcessModel process_model;
 
 	xrt_vec3 tracked_object_position;
 };
@@ -333,6 +411,27 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	xrt_frame_reference(&xf, NULL);
 	xrt_frame_reference(&t.debug.frame, NULL);
+
+	auto measurement = xrt_fusion::AbsolutePositionLeverArmMeasurement{
+	    map_vec3(t.tracked_object_position).cast<double>(),
+	    //! @todo something less arbitrary for the lever arm? This puts the
+	    //! origin approximately under the PS button.
+	    Eigen::Vector3d(0., 0.09, 0.),
+	    //! @todo this should depend on distance
+	    // Weirdly, this is where *not* applying the
+	    // disparity-to-distance/rectification/etc would simplify things,
+	    // since the measurement variance is related to the image sensor.
+	    // 1.e-4 means 1cm std dev. Not sure how to estimate the depth
+	    // variance without some research.
+	    Eigen::Vector3d(1.e-4, 1.e-4, 4.e-4)};
+
+	//! @todo predict and use actual dt - right now only IMU updates this
+	//! time.
+	// flexkalman::predict(t.filter_state, t.process_model, 1.0 / 60.);
+	if (!flexkalman::correctUnscented(t.filter_state, measurement)) {
+		fprintf(stderr,
+		        "Got non-finite something when filtering tracker!\n");
+	}
 }
 
 
@@ -387,7 +486,7 @@ get_pose(TrackerPSMV &t,
 	}
 
 	// out_relation->pose.position = t.fusion.pos;
-	out_relation->pose.position = t.tracked_object_position;
+	map_vec3(out_relation->pose.position) = t.filter_state.position().cast<float>();
 	out_relation->pose.orientation = t.fusion.rot;
 
 	//! @todo assuming that orientation is actually currently tracked.
@@ -417,6 +516,18 @@ imu_data(TrackerPSMV &t,
 	// Super simple fusion.
 	math_quat_integrate_velocity(&t.fusion.rot, &sample->gyro_rad_secs, dt,
 	                             &t.fusion.rot);
+	//! @todo use better measurements instead of the above "simple fusion"
+	flexkalman::predict(t.filter_state, t.process_model, dt);
+	Eigen::Quaterniond quat = Eigen::Quaternionf(map_quat(t.fusion.rot)).cast<double>();
+	auto meas = flexkalman::AbsoluteOrientationMeasurement{
+	    quat, Eigen::Vector3d::Constant(0.01)};
+	if (!flexkalman::correctUnscented(t.filter_state, meas)) {
+		fprintf(stderr,
+		        "Got non-finite something when filtering IMU!\n");
+	} else {
+		map_quat(t.fusion.rot) =
+		    t.filter_state.getQuaternion().cast<float>();
+	}
 
 	os_thread_helper_unlock(&t.oth);
 }
@@ -535,7 +646,8 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 {
 	fprintf(stderr, "%s\n", __func__);
 
-	auto &t = *(new TrackerPSMV());
+	auto tracker = std::make_unique<TrackerPSMV>();
+	auto &t = *tracker;
 	int ret;
 
 	t.base.get_tracked_pose = t_psmv_get_tracked_pose;
@@ -552,7 +664,6 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 
 	ret = os_thread_helper_init(&t.oth);
 	if (ret != 0) {
-		delete (&t);
 		return ret;
 	}
 
@@ -599,7 +710,7 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	u_var_add_sink(&t, &t.debug.sink, "Debug");
 
 	*out_sink = &t.sink;
-	*out_xtmv = &t.base;
+	*out_xtmv = &(tracker.release()->base);
 
 	return 0;
 }
