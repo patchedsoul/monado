@@ -62,8 +62,6 @@ lib_aux_math = static_library(
 		'math/m_base.cpp',
 		'math/m_eigen_interop.h',
 		'math/m_hash.cpp',
-		'math/m_imu.cpp',
-		'math/m_imu.h',
 		'math/m_optics.c',
 		'math/m_quatexpmap.cpp',
 	),
@@ -84,7 +82,10 @@ tracking_srcs = [
 	'tracking/t_debug_hsv_picker.cpp',
 	'tracking/t_debug_hsv_viewer.cpp',
 	'tracking/t_file.cpp',
+	'tracking/t_fusion.h',
 	'tracking/t_hsv_filter.c',
+	'tracking/t_imu.cpp',
+	'tracking/t_imu.h',
 	'tracking/t_tracker_psmv.cpp',
 	'tracking/t_tracker_psvr.cpp',
 	'tracking/t_tracking.h',
@@ -93,7 +94,7 @@ tracking_srcs = [
 lib_aux_tracking = static_library(
 	'aux_tracking',
 	files(tracking_srcs),
-	include_directories: xrt_include,
+	include_directories: [xrt_include, external_include],
 	dependencies: [eigen3, opencv],
 	build_by_default: build_tracking,
 )

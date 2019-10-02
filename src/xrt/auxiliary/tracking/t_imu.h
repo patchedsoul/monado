@@ -5,10 +5,10 @@
  * @brief  C interface to basic IMU fusion.
  * @author Ryan Pavlik <ryan.pavlik@collabora.com>
  *
- * @ingroup aux_math
+ * @ingroup aux_tracking
  */
 
-#include "m_api.h"
+#include "math/m_api.h"
 
 #ifdef __cplusplus
 extern "C" {

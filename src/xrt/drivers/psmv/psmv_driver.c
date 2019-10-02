@@ -14,7 +14,7 @@
 #include "os/os_threading.h"
 
 #include "math/m_api.h"
-#include "math/m_imu.h"
+#include "tracking/t_imu.h"
 
 #include "util/u_var.h"
 #include "util/u_time.h"
