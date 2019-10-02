@@ -83,6 +83,21 @@ imu_filter_get_prediction(struct imu_filter const* filter,
                           float dt,
                           struct xrt_quat* out_quat,
                           struct xrt_vec3* out_ang_vel);
+
+
+/*!
+ * Get the predicted state as a rotation vector. Does not advance the internal
+ * state clock.
+ *
+ * Non-zero return means error.
+ *
+ * @public @memberof imu_filter
+ * @ingroup aux_math
+ */
+int
+imu_filter_get_prediction_rotation_vec(struct imu_filter const* filter,
+                                       float dt,
+                                       struct xrt_vec3* out_rotation_vec);
 #ifdef __cplusplus
 }
 #endif

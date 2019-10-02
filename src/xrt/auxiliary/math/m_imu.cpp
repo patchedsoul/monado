@@ -234,6 +234,14 @@ imu_filter_output_prediction(State const &state,
 	return 0;
 }
 
+static int
+imu_filter_output_rot_vec(State const &state, struct xrt_vec3 &out_rot_vec)
+{
+	map_vec3(out_rot_vec) =
+	    flexkalman::util::quat_ln(state.getQuaternion().cast<float>()) * 2;
+	return 0;
+}
+
 /*
  * API functions
  */
