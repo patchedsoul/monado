@@ -45,14 +45,13 @@ namespace flexkalman {
  * @return a matrix M such that for some 3D vector u, Mu = v x u.
  */
 template <typename Derived>
-inline Eigen::Matrix3d
+inline Eigen::Matrix<typename Derived::Scalar, 3, 3>
 makeSkewSymmetrixCrossProductMatrix(Eigen::MatrixBase<Derived> const &v) {
-    Eigen::Matrix3d ret;
-    // clang-format off
-                ret << 0, -v.z(), v.y(),
-                       v.z(), 0, -v.x(),
-                       -v.y(), v.x(), 0;
-    // clang-format on
+    EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+    Eigen::Matrix<typename Derived::Scalar, 3, 3> ret;
+    ret << 0, -v.z(), v.y(), //
+        v.z(), 0, -v.x(),    //
+        -v.y(), v.x(), 0;
     return ret;
 }
 
@@ -82,12 +81,36 @@ namespace matrix_exponential_map {
      * @param omega a 3D "matrix exponential map" rotation vector, which
      * will be modified if required.
      */
-    template <typename T> inline void avoidSingularities(T &&omega) {
+    template <typename Derived>
+    inline void avoidSingularities(Eigen::MatrixBase<Derived> &omega) {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
         // if magnitude gets too close to 2pi, in this case, pi...
         if (omega.squaredNorm() > EIGEN_PI * EIGEN_PI) {
             // replace omega with an equivalent one.
-            omega = ((1 - (2 * EIGEN_PI) / omega.norm()) * omega).eval();
+            omega.derived() =
+                ((1 - (2 * EIGEN_PI) / omega.norm()) * omega).eval();
         }
+    }
+    /*!
+     * Return a matrix exponential map rotation vector, modified if required
+     * to avoid singularities.
+     *
+     * @param omega a 3D "matrix exponential map" rotation vector.
+     *
+     * This call returns the result instead of modifying in place.
+     *
+     * @see avoidSingularities()
+     */
+    template <typename Derived>
+    inline Eigen::Matrix<typename Derived::Scalar, 3, 1>
+    singularitiesAvoided(Eigen::MatrixBase<Derived> const &omega) {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+        // if magnitude gets too close to 2pi, in this case, pi...
+        if (omega.squaredNorm() > EIGEN_PI * EIGEN_PI) {
+            // replace omega with an equivalent one.
+            return (1 - (2 * EIGEN_PI) / omega.norm()) * omega;
+        }
+        return omega;
     }
 
     /*!
@@ -95,7 +118,9 @@ namespace matrix_exponential_map {
      * @param omega a 3D "exponential map" rotation vector
      */
     template <typename Derived>
-    inline double getAngle(Eigen::MatrixBase<Derived> const &omega) {
+    inline typename Derived::Scalar
+    getAngle(Eigen::MatrixBase<Derived> const &omega) {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
         return omega.norm();
     }
 
@@ -122,7 +147,9 @@ namespace matrix_exponential_map {
          */
         template <typename Derived>
         explicit ExponentialMapData(Eigen::MatrixBase<Derived> const &omega)
-            : m_omega(omega) {}
+            : m_omega(omega) {
+            EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+        }
 
         ExponentialMapData() : m_omega(Eigen::Vector3d::Zero()) {}
 
@@ -254,6 +281,42 @@ namespace matrix_exponential_map {
         Eigen::Quaterniond m_quat;
     };
 
+    /*!
+     * Converts a rotation vector to a rotation matrix:
+     * Uses Rodrigues' formula, and the first two terms of the Taylor
+     * expansions of the trig functions (so as to be nonsingular as the
+     * angle goes to zero).
+     */
+    template <typename Derived>
+    inline Eigen::Matrix<typename Derived::Scalar, 3, 3>
+    rodrigues(Eigen::MatrixBase<Derived> const &v) {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+        using Scalar = typename Derived::Scalar;
+        Scalar theta = v.norm();
+        Eigen::Matrix<Scalar, 3, 3> Omega = makeSkewSymmetrixCrossProductMatrix(
+            v); //! two-term taylor approx of sin(theta)/theta
+        Scalar k1 = Scalar(1) - theta * theta / Scalar(6);
+
+        //! two-term taylor approx of (1-cos(theta))/theta
+        Scalar k2 = theta / Scalar(2) - theta * theta * theta / Scalar(24);
+
+        return Eigen::Matrix<Scalar, 3, 3>::Identity() + k1 * Omega +
+               k2 * Omega * Omega;
+    }
+
+    /*!
+     * Convert a matrix exponential map to a quat.
+     */
+    template <typename Derived>
+    inline Eigen::Quaternion<typename Derived::Scalar>
+    toQuat(Eigen::MatrixBase<Derived> const &v) {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+        using Scalar = typename Derived::Scalar;
+        double theta = v.norm();
+        Eigen::Vector3d xyz = v * std::sin(theta / 2.);
+        return Eigen::Quaterniond(std::cos(theta / 2.), xyz.x(), xyz.y(),
+                                  xyz.z());
+    }
 } // namespace matrix_exponential_map
 
 } // namespace flexkalman

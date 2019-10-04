@@ -40,7 +40,7 @@ struct imu_filter;
  * @public @memberof imu_filter
  * @ingroup aux_math
  */
-struct imu_filter*
+struct imu_filter *
 imu_filter_create();
 
 
@@ -53,7 +53,7 @@ imu_filter_create();
  * @ingroup aux_math
  */
 void
-imu_filter_destroy(struct imu_filter* filter);
+imu_filter_destroy(struct imu_filter *filter);
 
 /*!
  * Predict and correct filter with a gyroscope reading.
@@ -66,10 +66,10 @@ imu_filter_destroy(struct imu_filter* filter);
  * @ingroup aux_math
  */
 int
-imu_filter_incorporate_gyros(struct imu_filter* filter,
+imu_filter_incorporate_gyros(struct imu_filter *filter,
                              float dt,
-                             struct xrt_vec3 const* ang_vel,
-                             struct xrt_vec3 const* variance);
+                             struct xrt_vec3 const *ang_vel,
+                             struct xrt_vec3 const *variance);
 
 /*!
  * Predict and correct filter with an accelerometer reading.
@@ -82,12 +82,34 @@ imu_filter_incorporate_gyros(struct imu_filter* filter,
  * @ingroup aux_math
  */
 int
-imu_filter_incorporate_accelerometer(struct imu_filter* filter,
+imu_filter_incorporate_accelerometer(struct imu_filter *filter,
                                      float dt,
-                                     struct xrt_vec3 const* accel,
+                                     struct xrt_vec3 const *accel,
                                      float scale,
-                                     struct xrt_vec3 const* reference,
-                                     struct xrt_vec3 const* variance);
+                                     struct xrt_vec3 const *reference,
+                                     struct xrt_vec3 const *variance);
+
+/*!
+ * Predict and correct filter with a simultaneous accelerometer and gyroscope
+ * reading.
+ *
+ * Should not be called simultaneously with any other imu_filter function.
+ *
+ * Non-zero return means error.
+ *
+ * @public @memberof imu_filter
+ * @ingroup aux_math
+ */
+int
+imu_filter_incorporate_gyros_and_accelerometer(
+    struct imu_filter *filter,
+    float dt,
+    struct xrt_vec3 const *ang_vel,
+    struct xrt_vec3 const *ang_vel_variance,
+    struct xrt_vec3 const *accel,
+    float accel_scale,
+    struct xrt_vec3 const *accel_reference,
+    struct xrt_vec3 const *accel_variance);
 
 /*!
  * Get the predicted state. Does not advance the internal state clock.
@@ -98,10 +120,10 @@ imu_filter_incorporate_accelerometer(struct imu_filter* filter,
  * @ingroup aux_math
  */
 int
-imu_filter_get_prediction(struct imu_filter const* filter,
+imu_filter_get_prediction(struct imu_filter const *filter,
                           float dt,
-                          struct xrt_quat* out_quat,
-                          struct xrt_vec3* out_ang_vel);
+                          struct xrt_quat *out_quat,
+                          struct xrt_vec3 *out_ang_vel);
 
 
 /*!
@@ -114,9 +136,9 @@ imu_filter_get_prediction(struct imu_filter const* filter,
  * @ingroup aux_math
  */
 int
-imu_filter_get_prediction_rotation_vec(struct imu_filter const* filter,
+imu_filter_get_prediction_rotation_vec(struct imu_filter const *filter,
                                        float dt,
-                                       struct xrt_vec3* out_rotation_vec);
+                                       struct xrt_vec3 *out_rotation_vec);
 #ifdef __cplusplus
 }
 #endif

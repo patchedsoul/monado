@@ -25,6 +25,7 @@
 #include "flexkalman/ConstantProcess.h"
 #include "flexkalman/AugmentedState.h"
 #include "flexkalman/AugmentedProcessModel.h"
+#include "flexkalman/MatrixExponentialMap.h"
 
 namespace xrt_fusion {
 namespace types = flexkalman::types;
@@ -182,5 +183,234 @@ public:
 private:
 	types::Vector<3> angVel_;
 	MeasurementSquareMatrix covariance_;
+};
+
+template <typename Derived>
+static inline Eigen::Matrix<typename Derived::Scalar, 3, 1>
+rot_matrix_ln(Eigen::MatrixBase<Derived> const &mat)
+{
+	EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Derived, 3, 3);
+	using Scalar = typename Derived::Scalar;
+	Eigen::AngleAxis<Scalar> angleAxis{mat.derived()};
+	return angleAxis.angle() * angleAxis.axis();
+}
+
+/*!
+ * Represents an orientation as a member of the "special orthogonal group in 3D"
+ * SO3.
+ *
+ * This means we're logically using a 3D vector that can be converted to a
+ * rotation matrix using the matrix exponential map aka "Rodrigues' formula".
+ * We're actually storing both the rotation matrix and the vector for simplicity
+ * right now.
+ */
+class SO3
+{
+public:
+	SO3() = default;
+	explicit SO3(Eigen::Vector3d const &v)
+	    : omega_(
+	          flexkalman::matrix_exponential_map::singularitiesAvoided(v)),
+	      matrix_(flexkalman::matrix_exponential_map::rodrigues(omega_))
+	{}
+	explicit SO3(Eigen::Matrix3d const &mat) : SO3(rot_matrix_ln(mat)) {}
+
+	static SO3
+	fromQuat(Eigen::Quaterniond const &q)
+	{
+		Eigen::AngleAxisd angleAxis{q};
+		Eigen::Vector3d omega = angleAxis.angle() * angleAxis.axis();
+		return SO3{omega};
+	}
+	Eigen::Vector3d const &
+	getVector() const noexcept
+	{
+		return omega_;
+	}
+
+	Eigen::Matrix3d const &
+	getRotationMatrix() const noexcept
+	{
+		return matrix_;
+	}
+
+	Eigen::Quaterniond
+	getQuat() const
+	{
+		return flexkalman::matrix_exponential_map::toQuat(getVector());
+	}
+
+	SO3
+	getInverse() const
+	{
+		return SO3{getRotationMatrix(), InverseTag{}};
+	}
+
+	double
+	getAngle() const
+	{
+		return omega_.blueNorm();
+	}
+
+	Eigen::Vector3d
+	getAxis() const
+	{
+		return omega_.stableNormalized();
+	}
+
+private:
+	//! tag type to choose the inversion constructor.
+	struct InverseTag
+	{
+	};
+
+	//! Inversion constructor - fast
+	SO3(Eigen::Matrix3d const &mat, InverseTag const & /*tag*/)
+	    : omega_(Eigen::Vector3d::Zero()), matrix_(mat.transpose())
+	{
+		omega_ = rot_matrix_ln(matrix_);
+	}
+
+	Eigen::Vector3d omega_{Eigen::Vector3d::Zero()};
+	Eigen::Matrix3d matrix_{Eigen::Matrix3d::Identity()};
+};
+
+static inline SO3 operator*(SO3 const &lhs, SO3 const &rhs)
+{
+	Eigen::Matrix3d product =
+	    lhs.getRotationMatrix() * rhs.getRotationMatrix();
+	return SO3{product};
+}
+
+class SimpleIMUFilter
+{
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+	/*!
+	 * @param gravity_rate Value in [0, 1] indicating how much the
+	 * accelerometer should affect the orientation each second.
+	 */
+	explicit SimpleIMUFilter(double gravity_rate = 0.9)
+	    : gravity_scale_(gravity_rate)
+	{}
+
+	bool
+	valid() const noexcept
+	{
+		return started_;
+	}
+
+	Eigen::Quaterniond
+	getQuat() const
+	{
+		return rot_.getQuat();
+	}
+
+	Eigen::Vector3d const &
+	getRotationVec() const
+	{
+		return rot_.getVector();
+	}
+
+	//! in world space
+	Eigen::Vector3d const &
+	getAngVel() const
+	{
+		return angVel_;
+	}
+
+	bool
+	filterGyro(Eigen::Vector3d const &gyro, float dt)
+	{
+		if (!started_) {
+			return false;
+		}
+		Eigen::Vector3d incRot = gyro * dt;
+		// Crude handling of "approximately zero"
+		if (incRot.squaredNorm() < 1.e-4) {
+			return false;
+		}
+		// Rotate from body-local to world space
+		auto bodyToWorld = rot_.getInverse();
+		Eigen::Vector3d worldIncRot =
+		    bodyToWorld.getRotationMatrix() * incRot;
+		angVel_ = bodyToWorld.getRotationMatrix() * gyro;
+
+		auto worldIncSO3 = SO3{worldIncRot};
+		{
+			Eigen::Vector3d axis = worldIncSO3.getAxis();
+			fprintf(stderr,
+			        "Incremental rotation is %f radians about %f, "
+			        "%f, %f\n",
+			        worldIncSO3.getAngle(), axis.x(), axis.y(),
+			        axis.z());
+		}
+		// Update orientation
+		rot_ = worldIncSO3 * rot_;
+
+		return true;
+	}
+
+	bool
+	filterAccel(Eigen::Vector3d const &accel, float dt)
+	{
+		auto diff = std::abs(accel.norm() - 9.81);
+		if (!started_) {
+			if (diff > 1.) {
+				// We're moving, don't start it now.
+				fprintf(stderr,
+				        "Can't start yet because we're moving "
+				        "- diff is %f\n",
+				        diff);
+				return false;
+			}
+			fprintf(stderr, "starting - diff is %f\n", diff);
+			// Initially, just set it to totally trust gravity.
+			started_ = true;
+			rot_ = SO3::fromQuat(Eigen::Quaterniond::FromTwoVectors(
+			    Eigen::Vector3d::UnitY(), accel.normalized()));
+			return true;
+		}
+		auto scale = 1. - diff;
+		if (scale <= 0) {
+			// Too far from gravity to be useful/trusted.
+			fprintf(stderr,
+			        "started but skipping accel: we're moving "
+			        "- diff is %f\n",
+			        diff);
+			return false;
+		}
+		Eigen::Vector3d accelDir = accel.normalized();
+		fprintf(stderr, "Measured gravity is %f, %f, %f\n",
+		        accelDir.x(), accelDir.y(), accelDir.z());
+		// This should match the global gravity vector if the rotation
+		// is right.
+		Eigen::Vector3d measuredGravityDirection =
+		    (rot_.getRotationMatrix() * accel).normalized();
+		// fprintf(stderr, "Rotated measured gravity is %f, %f, %f\n",
+		//         measuredGravityDirection.x(),
+		//         measuredGravityDirection.y(),
+		//         measuredGravityDirection.z());
+		auto incremental =
+		    SO3::fromQuat(Eigen::Quaterniond::FromTwoVectors(
+		        measuredGravityDirection, Eigen::Vector3d::UnitY()));
+
+		Eigen::Vector3d scaledIncrementalVec =
+		    incremental.getVector() * scale * gravity_scale_;
+		fprintf(stderr,
+		        "Gravity is causing incremental rotation per sec of "
+		        "%f, %f, %f\n",
+		        scaledIncrementalVec.x(), scaledIncrementalVec.y(),
+		        scaledIncrementalVec.z());
+		// Update orientation
+		rot_ = SO3{(scaledIncrementalVec * dt).eval()} * rot_;
+		return true;
+	}
+
+private:
+	SO3 rot_;
+	Eigen::Vector3d angVel_{Eigen::Vector3d::Zero()};
+	double gravity_scale_;
+	bool started_{false};
 };
 } // namespace xrt_fusion

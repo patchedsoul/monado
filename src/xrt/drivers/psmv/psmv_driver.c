@@ -658,11 +658,9 @@ update_fusion(struct psmv_device *psmv,
 		math_quat_integrate_velocity(
 		    &psmv->fusion.rot, &psmv->read.gyro, dt, &psmv->fusion.rot);
 #else
-		imu_filter_incorporate_gyros(psmv->fusion.filter, dt,
-		                             &psmv->read.gyro,
-		                             &psmv->fusion.variance.gyro);
-		imu_filter_incorporate_accelerometer(
-		    psmv->fusion.filter, 0, &psmv->read.accel,
+		imu_filter_incorporate_gyros_and_accelerometer(
+		    psmv->fusion.filter, dt, &psmv->read.gyro,
+		    &psmv->fusion.variance.gyro, &psmv->read.accel,
 		    1.f / MATH_GRAVITY_M_S2, &PSMV_GRAV_VECTOR,
 		    &psmv->fusion.variance.accel);
 		struct xrt_vec3 angvel_dummy;

@@ -33,6 +33,8 @@ struct imu_filter
 		                Vector<3>::Constant(10).asDiagonal()};
 		flexkalman::ConstantProcess<BiasState> processModel{};
 	} gyro_bias;
+
+	xrt_fusion::SimpleIMUFilter simple_filter;
 };
 
 /*
@@ -81,7 +83,7 @@ imu_filter_destroy(struct imu_filter *filter) try {
 	assert(false && "Caught exception on destroy");
 }
 
-
+#if 0
 int
 imu_filter_incorporate_gyros(struct imu_filter *filter,
                              float dt,
@@ -203,3 +205,74 @@ imu_filter_get_prediction_rotation_vec(struct imu_filter const *filter,
 	assert(false && "Caught exception on getting prediction");
 	return -1;
 }
+#else
+
+
+int
+imu_filter_get_prediction(struct imu_filter const *filter,
+                          float dt,
+                          struct xrt_quat *out_quat,
+                          struct xrt_vec3 *out_ang_vel) try {
+	assert(filter);
+	assert(out_quat);
+	assert(out_ang_vel);
+
+	if (!filter->simple_filter.valid()) {
+		return -2;
+	}
+	map_quat(*out_quat) = filter->simple_filter.getQuat().cast<float>();
+	map_vec3(*out_ang_vel) =
+	    filter->simple_filter.getAngVel().cast<float>();
+	return 0;
+} catch (...) {
+	assert(false && "Caught exception on getting prediction");
+	return -1;
+}
+
+int
+imu_filter_get_prediction_rotation_vec(struct imu_filter const *filter,
+                                       float dt,
+                                       struct xrt_vec3 *out_rotation_vec) try {
+	assert(filter);
+	assert(out_rotation_vec);
+
+	if (!filter->simple_filter.valid()) {
+		return -2;
+	}
+	map_vec3(*out_rotation_vec) =
+	    filter->simple_filter.getRotationVec().cast<float>();
+	return 0;
+} catch (...) {
+	assert(false && "Caught exception on getting prediction");
+	return -1;
+}
+
+int
+imu_filter_incorporate_gyros_and_accelerometer(
+    struct imu_filter *filter,
+    float dt,
+    struct xrt_vec3 const *ang_vel,
+    struct xrt_vec3 const *ang_vel_variance,
+    struct xrt_vec3 const *accel,
+    float accel_scale,
+    struct xrt_vec3 const *accel_reference,
+    struct xrt_vec3 const *accel_variance) try {
+	assert(filter);
+	assert(ang_vel);
+	assert(ang_vel_variance);
+	assert(accel);
+	assert(accel_reference);
+	assert(accel_variance);
+
+	Eigen::Vector3d accelVec = map_vec3(*accel).cast<double>();
+	Eigen::Vector3d angVelVec = map_vec3(*ang_vel).cast<double>();
+	filter->simple_filter.filterAccel(accelVec, dt);
+	filter->simple_filter.filterGyro(angVelVec, dt);
+	return 0;
+} catch (...) {
+	assert(false &&
+	       "Caught exception on incorporate gyros and accelerometer");
+	return -1;
+}
+
+#endif
