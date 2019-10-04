@@ -191,10 +191,21 @@ rot_matrix_ln(Eigen::MatrixBase<Derived> const &mat)
 {
 	EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(Derived, 3, 3);
 	using Scalar = typename Derived::Scalar;
-	Eigen::AngleAxis<Scalar> angleAxis{mat.derived()};
+	Eigen::AngleAxis<Scalar> angleAxis =
+	    Eigen::AngleAxis<Scalar>{mat.derived()};
 	return angleAxis.angle() * angleAxis.axis();
 }
 
+template <typename Derived>
+static inline Eigen::Matrix<typename Derived::Scalar, 3, 1>
+rot_matrix_ln(Eigen::QuaternionBase<Derived> const &q)
+{
+	using Scalar = typename Derived::Scalar;
+	Eigen::AngleAxis<Scalar> angleAxis{q.derived()};
+	return angleAxis.angle() * angleAxis.axis();
+}
+
+using flexkalman::matrix_exponential_map::rodrigues;
 /*!
  * Represents an orientation as a member of the "special orthogonal group in 3D"
  * SO3.
@@ -310,13 +321,15 @@ public:
 	Eigen::Quaterniond
 	getQuat() const
 	{
-		return rot_.getQuat();
+		return Eigen::Quaterniond(
+		    Eigen::AngleAxisd(omega_.norm(), omega_.normalized()));
+		// return Eigen::Quaterniond(rodrigues(omega_));
 	}
 
 	Eigen::Vector3d
 	getRotationVec() const
 	{
-		return rot_.getVector();
+		return omega_;
 	}
 
 	//! in world space
@@ -334,26 +347,26 @@ public:
 		}
 		Eigen::Vector3d incRot = gyro * dt;
 		// Crude handling of "approximately zero"
-		if (incRot.squaredNorm() < 1.e-4) {
+		if (incRot.squaredNorm() < 1.e-8) {
 			return false;
 		}
 		// Rotate from body-local to world space
-		auto bodyToWorld = rot_.getInverse();
-		Eigen::Vector3d worldIncRot =
-		    bodyToWorld.getRotationMatrix() * incRot;
-		angVel_ = bodyToWorld.getRotationMatrix() * gyro;
+		auto current = getRotationMatrix();
+		Eigen::Matrix3d bodyToWorld = current.transpose();
+		Eigen::Vector3d worldIncRot = bodyToWorld * incRot;
+		angVel_ = bodyToWorld * gyro;
 
-		auto worldIncSO3 = SO3{worldIncRot};
-		{
-			Eigen::Vector3d axis = worldIncSO3.getAxis();
-			fprintf(stderr,
-			        "Incremental rotation is %f radians about %f, "
-			        "%f, %f\n",
-			        worldIncSO3.getAngle(), axis.x(), axis.y(),
-			        axis.z());
-		}
+		// {
+		// 	Eigen::Vector3d axis = worldIncRot.normalized();
+		// 	fprintf(stderr,
+		// 	        "Incremental rotation is %f radians about %f, "
+		// 	        "%f, %f\n",
+		// 	        worldIncRot.norm(), axis.x(), axis.y(),
+		// 	        axis.z());
+		// }
 		// Update orientation
-		rot_ = worldIncSO3 * rot_;
+		omega_ =
+		    rot_matrix_ln(rodrigues(worldIncRot) * current.transpose());
 
 		return true;
 	}
@@ -374,8 +387,9 @@ public:
 			fprintf(stderr, "starting - diff is %f\n", diff);
 			// Initially, just set it to totally trust gravity.
 			started_ = true;
-			rot_ = SO3::fromQuat(Eigen::Quaterniond::FromTwoVectors(
-			    Eigen::Vector3d::UnitY(), accel.normalized()));
+			omega_ =
+			    rot_matrix_ln(Eigen::Quaterniond::FromTwoVectors(
+			        Eigen::Vector3d::UnitY(), accel.normalized()));
 			return true;
 		}
 		auto scale = 1. - diff;
@@ -388,34 +402,46 @@ public:
 			return false;
 		}
 		Eigen::Vector3d accelDir = accel.normalized();
-		fprintf(stderr, "Measured gravity is %f, %f, %f\n",
-		        accelDir.x(), accelDir.y(), accelDir.z());
+		// fprintf(stderr, "Measured gravity is %f, %f, %f\n",
+		//         accelDir.x(), accelDir.y(), accelDir.z());
+
+		auto current = getRotationMatrix();
 		// This should match the global gravity vector if the rotation
 		// is right.
 		Eigen::Vector3d measuredGravityDirection =
-		    (rot_.getRotationMatrix() * accel).normalized();
+		    (current * accel).normalized();
 		// fprintf(stderr, "Rotated measured gravity is %f, %f, %f\n",
 		//         measuredGravityDirection.x(),
 		//         measuredGravityDirection.y(),
 		//         measuredGravityDirection.z());
 		auto incremental =
-		    SO3::fromQuat(Eigen::Quaterniond::FromTwoVectors(
+		    Eigen::AngleAxisd(Eigen::Quaterniond::FromTwoVectors(
 		        measuredGravityDirection, Eigen::Vector3d::UnitY()));
 
-		Eigen::Vector3d scaledIncrementalVec =
-		    incremental.getVector() * scale * gravity_scale_;
-		fprintf(stderr,
-		        "Gravity is causing incremental rotation per sec of "
-		        "%f, %f, %f\n",
-		        scaledIncrementalVec.x(), scaledIncrementalVec.y(),
-		        scaledIncrementalVec.z());
+		Eigen::Vector3d scaledIncrementalVec = incremental.axis() *
+		                                       incremental.angle() *
+		                                       scale * gravity_scale_;
+		// fprintf(stderr,
+		//         "Gravity is causing incremental rotation per sec of "
+		//         "%f, %f, %f\n",
+		//         scaledIncrementalVec.x(), scaledIncrementalVec.y(),
+		//         scaledIncrementalVec.z());
 		// Update orientation
-		rot_ = SO3{(scaledIncrementalVec * dt).eval()} * rot_;
+		omega_ = rot_matrix_ln(rodrigues(scaledIncrementalVec * dt) *
+		                       current);
+
+		flexkalman::matrix_exponential_map::avoidSingularities(omega_);
 		return true;
 	}
 
+	Eigen::Matrix3d
+	getRotationMatrix() const
+	{
+		return rodrigues(omega_);
+	}
+
 private:
-	SO3 rot_;
+	Eigen::Vector3d omega_;
 	Eigen::Vector3d angVel_{Eigen::Vector3d::Zero()};
 	double gravity_scale_;
 	bool started_{false};
