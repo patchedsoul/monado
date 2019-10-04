@@ -209,11 +209,10 @@ class SO3
 public:
 	SO3() = default;
 	explicit SO3(Eigen::Vector3d const &v)
-	    : omega_(
-	          flexkalman::matrix_exponential_map::singularitiesAvoided(v)),
-	      matrix_(flexkalman::matrix_exponential_map::rodrigues(omega_))
+	    : matrix_(flexkalman::matrix_exponential_map::rodrigues(
+	          flexkalman::matrix_exponential_map::singularitiesAvoided(v)))
 	{}
-	explicit SO3(Eigen::Matrix3d const &mat) : SO3(rot_matrix_ln(mat)) {}
+	explicit SO3(Eigen::Matrix3d const &mat) : matrix_(mat) {}
 
 	static SO3
 	fromQuat(Eigen::Quaterniond const &q)
@@ -222,10 +221,17 @@ public:
 		Eigen::Vector3d omega = angleAxis.angle() * angleAxis.axis();
 		return SO3{omega};
 	}
-	Eigen::Vector3d const &
-	getVector() const noexcept
+	Eigen::Vector3d
+	getVector() const
 	{
-		return omega_;
+		double angle = getAngle();
+		while (angle < -EIGEN_PI) {
+			angle += 2 * EIGEN_PI;
+		}
+		while (angle > EIGEN_PI) {
+			angle -= 2 * EIGEN_PI;
+		}
+		return angle * getAxis();
 	}
 
 	Eigen::Matrix3d const &
@@ -249,13 +255,13 @@ public:
 	double
 	getAngle() const
 	{
-		return omega_.blueNorm();
+		return Eigen::AngleAxisd{getRotationMatrix()}.angle();
 	}
 
 	Eigen::Vector3d
 	getAxis() const
 	{
-		return omega_.stableNormalized();
+		return Eigen::AngleAxisd{getRotationMatrix()}.axis();
 	}
 
 private:
@@ -266,12 +272,13 @@ private:
 
 	//! Inversion constructor - fast
 	SO3(Eigen::Matrix3d const &mat, InverseTag const & /*tag*/)
-	    : omega_(Eigen::Vector3d::Zero()), matrix_(mat.transpose())
+	    : //  omega_(Eigen::Vector3d::Zero()),
+	      matrix_(mat.transpose())
 	{
-		omega_ = rot_matrix_ln(matrix_);
+		// omega_ = rot_matrix_ln(matrix_);
 	}
 
-	Eigen::Vector3d omega_{Eigen::Vector3d::Zero()};
+	// Eigen::Vector3d omega_{Eigen::Vector3d::Zero()};
 	Eigen::Matrix3d matrix_{Eigen::Matrix3d::Identity()};
 };
 
@@ -306,7 +313,7 @@ public:
 		return rot_.getQuat();
 	}
 
-	Eigen::Vector3d const &
+	Eigen::Vector3d
 	getRotationVec() const
 	{
 		return rot_.getVector();
