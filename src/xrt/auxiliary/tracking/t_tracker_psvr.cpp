@@ -44,14 +44,14 @@ struct View
 
 typedef enum led_tag
 {
-	NONE,
-	TL,
-	TR,
-	C,
-	BL,
-	BR,
-	SL,
-	SR
+	TAG_NONE,
+	TAG_TL,
+	TAG_TR,
+	TAG_C,
+	TAG_BL,
+	TAG_BR,
+	TAG_SL,
+	TAG_SR
 } led_tag_t;
 
 typedef struct model_vertex
@@ -59,6 +59,7 @@ typedef struct model_vertex
 	uint32_t model_index;
 	Eigen::Vector3f position;
 	led_tag_t tag;
+	bool active;
 
 	bool
 	operator<(const model_vertex &mv) const
@@ -128,8 +129,7 @@ static float
 dist_3d(Eigen::Vector3f a, Eigen::Vector3f b)
 {
 	return sqrt(a[0] - b[0]) * (a[0] - b[0]) +
-               (a[1] - b[1]) * (a[1] - b[1]) +
-               (a[2] - b[2]) * (a[2] - b[2]);
+	       (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]);
 }
 
 static void
@@ -289,18 +289,31 @@ static void
 create_model(TrackerPSVR &t)
 {
 	t.model_vertices[0] = {0, Eigen::Vector3f(-2.51408f, 3.77113f, 0.0f),
-	                       TL};
+	                       TAG_TL};
 	t.model_vertices[0] = {1, Eigen::Vector3f(-2.51408f, -3.77113f, 0.0f),
-	                       TR};
-	t.model_vertices[0] = {2, Eigen::Vector3f(0.0f, 0.0f, 1.07253f), C};
+	                       TAG_TR};
+	t.model_vertices[0] = {2, Eigen::Vector3f(0.0f, 0.0f, 1.07253f), TAG_C};
 	t.model_vertices[0] = {3, Eigen::Vector3f(2.51408f, 3.77113f, 0.0f),
-	                       BL};
+	                       TAG_BL};
 	t.model_vertices[0] = {4, Eigen::Vector3f(2.51408f, -3.77113f, 0.0f),
-	                       BR};
+	                       TAG_BR};
 	t.model_vertices[0] = {5, Eigen::Vector3f(0.0f, 4.52535f, -3.36583f),
-	                       SL};
+	                       TAG_SL};
 	t.model_vertices[0] = {6, Eigen::Vector3f(0.0f, -4.52535f, -3.36584f),
-	                       SR};
+	                       TAG_SR};
+}
+
+static float
+last_diff(TrackerPSVR &t,
+          model_vertex_t *measured_pose,
+          model_vertex_t *predicted_pose)
+{
+	for (uint32_t i = 0; i < PSVR_NUM_LEDS; i++) {
+		if (measured_pose[i].active) {
+			// TODO: finish this
+		}
+	}
+	return 0.0f;
 }
 
 static void
@@ -461,12 +474,19 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	// try matching our leds against the predictions
 	// if error low, fit model using raw and filtered positions
 
+
+
 	// if error too large, brute-force disambiguate
 	// fit model to raw measurements only
 
 	// update filter
 
 	filter_update(measured_pose, t.track_filters, dt);
+
+	// predict again, using camera-frame -> screen latency as dt.
+	// match triangles from model to filtered measurement
+
+	// construct xrt pose
 
 
 
