@@ -755,6 +755,9 @@ psvr_device_create(struct hid_device_info *hmd_handle_info,
 	psvr->base.destroy = psvr_device_destroy;
 	psvr->base.inputs[0].name = XRT_INPUT_GENERIC_HEAD_RELATION;
 	psvr->base.name = XRT_DEVICE_GENERIC_HMD;
+	psvr->base.hmd->distortion.models = XRT_DISTORTION_MODEL_MESHUV;
+	psvr->base.hmd->distortion.preferred = XRT_DISTORTION_MODEL_MESHUV;
+
 	psvr->fusion.rot.w = 1.0f;
 
 	snprintf(psvr->base.str, XRT_DEVICE_NAME_LEN, "PS VR Headset");

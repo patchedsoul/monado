@@ -13,6 +13,11 @@
 #include "main/comp_settings.h"
 #include "main/comp_compositor.h"
 
+// our distortion meshes are 16x16 quads, 2 tris per quad.
+// we should use indexed rendering and allow arbitrary vertex counts,
+// but this will do for now
+#define DISTORTION_MESH_VERTEX_COUNT 16 * 16 * 6
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -54,6 +59,7 @@ struct comp_distortion
 	struct vk_bundle *vk;
 
 	struct comp_uniform_buffer ubo_handle;
+	struct comp_uniform_buffer vbo_handle;
 	struct comp_uniform_buffer ubo_viewport_handles[2];
 
 	enum xrt_distortion_model distortion_model;
@@ -75,6 +81,12 @@ struct comp_distortion
 		float aspect_x_over_y;
 		float grow_for_undistort;
 	} ubo_vive;
+
+	// vec2 for pos, vec2 for uv
+	struct
+	{
+		float vertexPosUV[4];
+	} vbo_meshuv_data;
 
 	struct
 	{
@@ -140,6 +152,10 @@ comp_distortion_draw_quad(struct comp_distortion *d,
                           VkCommandBuffer command_buffer,
                           int eye);
 
+void
+comp_distortion_draw_mesh(struct comp_distortion *d,
+                          VkCommandBuffer command_buffer,
+                          int eye);
 
 #ifdef __cplusplus
 }

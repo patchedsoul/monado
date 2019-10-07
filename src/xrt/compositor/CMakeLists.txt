@@ -6,6 +6,8 @@ spirv_shaders(SHADER_HEADERS
 	shaders/none.frag
 	shaders/panotools.frag
 	shaders/vive.frag
+        shaders/meshuv.vert
+        shaders/meshuv.frag
 	)
 
 set(GL_SOURCE_FILES
