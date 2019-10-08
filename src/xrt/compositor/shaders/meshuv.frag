@@ -29,16 +29,12 @@ layout (binding = 1, std140) uniform UBO
 } ubo;
 
 layout (location = 0)      in vec2 inUV;
-layout (location = 1) flat in int  inViewIndex;
 
 layout (location = 0) out vec4 outColor;
 
 
 void main()
 {
-	const int i = inViewIndex;
-
-
     vec3 color = texture(texSampler, inUV).xyz;
 
 
