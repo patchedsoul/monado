@@ -387,10 +387,10 @@ public:
 		auto scale = 1. - diff;
 		if (scale <= 0) {
 			// Too far from gravity to be useful/trusted.
-			fprintf(stderr,
-			        "started but skipping accel: we're moving "
-			        "- diff is %f\n",
-			        diff);
+			// fprintf(stderr,
+			//         "started but skipping accel: we're moving "
+			//         "- diff is %f\n",
+			//         diff);
 			return false;
 		}
 		Eigen::Vector3d accelDir = accel.normalized();
