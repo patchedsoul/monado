@@ -321,17 +321,14 @@ public:
 	Eigen::Quaterniond
 	getQuat() const
 	{
-		return Eigen::Quaterniond(
-		    Eigen::AngleAxisd(omega_.norm(), omega_.normalized()));
+		return quat_;
 		// return Eigen::Quaterniond(rodrigues(omega_));
 	}
-
 	Eigen::Vector3d
 	getRotationVec() const
 	{
-		return omega_;
+		return flexkalman::util::quat_ln(quat_);
 	}
-
 	//! in world space
 	Eigen::Vector3d const &
 	getAngVel() const
@@ -350,11 +347,8 @@ public:
 		if (incRot.squaredNorm() < 1.e-8) {
 			return false;
 		}
-		// Rotate from body-local to world space
-		auto current = getRotationMatrix();
-		Eigen::Matrix3d bodyToWorld = current.transpose();
-		Eigen::Vector3d worldIncRot = bodyToWorld * incRot;
-		angVel_ = bodyToWorld * gyro;
+
+		angVel_ = gyro;
 
 		// {
 		// 	Eigen::Vector3d axis = worldIncRot.normalized();
@@ -365,8 +359,7 @@ public:
 		// 	        axis.z());
 		// }
 		// Update orientation
-		omega_ =
-		    rot_matrix_ln(rodrigues(worldIncRot) * current.transpose());
+		quat_ = quat_ * flexkalman::util::quat_exp(incRot * 0.5);
 
 		return true;
 	}
@@ -387,9 +380,8 @@ public:
 			fprintf(stderr, "starting - diff is %f\n", diff);
 			// Initially, just set it to totally trust gravity.
 			started_ = true;
-			omega_ =
-			    rot_matrix_ln(Eigen::Quaterniond::FromTwoVectors(
-			        Eigen::Vector3d::UnitY(), accel.normalized()));
+			quat_ = Eigen::Quaterniond::FromTwoVectors(
+			    Eigen::Vector3d::UnitY(), accel.normalized());
 			return true;
 		}
 		auto scale = 1. - diff;
@@ -405,44 +397,50 @@ public:
 		// fprintf(stderr, "Measured gravity is %f, %f, %f\n",
 		//         accelDir.x(), accelDir.y(), accelDir.z());
 
-		auto current = getRotationMatrix();
 		// This should match the global gravity vector if the rotation
 		// is right.
 		Eigen::Vector3d measuredGravityDirection =
-		    (current * accel).normalized();
+		    (quat_ * accel).normalized();
 		// fprintf(stderr, "Rotated measured gravity is %f, %f, %f\n",
 		//         measuredGravityDirection.x(),
 		//         measuredGravityDirection.y(),
 		//         measuredGravityDirection.z());
-		auto incremental =
-		    Eigen::AngleAxisd(Eigen::Quaterniond::FromTwoVectors(
-		        measuredGravityDirection, Eigen::Vector3d::UnitY()));
+		auto incremental = Eigen::Quaterniond::FromTwoVectors(
+		    measuredGravityDirection, Eigen::Vector3d::UnitY());
 
-		Eigen::Vector3d scaledIncrementalVec = incremental.axis() *
-		                                       incremental.angle() *
-		                                       scale * gravity_scale_;
+		double alpha = scale * gravity_scale_; // * dt;
+		Eigen::Quaterniond scaledIncrementalQuat =
+		    Eigen::Quaterniond::Identity().slerp(alpha, incremental);
+		// Eigen::Vector3d scaledIncrementalVec = incremental.axis() *
+		//                                        incremental.angle() *
+		//                                        scale *
+		//                                        gravity_scale_;
 		// fprintf(stderr,
 		//         "Gravity is causing incremental rotation per sec of "
 		//         "%f, %f, %f\n",
 		//         scaledIncrementalVec.x(), scaledIncrementalVec.y(),
 		//         scaledIncrementalVec.z());
 		// Update orientation
-		omega_ = rot_matrix_ln(rodrigues(scaledIncrementalVec * dt) *
-		                       current);
+		quat_ = scaledIncrementalQuat * quat_;
 
-		flexkalman::matrix_exponential_map::avoidSingularities(omega_);
 		return true;
 	}
 
 	Eigen::Matrix3d
 	getRotationMatrix() const
 	{
-		return rodrigues(omega_);
+		return quat_.toRotationMatrix();
+	}
+
+	void
+	normalize()
+	{
+		quat_.normalize();
 	}
 
 private:
-	Eigen::Vector3d omega_;
 	Eigen::Vector3d angVel_{Eigen::Vector3d::Zero()};
+	Eigen::Quaterniond quat_{Eigen::Quaterniond::Identity()};
 	double gravity_scale_;
 	bool started_{false};
 };

@@ -268,6 +268,7 @@ imu_filter_incorporate_gyros_and_accelerometer(
 	Eigen::Vector3d angVelVec = map_vec3(*ang_vel).cast<double>();
 	filter->simple_filter.filterAccel(accelVec, dt);
 	filter->simple_filter.filterGyro(angVelVec, dt);
+	filter->simple_filter.normalize();
 	return 0;
 } catch (...) {
 	assert(false &&
