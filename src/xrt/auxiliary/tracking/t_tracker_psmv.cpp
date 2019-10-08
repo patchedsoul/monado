@@ -165,6 +165,7 @@ struct TrackerPSMV
 	xrt_fusion::SimpleIMUFilter imu;
 
 	xrt_vec3 tracked_object_position;
+	Eigen::Isometry3f room_transform;
 };
 
 static void
@@ -383,24 +384,6 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	if (nearest_world.got_one) {
 		cv::Point3f world_point = nearest_world.best;
-#if 0
-		//apply our room setup transform
-		Eigen::Vector3f p = Eigen::Map<Eigen::Vector3f>(&world_point.x);
-		Eigen::Vector4f pt;
-		pt.x() = p.x();
-		pt.y() = p.y();
-		pt.z() = p.z();
-		pt.w() = 1.0f;
-
-		//this is a glm mat4 written out 'flat'
-		Eigen::Matrix4f mat =
-		Eigen::Map<Eigen::Matrix<float,4,4>>(internal->rs.origin_transform.v);
-		pt = mat * pt;
-
-		m.pose.position.x = pt.x();
-		m.pose.position.y = pt.y();
-		m.pose.position.z = pt.z();
-#endif
 		// update internal state
 
 		map_vec3(t.tracked_object_position) =
@@ -415,26 +398,52 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	xrt_frame_reference(&xf, NULL);
 	xrt_frame_reference(&t.debug.frame, NULL);
+	bool corrected = false;
+	if (nearest_world.got_one) {
+		Eigen::Vector3f position =
+		    t.room_transform * map_vec3(t.tracked_object_position);
 
-	auto measurement = xrt_fusion::AbsolutePositionLeverArmMeasurement{
-	    map_vec3(t.tracked_object_position).cast<double>(),
-	    //! @todo something less arbitrary for the lever arm? This puts the
-	    //! origin approximately under the PS button.
-	    Eigen::Vector3d(0., 0.09, 0.),
-	    //! @todo this should depend on distance
-	    // Weirdly, this is where *not* applying the
-	    // disparity-to-distance/rectification/etc would simplify things,
-	    // since the measurement variance is related to the image sensor.
-	    // 1.e-4 means 1cm std dev. Not sure how to estimate the depth
-	    // variance without some research.
-	    Eigen::Vector3d(1.e-4, 1.e-4, 4.e-4)};
+		auto measurement =
+		    xrt_fusion::AbsolutePositionLeverArmMeasurement{
+		        position.cast<double>(),
+		        //! @todo something less arbitrary for the lever arm?
+		        //! This puts the origin approximately under the PS
+		        //! button.
+		        Eigen::Vector3d(0., 0.09, 0.),
+		        //! @todo this should depend on distance
+		        // Weirdly, this is where *not* applying the
+		        // disparity-to-distance/rectification/etc would
+		        // simplify things, since the measurement variance is
+		        // related to the image sensor. 1.e-4 means 1cm std dev.
+		        // Not sure how to estimate the depth variance without
+		        // some research.
+		        Eigen::Vector3d(1.e-4, 1.e-4, 4.e-4)};
 
-	//! @todo predict and use actual dt - right now only IMU updates this
-	//! time.
-	// flexkalman::predict(t.filter_state, t.process_model, 1.0 / 60.);
-	if (!flexkalman::correctUnscented(t.filter_state, measurement)) {
-		fprintf(stderr,
-		        "Got non-finite something when filtering tracker!\n");
+		//! @todo predict and use actual dt - right now only IMU updates
+		//! this time.
+		// flexkalman::predict(t.filter_state, t.process_model, 1.0
+		// / 60.);
+		if (flexkalman::correctUnscented(t.filter_state, measurement)) {
+			corrected = true;
+		} else {
+			fprintf(stderr,
+			        "Got non-finite something when filtering "
+			        "tracker!\n");
+		}
+	}
+	if (corrected) {
+		static int stride = 0;
+		stride = (stride + 1) % 20;
+		Eigen::Vector3d position = t.filter_state.position();
+		if (stride == 0) {
+			printf("Position: %f, %f, %f\n", position.x(),
+			       position.y(), position.z());
+		}
+
+	} else {
+		// We don't have anything to correct with, so we must manually
+		// run post-correct.
+		t.filter_state.postCorrect();
 	}
 }
 
@@ -489,9 +498,14 @@ get_pose(TrackerPSMV &t,
 		return;
 	}
 
+	auto predicted_state =
+	    flexkalman::getPrediction(t.filter_state, t.process_model,
+	                              /*! @todo compute dt here */ 0.024);
 	// out_relation->pose.position = t.fusion.pos;
-	map_vec3(out_relation->pose.position) = t.filter_state.position().cast<float>();
-	out_relation->pose.orientation = t.fusion.rot;
+	map_vec3(out_relation->pose.position) =
+	    predicted_state.position().cast<float>();
+	map_quat(out_relation->pose.orientation) =
+	    predicted_state.getQuaternion().cast<float>();
 
 	//! @todo assuming that orientation is actually currently tracked.
 	out_relation->relation_flags = (enum xrt_space_relation_flags)(
@@ -665,6 +679,10 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	t.fusion.rot.y = 0.0f;
 	t.fusion.rot.z = 0.0f;
 	t.fusion.rot.w = 1.0f;
+	t.room_transform.fromPositionOrientationScale(
+	    Eigen::Vector3f(0.f, 1.3f, -0.5f),
+	    Eigen::AngleAxisf(EIGEN_PI, Eigen::Vector3f::UnitY()),
+	    Eigen::Vector3f::Constant(1.f));
 
 	ret = os_thread_helper_init(&t.oth);
 	if (ret != 0) {
