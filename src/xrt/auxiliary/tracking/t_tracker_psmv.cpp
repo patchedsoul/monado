@@ -402,7 +402,7 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 	if (nearest_world.got_one) {
 		Eigen::Vector3f position =
 		    t.room_transform * map_vec3(t.tracked_object_position);
-
+#if 0
 		auto measurement =
 		    xrt_fusion::AbsolutePositionLeverArmMeasurement{
 		        position.cast<double>(),
@@ -418,7 +418,19 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 		        // Not sure how to estimate the depth variance without
 		        // some research.
 		        Eigen::Vector3d(1.e-4, 1.e-4, 4.e-4)};
+#else
+		auto measurement = flexkalman::AbsolutePositionMeasurement{
+		    position.cast<double>(),
+		    //! @todo this should depend on distance
+		    // Weirdly, this is where *not* applying the
+		    // disparity-to-distance/rectification/etc would
+		    // simplify things, since the measurement variance is
+		    // related to the image sensor. 1.e-4 means 1cm std dev.
+		    // Not sure how to estimate the depth variance without
+		    // some research.
+		    Eigen::Vector3d(1.e-4, 1.e-4, 4.e-4)};
 
+#endif
 		//! @todo predict and use actual dt - right now only IMU updates
 		//! this time.
 		// flexkalman::predict(t.filter_state, t.process_model, 1.0
