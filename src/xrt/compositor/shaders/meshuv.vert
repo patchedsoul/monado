@@ -5,9 +5,7 @@
 
 #version 450
 
-layout(location = 0) in vec2 pos;
-layout(location = 1) in vec2 uv;
-
+layout(location = 0) in vec4 pos_uv;
 layout (location = 0) out vec2 outUV;
 
 layout (binding = 2, std140) uniform ubo
@@ -25,17 +23,15 @@ out gl_PerVertex
 
 void main()
 {
-        //mat2x2 rot = {
-        //        ubo_vp.rot.xy,
-        //        ubo_vp.rot.zw,
-        //};
-        mat2x2 rot = {vec2(0.0,1.0),vec2(-1.0,0.0)};
+        mat2x2 rot = {
+                ubo_vp.rot.xy,
+                ubo_vp.rot.zw,
+        };
 
-    outUV = uv;
+    outUV = pos_uv.zw;
 
-    gl_Position = vec4((2.0 * rot *( pos - vec2(0.5,0.5))), 0.0f, 1.0f);
-    outUV.x = 1.0-outUV.x;
+    gl_Position = vec4(2.0 * rot * (pos_uv.xy-vec2(0.5,0.5)), 0.0f, 1.0f);
 
-    //if (ubo_vp.flip_y)
-                //outUV.y = 1.0 - outUV.y;
+    if (ubo_vp.flip_y)
+        outUV.y = 1.0 - outUV.y;
 }

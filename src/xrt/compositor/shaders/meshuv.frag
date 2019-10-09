@@ -38,5 +38,6 @@ void main()
     vec3 color = texture(texSampler, inUV).xyz;
 
 
-    outColor = vec4(color, 1.0);
+
+    outColor = vec4(color,1.0);
 }

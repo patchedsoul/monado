@@ -798,10 +798,10 @@ psvr_device_create(struct hid_device_info *hmd_handle_info,
 	info.display.h_pixels = 1080;
 	info.display.w_meters = 0.126; // from calculated specs
 	info.display.h_meters = 0.071;
-	info.lens_horizontal_separation_meters = 0.0630999878f;
+    info.lens_horizontal_separation_meters = 0.0630999878f;
 	info.lens_vertical_position_meters = 0.071 / 2.0f; // 94899882f;
-	info.views[0].fov = 103.57f * (M_PI / 180.0f);
-	info.views[1].fov = 103.57f * (M_PI / 180.0f);
+    info.views[0].fov = 103.57f * (M_PI / 180.0f);
+    info.views[1].fov = 103.57f * (M_PI / 180.0f);
 
 	if (!u_device_setup_split_side_by_side(&psvr->base, &info)) {
 		PSVR_ERROR(psvr, "Failed to setup basic device info");

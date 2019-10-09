@@ -375,15 +375,8 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		vertex_input_attribute_descriptions[0].binding = 0;
 		vertex_input_attribute_descriptions[0].location = 0;
 		vertex_input_attribute_descriptions[0].format =
-		    VK_FORMAT_R32G32_SFLOAT;
+		    VK_FORMAT_R32G32B32A32_SFLOAT;
 		vertex_input_attribute_descriptions[0].offset = 0;
-
-		vertex_input_attribute_descriptions[1].binding = 0;
-		vertex_input_attribute_descriptions[1].location = 1;
-		vertex_input_attribute_descriptions[1].format =
-		    VK_FORMAT_R32G32_SFLOAT;
-		vertex_input_attribute_descriptions[1].offset =
-		    sizeof(VK_FORMAT_R32G32_SFLOAT);
 
 		vertex_input_binding_description.binding = 0;
 		vertex_input_binding_description.inputRate =
@@ -391,7 +384,7 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		vertex_input_binding_description.stride =
 		    sizeof(d->vbo_meshuv_data);
 
-		vertex_input_state.vertexAttributeDescriptionCount = 2;
+		vertex_input_state.vertexAttributeDescriptionCount = 1;
 		vertex_input_state.pVertexAttributeDescriptions =
 		    vertex_input_attribute_descriptions;
 		vertex_input_state.vertexBindingDescriptionCount = 1;
