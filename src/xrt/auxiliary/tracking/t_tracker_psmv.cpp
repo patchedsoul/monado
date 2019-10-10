@@ -87,7 +87,26 @@ struct TrackerPSMV
 
 	xrt_vec3 tracked_object_position;
 };
+class Stride
+{
+public:
+	Stride(size_t n) noexcept : n_(n) {}
 
+	explicit operator bool() const noexcept
+	{
+		return n_ == 0;
+	}
+	bool
+	advance()
+	{
+		n_ = (n_ + 1) % i_;
+		return n_ == 0;
+	}
+
+private:
+	size_t n_;
+	size_t i_{0};
+};
 static void
 refresh_gui_frame(TrackerPSMV &t, struct xrt_frame *xf)
 {
