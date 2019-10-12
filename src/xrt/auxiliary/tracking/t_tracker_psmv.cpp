@@ -131,6 +131,52 @@ refresh_gui_frame(TrackerPSMV &t, struct xrt_frame *xf)
 	                         t.debug.frame->stride);         // stride
 }
 
+/*!
+ * @brief Look up a single point (ray thru center of projection) through a pair
+ * of rectification maps (one for x, one for y), with subpixel resolution.
+ *
+ * The input should be the ideal point, while the output is the distorted point.
+ *
+ * @note This may be the opposite direction of what you want - you may prefer
+ * cv::undistortPoints though the input for it is somewhat different.
+ */
+static cv::Point2f
+point_remap(cv::InputArray map_x, cv::InputArray map_y, cv::Point2f ideal)
+{
+	cv::Mat temp;
+	cv::Size unit_size(1, 1);
+	// Finds our location with subpixel accuracy in the X map, to get new X
+	// coord.
+	cv::getRectSubPix(map_x, unit_size, ideal, temp);
+	float x = temp.at<float>(0, 0);
+	// Finds our location with subpixel accuracy in the Y map, to get new Y
+	// coord.
+	cv::getRectSubPix(map_y, unit_size, ideal, temp);
+	float y = temp.at<float>(0, 0);
+	return {x, y};
+}
+
+/*!
+ * @brief Remap a point through both pairs of rectification maps in a view.
+ *
+ * Not sure why there are two pairs per view instead of one, but this function
+ * papers over that detail.
+ *
+ * @note This may be the opposite direction of what you want - you may prefer
+ * cv::undistortPoints though the input for it is somewhat different.
+ */
+static cv::Point2f
+get_distorted(TrackerPSMV &t, View &view, cv::Point2f ideal)
+{
+	//! @todo combine these two maps?
+	cv::Point2f unrectified = point_remap(view.rectify_map_x, // map1
+	                                      view.rectify_map_y, // map2
+	                                      ideal);
+	cv::Point2f distorted = point_remap(view.undistort_map_x, // map1
+	                                    view.undistort_map_y, // map2
+	                                    unrectified);
+	return distorted;
+}
 
 /*!
  * @brief Perform per-view (two in a stereo camera image) processing on an
