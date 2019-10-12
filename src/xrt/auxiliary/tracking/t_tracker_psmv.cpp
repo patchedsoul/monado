@@ -55,6 +55,7 @@ struct View
 
 	cv::Mat frame_undist;
 	cv::Mat frame_rectified;
+	cv::Mat frame_thresholded;
 };
 
 struct TrackerPSMV
@@ -187,6 +188,7 @@ get_distorted(TrackerPSMV &t, View &view, cv::Point2f ideal)
 static void
 do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 {
+#if 0
 	// Undistort the whole image.
 	cv::remap(grey,                 // src
 	          view.frame_undist,    // dst
@@ -204,26 +206,26 @@ do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 	          cv::INTER_LINEAR,     // interpolation
 	          cv::BORDER_CONSTANT,  // borderMode
 	          cv::Scalar(0, 0, 0)); // borderValue
-
-	cv::threshold(view.frame_rectified, // src
-	              view.frame_rectified, // dst
-	              32.0,                 // thresh
-	              255.0,                // maxval
-	              0);                   // type
+#endif
 
 	// tracker_measurement_t m = {};
 
 	// Do blob detection with our masks.
+	cv::threshold(grey,                   // src
+	              view.frame_thresholded, // dst
+	              32.0,                   // thresh
+	              255.0,                  // maxval
+	              0);                     // type
 	//! @todo Re-enable masks.
-	t.sbd->detect(view.frame_rectified, // image
-	              view.keypoints,       // keypoints
-	              cv::noArray());       // mask
+	t.sbd->detect(view.frame_thresholded, // image
+	              view.keypoints,         // keypoints
+	              cv::noArray());         // mask
 
 
 	// Debug is wanted, draw the keypoints.
 	if (rgb.cols > 0) {
 		cv::drawKeypoints(
-		    view.frame_rectified,                       // image
+		    grey,                                       // image
 		    view.keypoints,                             // keypoints
 		    rgb,                                        // outImage
 		    cv::Scalar(255, 0, 0),                      // color
