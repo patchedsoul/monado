@@ -297,6 +297,9 @@ world_point_from_blobs(cv::Point2f left,
 
 	return world_point;
 }
+
+constexpr float DELTA_Y_LIMIT = 20;
+
 /*!
  * @brief Perform tracking computations on a frame of video data.
  */
@@ -369,16 +372,16 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 	    static_cast<cv::Matx44d>(t.disparity_to_depth);
 
 	for (const cv::KeyPoint &l_keypoint : t.view[0].keypoints) {
-		cv::Point2f l_blob = l_keypoint.pt;
+		cv::Point2f l_blob = get_rectified(t, t.view[0], l_keypoint.pt);
 
 		auto nearest_blob = make_lowest_score_finder<cv::Point2f>(
 		    [&](cv::Point2f r_blob) { return l_blob.x - r_blob.x; });
 
 		for (const cv::KeyPoint &r_keypoint : t.view[1].keypoints) {
-			cv::Point2f r_blob = r_keypoint.pt;
+			cv::Point2f r_blob =
+			    get_rectified(t, t.view[1], r_keypoint.pt);
 			// find closest point on same-ish scanline
-			if ((l_blob.y < r_blob.y + 3) &&
-			    (l_blob.y > r_blob.y - 3)) {
+			if (std::abs(l_blob.y - r_blob.y) < DELTA_Y_LIMIT) {
 				nearest_blob.handle_candidate(r_blob);
 			}
 		}
