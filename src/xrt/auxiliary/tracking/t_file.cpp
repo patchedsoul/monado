@@ -65,19 +65,19 @@ t_file_load_stereo_calibration_v1(FILE *calib_file,
 
 	// Read our calibration from this file
 	// clang-format off
-	read_cv_mat(calib_file, &raw.l_intrinsics, "l_intrinsics");
-	read_cv_mat(calib_file, &raw.r_intrinsics, "r_intrinsics");
-	read_cv_mat(calib_file, &raw.l_distortion, "l_distortion");
-	read_cv_mat(calib_file, &raw.r_distortion, "r_distortion");
+	read_cv_mat(calib_file, &raw.l_intrinsics, "l_intrinsics"); // 3 x 3
+	read_cv_mat(calib_file, &raw.r_intrinsics, "r_intrinsics"); // 3 x 3
+	read_cv_mat(calib_file, &raw.l_distortion, "l_distortion"); // 1 x 5
+	read_cv_mat(calib_file, &raw.r_distortion, "r_distortion"); // 1 x 5
 	read_cv_mat(calib_file, &raw.l_distortion_fisheye, "l_distortion_fisheye");
 	read_cv_mat(calib_file, &raw.r_distortion_fisheye, "r_distortion_fisheye");
-	read_cv_mat(calib_file, &raw.l_rotation, "l_rotation");
-	read_cv_mat(calib_file, &raw.r_rotation, "r_rotation");
-	read_cv_mat(calib_file, &raw.l_translation, "l_translation");
-	read_cv_mat(calib_file, &raw.r_translation, "r_translation");
-	read_cv_mat(calib_file, &raw.l_projection, "l_projection");
-	read_cv_mat(calib_file, &raw.r_projection, "r_projection");
-	read_cv_mat(calib_file, &raw.disparity_to_depth, "disparity_to_depth");
+	read_cv_mat(calib_file, &raw.l_rotation, "l_rotation"); // 3 x 3
+	read_cv_mat(calib_file, &raw.r_rotation, "r_rotation"); // 3 x 3
+	read_cv_mat(calib_file, &raw.l_translation, "l_translation"); // empty
+	read_cv_mat(calib_file, &raw.r_translation, "r_translation"); // empty
+	read_cv_mat(calib_file, &raw.l_projection, "l_projection"); // 3 x 4
+	read_cv_mat(calib_file, &raw.r_projection, "r_projection"); // 3 x 4
+	read_cv_mat(calib_file, &raw.disparity_to_depth, "disparity_to_depth"); // 4 x 4
 	cv::Mat mat_image_size = {};
 	read_cv_mat(calib_file, &mat_image_size, "mat_image_size");
 
