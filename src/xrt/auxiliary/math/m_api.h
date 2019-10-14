@@ -96,6 +96,40 @@ void
 math_vec3_accum(const struct xrt_vec3 *additional, struct xrt_vec3 *inAndOut);
 
 
+/*!
+ * Get the length (L2 norm) of the vector.
+ *
+ * Involves a square-root, so if you can survive using the squared norm, please
+ * do.
+ *
+ * @see math_vec3_squared_norm
+ *
+ * @relates xrt_vec3
+ * @ingroup aux_math
+ */
+float
+math_vec3_norm(const struct xrt_vec3 *vec);
+
+/*!
+ * Get the square of the length (L2 norm) of the vector.
+ *
+ * @see math_vec3_norm
+ *
+ * @relates xrt_vec3
+ * @ingroup aux_math
+ */
+float
+math_vec3_squared_norm(const struct xrt_vec3 *vec);
+
+/*!
+ * Normalize the vector so the length is 1.
+ *
+ * @relates xrt_vec3
+ * @ingroup aux_math
+ */
+void
+math_vec3_normalize(struct xrt_vec3 *vec);
+
 /*
  *
  * Quat functions.
@@ -180,6 +214,31 @@ math_quat_finite_difference(const struct xrt_quat *quat0,
                             const float dt,
                             struct xrt_vec3 *out_ang_vel);
 
+
+/*!
+ * Create the rotation to rotate a to b.
+ *
+ * @relates xrt_quat
+ * @relatesalso xrt_vec3
+ * @ingroup aux_math
+ */
+void
+math_quat_from_two_vecs(const struct xrt_vec3 *a,
+                        const struct xrt_vec3 *b,
+                        struct xrt_quat *out);
+
+
+/*!
+ * Perform slerp (spherical linear interpolation) between two quats.
+ *
+ * @relates xrt_quat
+ * @ingroup aux_math
+ */
+void
+math_quat_slerp(const struct xrt_quat *a,
+                const struct xrt_quat *b,
+                const float alpha,
+                struct xrt_quat *out);
 /*
  *
  * Pose functions.

@@ -246,6 +246,9 @@ lgr100_parse_input(struct lgr100_device *lgd,
 	return LGR100_IRQ_NULL;
 }
 
+static const float G = 9.8f;
+static const float ACCEL_RESTORE_RATE = 0.9f;
+
 static void
 update_fusion(struct lgr100_device *lgd,
               struct lgr100_parsed_input *sample,
@@ -256,8 +259,40 @@ update_fusion(struct lgr100_device *lgd,
 
 	lgd->read.accel = sample->accel;
 	lgd->read.gyro = sample->gyro;
-	math_quat_integrate_velocity(&lgd->fusion.rot, &lgd->read.gyro, dt,
+	struct xrt_quat rot = lgd->fusion.rot;
+	struct xrt_quat inverse = {-rot.x, -rot.y, -rot.z, rot.w};
+	struct xrt_vec3 xformed_vel;
+	math_quat_rotate_vec3(&inverse, &(sample->gyro), &xformed_vel);
+
+	math_quat_integrate_velocity(&rot, &lgd->read.gyro, dt,
 	                             &lgd->fusion.rot);
+
+	float diff_of_squares =
+	    fabsf(G * G - math_vec3_squared_norm(&(sample->accel)));
+
+	// If gravity is exact, this is 1. it gets smaller the further away from
+	// gravity magnitude.
+	float goodness = 1.f - diff_of_squares;
+	if (goodness > 0.f) {
+		float scale = ACCEL_RESTORE_RATE * goodness;
+		struct xrt_vec3 normalized = sample->accel;
+		math_vec3_normalize(&normalized);
+		struct xrt_vec3 transformed_gravity;
+		math_quat_rotate_vec3(&inverse, &normalized,
+		                      &transformed_gravity);
+		struct xrt_vec3 zero = {0.f, 0.f, 0.f};
+
+
+		struct xrt_quat grav_adjust;
+		math_quat_from_two_vecs(&transformed_gravity, &zero,
+		                        &grav_adjust);
+		struct xrt_quat identity = {0.f, 0.f, 0.f, 1.f};
+
+
+		struct xrt_quat scaled_rotate;
+		math_quat_slerp(&identity, &grav_adjust, goodness * dt, &scaled_rotate);
+		math_quat_rotate(&scaled_rotate, &lgd->fusion.rot, &lgd->fusion.rot);
+	}
 }
 
 static void *
@@ -328,6 +363,7 @@ teardown(struct lgr100_device *lgd)
 		lgd->dev = NULL;
 	}
 }
+
 /*
  *
  * xrt_device functions.

@@ -73,6 +73,27 @@ math_vec3_accum(const struct xrt_vec3* additional, struct xrt_vec3* inAndOut)
 	map_vec3(*inAndOut) += map_vec3(*additional);
 }
 
+extern "C" float
+math_vec3_norm(const struct xrt_vec3* vec)
+{
+	assert(vec != NULL);
+	return map_vec3(*vec).norm();
+}
+
+
+extern "C" float
+math_vec3_squared_norm(const struct xrt_vec3* vec)
+{
+	assert(vec != NULL);
+	return map_vec3(*vec).squaredNorm();
+}
+
+extern "C" void
+math_vec3_normalize(struct xrt_vec3* vec)
+{
+	assert(vec != NULL);
+	map_vec3(*vec).normalize();
+}
 
 /*
  *
@@ -144,6 +165,33 @@ math_quat_rotate_vec3(const struct xrt_quat* left,
 }
 
 
+extern "C" void
+math_quat_from_two_vecs(const struct xrt_vec3* a,
+                        const struct xrt_vec3* b,
+                        struct xrt_quat* out)
+{
+	assert(a != NULL);
+	assert(b != NULL);
+	assert(out != NULL);
+	Eigen::Quaternionf result =
+	    Eigen::Quaternionf::FromTwoVectors(map_vec3(*a), map_vec3(*b));
+	map_quat(*out) = result;
+}
+
+
+extern "C" void
+math_quat_slerp(const struct xrt_quat* a,
+                const struct xrt_quat* b,
+                const float t,
+                struct xrt_quat* out)
+{
+
+	assert(a != NULL);
+	assert(b != NULL);
+	assert(out != NULL);
+	Eigen::Quaternionf result = map_quat(*a).slerp(t, map_quat(*b));
+	map_quat(*out) = result;
+}
 /*
  *
  * Exported pose functions.
