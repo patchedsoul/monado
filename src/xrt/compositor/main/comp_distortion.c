@@ -47,7 +47,7 @@ comp_distortion_init_buffers(struct comp_distortion *d,
 
 static void
 comp_distortion_init_textures(struct comp_distortion *d,
-                             struct comp_compositor *c);
+                              struct comp_compositor *c);
 
 XRT_MAYBE_UNUSED static void
 comp_distortion_update_descriptor_sets(struct comp_distortion *d,
@@ -195,9 +195,9 @@ comp_distortion_init(struct comp_distortion *d,
 
 	d->distortion_model = distortion_model;
 
-    //! Add support for 1 channels as well.
+	//! Add support for 1 channels as well.
 	assert(parts->distortion.mesh.data == NULL ||
-           parts->distortion.mesh.num_uv_channels == 3);
+	       parts->distortion.mesh.num_uv_channels == 3);
 
 	d->vbo_mesh.data = parts->distortion.mesh.data;
 	d->vbo_mesh.stride = parts->distortion.mesh.stride;
@@ -207,16 +207,14 @@ comp_distortion_init(struct comp_distortion *d,
 	d->ubo_vp_data[1].flip_y = flip_y;
 
 	comp_distortion_init_buffers(d, c);
-    if (distortion_model==XRT_DISTORTION_MODEL_MESHUV){
-        comp_distortion_init_textures(d,c);
-    }
-    comp_distortion_update_uniform_buffer_warp(d, c);
+	if (distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		comp_distortion_init_textures(d, c);
+	}
+	comp_distortion_update_uniform_buffer_warp(d, c);
 	comp_distortion_init_descriptor_set_layout(d);
 	comp_distortion_init_pipeline_layout(d);
 	comp_distortion_init_pipeline(d, render_pass, pipeline_cache);
 	comp_distortion_init_descriptor_sets(d, descriptor_pool);
-
-
 }
 
 void
@@ -228,10 +226,10 @@ comp_distortion_destroy(struct comp_distortion *d)
 	vk->vkDestroyDescriptorSetLayout(vk->device, d->descriptor_set_layout,
 	                                 NULL);
 
-    if (d->distortion_model=XRT_DISTORTION_MODEL_MESHUV) {
-        vk->vkDestroyDescriptorSetLayout(vk->device, d->tex_descriptor_set_layout,
-                                         NULL);
-    }
+	if (d->distortion_model = XRT_DISTORTION_MODEL_MESHUV) {
+		vk->vkDestroyDescriptorSetLayout(
+		    vk->device, d->tex_descriptor_set_layout, NULL);
+	}
 
 	_buffer_destroy(vk, &d->ubo_handle);
 	_buffer_destroy(vk, &d->vbo_handle);
@@ -265,7 +263,7 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 	    .flags = 0,
 	    .depthClampEnable = VK_FALSE,
 	    .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
+	    .polygonMode = VK_POLYGON_MODE_FILL,
 	    .cullMode = VK_CULL_MODE_NONE, // Hack for now, should only be back.
 	    .frontFace = VK_FRONT_FACE_CLOCKWISE,
 	    .depthBiasEnable = VK_FALSE,
@@ -403,21 +401,21 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		vertex_input_attribute_descriptions[0].binding = 0;
 		vertex_input_attribute_descriptions[0].location = 0;
 		vertex_input_attribute_descriptions[0].format =
-            VK_FORMAT_R32G32B32A32_SFLOAT;
+		    VK_FORMAT_R32G32B32A32_SFLOAT;
 		vertex_input_attribute_descriptions[0].offset = 0;
 
-        vertex_input_attribute_descriptions[1].binding = 0;
-        vertex_input_attribute_descriptions[1].location = 1;
-        vertex_input_attribute_descriptions[1].format =
-            VK_FORMAT_R32G32B32A32_SFLOAT;
-        vertex_input_attribute_descriptions[1].offset = 16 ;
+		vertex_input_attribute_descriptions[1].binding = 0;
+		vertex_input_attribute_descriptions[1].location = 1;
+		vertex_input_attribute_descriptions[1].format =
+		    VK_FORMAT_R32G32B32A32_SFLOAT;
+		vertex_input_attribute_descriptions[1].offset = 16;
 
 		vertex_input_binding_description.binding = 0;
 		vertex_input_binding_description.inputRate =
 		    VK_VERTEX_INPUT_RATE_VERTEX;
 		vertex_input_binding_description.stride = d->vbo_mesh.stride;
 
-        vertex_input_state.vertexAttributeDescriptionCount = 2;
+		vertex_input_state.vertexAttributeDescriptionCount = 2;
 		vertex_input_state.pVertexAttributeDescriptions =
 		    vertex_input_attribute_descriptions;
 		vertex_input_state.vertexBindingDescriptionCount = 1;
@@ -481,16 +479,16 @@ comp_distortion_get_uniform_write_descriptor_set(struct comp_distortion *d,
                                                  uint32_t binding,
                                                  uint32_t eye)
 {
-    // we use different descriptor sets for mesh distortion
-    VkDescriptorSet ds = d->descriptor_sets[eye];
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
-        ds = d->tex_descriptor_sets[eye];
-    }
+	// we use different descriptor sets for mesh distortion
+	VkDescriptorSet ds = d->descriptor_sets[eye];
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		ds = d->tex_descriptor_sets[eye];
+	}
 
-    return (VkWriteDescriptorSet){
+	return (VkWriteDescriptorSet){
 	    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .pNext = NULL,
-        .dstSet = ds,
+	    .dstSet = ds,
 	    .dstBinding = binding,
 	    .dstArrayElement = 0, //! @todo
 	    .descriptorCount = 1,
@@ -499,8 +497,6 @@ comp_distortion_get_uniform_write_descriptor_set(struct comp_distortion *d,
 	    .pBufferInfo = &d->ubo_handle.descriptor,
 	    .pTexelBufferView = NULL,
 	};
-
-
 }
 
 
@@ -509,16 +505,16 @@ comp_distortion_get_uniform_write_descriptor_set_vp(struct comp_distortion *d,
                                                     uint32_t binding,
                                                     uint32_t eye)
 {
-    // we use different descriptor sets for mesh distortion
-    VkDescriptorSet ds = d->descriptor_sets[eye];
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
-        ds = d->tex_descriptor_sets[eye];
-    }
+	// we use different descriptor sets for mesh distortion
+	VkDescriptorSet ds = d->descriptor_sets[eye];
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		ds = d->tex_descriptor_sets[eye];
+	}
 
-    return (VkWriteDescriptorSet){
+	return (VkWriteDescriptorSet){
 	    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .pNext = NULL,
-        .dstSet = ds,
+	    .dstSet = ds,
 	    .dstBinding = binding,
 	    .dstArrayElement = 0, //! @todo
 	    .descriptorCount = 1,
@@ -535,14 +531,14 @@ comp_distortion_get_image_write_descriptor_set(
     VkDescriptorImageInfo *descriptor_position,
     uint32_t descriptor_count,
     uint32_t binding)
-{    
-    return (VkWriteDescriptorSet){
+{
+	return (VkWriteDescriptorSet){
 	    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .pNext = NULL,
 	    .dstSet = descriptor_set,
 	    .dstBinding = binding,
 	    .dstArrayElement = 0, //! @todo
-        .descriptorCount = descriptor_count,
+	    .descriptorCount = descriptor_count,
 	    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 	    .pImageInfo = descriptor_position,
 	    .pBufferInfo = NULL,
@@ -557,43 +553,47 @@ comp_distortion_init_descriptor_sets(struct comp_distortion *d,
 	struct vk_bundle *vk = d->vk;
 	VkResult ret;
 
-    VkDescriptorSetAllocateInfo alloc_info = {
-    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    .pNext = NULL,
-    .descriptorPool = descriptor_pool,
-    .descriptorSetCount = 1,
-    .pSetLayouts = &d->descriptor_set_layout,
-    };
+	VkDescriptorSetAllocateInfo alloc_info = {
+	    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+	    .pNext = NULL,
+	    .descriptorPool = descriptor_pool,
+	    .descriptorSetCount = 1,
+	    .pSetLayouts = &d->descriptor_set_layout,
+	};
 
-    VkDescriptorSetAllocateInfo tex_alloc_info = {
-    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    .pNext = NULL,
-    .descriptorPool = descriptor_pool,
-    .descriptorSetCount = 1,
-    .pSetLayouts = &d->tex_descriptor_set_layout,
-    };
+	VkDescriptorSetAllocateInfo tex_alloc_info = {
+	    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+	    .pNext = NULL,
+	    .descriptorPool = descriptor_pool,
+	    .descriptorSetCount = 1,
+	    .pSetLayouts = &d->tex_descriptor_set_layout,
+	};
 
-    switch (d->distortion_model) {
-        case XRT_DISTORTION_MODEL_MESHUV:
-        for (uint32_t i = 0; i < 2; i++) {
-            ret = vk->vkAllocateDescriptorSets(d->vk->device, &tex_alloc_info,
-                                               &d->tex_descriptor_sets[i]);
-            if (ret != VK_SUCCESS) {
-                VK_DEBUG(d->vk, "vkAllocateDescriptorSets for mesh distortion failed %u",
-                         ret);
-            }
-        }
-        break;
-        default:
-        for (uint32_t i = 0; i < 2; i++) {
-            ret = vk->vkAllocateDescriptorSets(d->vk->device, &alloc_info,
-                                               &d->descriptor_sets[i]);
-            if (ret != VK_SUCCESS) {
-                VK_DEBUG(d->vk, "vkAllocateDescriptorSets failed %u",
-                         ret);
-            }
-        }
-    }
+	switch (d->distortion_model) {
+	case XRT_DISTORTION_MODEL_MESHUV:
+		for (uint32_t i = 0; i < 2; i++) {
+			ret = vk->vkAllocateDescriptorSets(
+			    d->vk->device, &tex_alloc_info,
+			    &d->tex_descriptor_sets[i]);
+			if (ret != VK_SUCCESS) {
+				VK_DEBUG(d->vk,
+				         "vkAllocateDescriptorSets for mesh "
+				         "distortion failed %u",
+				         ret);
+			}
+		}
+		break;
+	default:
+		for (uint32_t i = 0; i < 2; i++) {
+			ret = vk->vkAllocateDescriptorSets(
+			    d->vk->device, &alloc_info, &d->descriptor_sets[i]);
+			if (ret != VK_SUCCESS) {
+				VK_DEBUG(d->vk,
+				         "vkAllocateDescriptorSets failed %u",
+				         ret);
+			}
+		}
+	}
 }
 
 void
@@ -604,42 +604,45 @@ comp_distortion_update_descriptor_set(struct comp_distortion *d,
 {
 	struct vk_bundle *vk = d->vk;
 
-    // only used for mesh distortion
-    VkDescriptorImageInfo image_infos[2];
+	// only used for mesh distortion
+	VkDescriptorImageInfo image_infos[2];
 
 	VkDescriptorImageInfo image_info = {
-        .sampler = sampler,
+	    .sampler = sampler,
 	    .imageView = view,
 	    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	};
 
-    VkWriteDescriptorSet write_descriptor_sets[3] = {
+	VkWriteDescriptorSet write_descriptor_sets[3] = {
 	    // Binding 0 : Render texture target
 	    comp_distortion_get_image_write_descriptor_set(
-            d->descriptor_sets[eye], &image_info, 1, 0),
+	        d->descriptor_sets[eye], &image_info, 1, 0),
 	    // Binding 1 : Fragment shader uniform buffer
 	    comp_distortion_get_uniform_write_descriptor_set(d, 1, eye),
 	    // Binding 2 : view uniform buffer
 	    comp_distortion_get_uniform_write_descriptor_set_vp(d, 2, eye),
 	};
 
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
 
-        image_infos[0].sampler = sampler;
-        image_infos[0].imageView =  view;
-        image_infos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_infos[1].sampler = d->vbo_mesh.tex_sampler;
-        image_infos[1].imageView =  d->vbo_mesh.tex_image_view;
-        image_infos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		image_infos[0].sampler = sampler;
+		image_infos[0].imageView = view;
+		image_infos[0].imageLayout =
+		    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		image_infos[1].sampler = d->vbo_mesh.tex_sampler;
+		image_infos[1].imageView = d->vbo_mesh.tex_image_view;
+		image_infos[1].imageLayout =
+		    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        write_descriptor_sets[0] = comp_distortion_get_image_write_descriptor_set(
-                d->tex_descriptor_sets[eye], image_infos, 2, 0);
-    };
+		write_descriptor_sets[0] =
+		    comp_distortion_get_image_write_descriptor_set(
+		        d->tex_descriptor_sets[eye], image_infos, 2, 0);
+	};
 
 
-    vk->vkUpdateDescriptorSets(vk->device,
-                               ARRAY_SIZE(write_descriptor_sets),
-                               write_descriptor_sets, 0, NULL);
+	vk->vkUpdateDescriptorSets(vk->device,
+	                           ARRAY_SIZE(write_descriptor_sets),
+	                           write_descriptor_sets, 0, NULL);
 }
 
 static void
@@ -665,7 +668,7 @@ comp_distortion_init_descriptor_set_layout(struct comp_distortion *d)
 	    {
 	        .binding = 0,
 	        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = 1,
+	        .descriptorCount = 1,
 	        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 	        .pImmutableSamplers = NULL,
 	    },
@@ -687,27 +690,30 @@ comp_distortion_init_descriptor_set_layout(struct comp_distortion *d)
 	    },
 	};
 
-    // for mesh distortion - override our first binding with one that contains 2 samplers
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
-        set_layout_bindings[0].descriptorCount = 2;
-    }
+	// for mesh distortion - override our first binding with one that
+	// contains 2 samplers
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		set_layout_bindings[0].descriptorCount = 2;
+	}
 
-    VkDescriptorSetLayoutCreateInfo set_layout_info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .bindingCount = ARRAY_SIZE(set_layout_bindings),
-        .pBindings = set_layout_bindings,
-    };
+	VkDescriptorSetLayoutCreateInfo set_layout_info = {
+	    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+	    .pNext = NULL,
+	    .flags = 0,
+	    .bindingCount = ARRAY_SIZE(set_layout_bindings),
+	    .pBindings = set_layout_bindings,
+	};
 
-    // for mesh distortion - initialise our 'textured' descriptor set layout
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
-        ret = vk->vkCreateDescriptorSetLayout(d->vk->device, &set_layout_info,
-                                              NULL, &d->tex_descriptor_set_layout);
-    } else {
-        ret = vk->vkCreateDescriptorSetLayout(d->vk->device, &set_layout_info,
-                                              NULL, &d->descriptor_set_layout);
-    }
+	// for mesh distortion - initialise our 'textured' descriptor set layout
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		ret = vk->vkCreateDescriptorSetLayout(
+		    d->vk->device, &set_layout_info, NULL,
+		    &d->tex_descriptor_set_layout);
+	} else {
+		ret = vk->vkCreateDescriptorSetLayout(
+		    d->vk->device, &set_layout_info, NULL,
+		    &d->descriptor_set_layout);
+	}
 	if (ret != VK_SUCCESS) {
 		VK_DEBUG(d->vk, "vkCreateDescriptorSetLayout failed %u", ret);
 	}
@@ -728,9 +734,10 @@ comp_distortion_init_pipeline_layout(struct comp_distortion *d)
 	    .pushConstantRangeCount = 0,
 	    .pPushConstantRanges = NULL};
 
-    if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
-        pipeline_layout_info.pSetLayouts = &d->tex_descriptor_set_layout;
-    }
+	if (d->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
+		pipeline_layout_info.pSetLayouts =
+		    &d->tex_descriptor_set_layout;
+	}
 
 	ret = vk->vkCreatePipelineLayout(d->vk->device, &pipeline_layout_info,
 	                                 NULL, &d->pipeline_layout);
@@ -763,12 +770,12 @@ comp_distortion_draw_mesh(struct comp_distortion *d,
                           VkCommandBuffer command_buffer,
                           int eye)
 {
-    struct vk_bundle *vk = d->vk;
+	struct vk_bundle *vk = d->vk;
 
 
 	vk->vkCmdBindDescriptorSets(
 	    command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, d->pipeline_layout,
-        0, 1, &d->tex_descriptor_sets[eye], 0, NULL);
+	    0, 1, &d->tex_descriptor_sets[eye], 0, NULL);
 	vk->vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
 	                      d->pipeline);
 
@@ -777,7 +784,6 @@ comp_distortion_draw_mesh(struct comp_distortion *d,
 	                           &(d->vbo_handle.buffer), offsets);
 
 	vk->vkCmdDraw(command_buffer, d->vbo_mesh.num, 1, 0, 0);
-
 }
 
 // Update fragment shader hmd warp uniform block
@@ -971,8 +977,8 @@ comp_distortion_init_buffers(struct comp_distortion *d,
 		break;
 	case XRT_DISTORTION_MODEL_MESHUV:
 		ubo_size = sizeof(d->ubo_pano);
-        vbo_size = d->vbo_mesh.stride * d->vbo_mesh.num;
-        break;
+		vbo_size = d->vbo_mesh.stride * d->vbo_mesh.num;
+		break;
 	case XRT_DISTORTION_MODEL_VIVE:
 		// Vive data
 		ubo_size = sizeof(d->ubo_vive);
@@ -1024,7 +1030,7 @@ comp_distortion_init_buffers(struct comp_distortion *d,
 	}
 
 	ret = _create_buffer(vk, vbo_usage_flags, memory_property_flags,
-                         &d->vbo_handle, vbo_size, d->vbo_mesh.data);
+	                     &d->vbo_handle, vbo_size, d->vbo_mesh.data);
 	if (ret != VK_SUCCESS) {
 		VK_DEBUG(vk, "Failed to create mesh vbo buffer!");
 	}
@@ -1037,54 +1043,66 @@ comp_distortion_init_buffers(struct comp_distortion *d,
 
 static void
 comp_distortion_init_textures(struct comp_distortion *d,
-                             struct comp_compositor *c)
+                              struct comp_compositor *c)
 {
-    struct vk_bundle *vk = &c->vk;
-    VkResult ret;
+	struct vk_bundle *vk = &c->vk;
+	VkResult ret;
 
-    VkCommandBuffer cmd_buffer;
-    VkCommandBuffer cmd_buffer_2;
-    VkMemoryRequirements mem_reqs = {};
-    VkImageSubresourceRange srr = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .layerCount = 1,
-    };
+	VkCommandBuffer cmd_buffer;
+	VkCommandBuffer cmd_buffer_2;
+	VkMemoryRequirements mem_reqs = {};
+	VkImageSubresourceRange srr = {
+	    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	    .baseMipLevel = 0,
+	    .levelCount = 1,
+	    .layerCount = 1,
+	};
 
-    ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer);
-    ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer_2);
+	ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer);
+	ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer_2);
 
-    d->vbo_mesh.tex_width = 16;
-    d->vbo_mesh.tex_height = 16;
-    ret = vk_create_image_simple(vk,d->vbo_mesh.tex_width,d->vbo_mesh.tex_height,VK_FORMAT_R32G32B32A32_SFLOAT,&d->vbo_mesh.tex_memory,&d->vbo_mesh.tex_image);
-    ret = vk_set_image_layout(vk,cmd_buffer,d->vbo_mesh.tex_image,VK_ACCESS_HOST_WRITE_BIT,VK_ACCESS_HOST_WRITE_BIT,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_GENERAL,srr);
-    ret = vk_submit_cmd_buffer(vk,cmd_buffer);
+	d->vbo_mesh.tex_width = 16;
+	d->vbo_mesh.tex_height = 16;
+	ret = vk_create_image_simple(
+	    vk, d->vbo_mesh.tex_width, d->vbo_mesh.tex_height,
+	    VK_FORMAT_R32G32B32A32_SFLOAT, &d->vbo_mesh.tex_memory,
+	    &d->vbo_mesh.tex_image);
+	ret = vk_set_image_layout(
+	    vk, cmd_buffer, d->vbo_mesh.tex_image, VK_ACCESS_HOST_WRITE_BIT,
+	    VK_ACCESS_HOST_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+	    VK_IMAGE_LAYOUT_GENERAL, srr);
+	ret = vk_submit_cmd_buffer(vk, cmd_buffer);
 
-    vk->vkGetImageMemoryRequirements(vk->device, d->vbo_mesh.tex_image, &mem_reqs);
-    // Set memory allocation size to required memory size
+	vk->vkGetImageMemoryRequirements(vk->device, d->vbo_mesh.tex_image,
+	                                 &mem_reqs);
+	// Set memory allocation size to required memory size
 
-    float dummy_data[16*16*4];
-    int rowOffset=16*4;
-    for (uint32_t i=0;i< 16;i++) {
-        for (uint32_t j=0;j< 64;j+=4) {
-            dummy_data[j  +(i*rowOffset)] = 0.0f;
-            dummy_data[j+1+(i*rowOffset)] = 1.0f;
-            dummy_data[j+2+(i*rowOffset)] = 0.0f;
-            dummy_data[j+3+(i*rowOffset)] = 1.0f;
-        }
-    }
+	float dummy_data[16 * 16 * 4];
+	int rowOffset = 16 * 4;
+	for (uint32_t i = 0; i < 16; i++) {
+		for (uint32_t j = 0; j < 64; j += 4) {
+			dummy_data[j + (i * rowOffset)] = 0.0f;
+			dummy_data[j + 1 + (i * rowOffset)] = 1.0f;
+			dummy_data[j + 2 + (i * rowOffset)] = 0.0f;
+			dummy_data[j + 3 + (i * rowOffset)] = 1.0f;
+		}
+	}
 
-    void *data_ptr;
-    ret = vk->vkMapMemory(vk->device, d->vbo_mesh.tex_memory, 0, mem_reqs.size, 0, &data_ptr);
-    memcpy(data_ptr, dummy_data, 16*16*4*4);
-    vk->vkUnmapMemory(vk->device, d->vbo_mesh.tex_memory);
+	void *data_ptr;
+	ret = vk->vkMapMemory(vk->device, d->vbo_mesh.tex_memory, 0,
+	                      mem_reqs.size, 0, &data_ptr);
+	memcpy(data_ptr, dummy_data, 16 * 16 * 4 * 4);
+	vk->vkUnmapMemory(vk->device, d->vbo_mesh.tex_memory);
 
-    ret = vk_create_sampler(vk,&d->vbo_mesh.tex_sampler);
+	ret = vk_create_sampler(vk, &d->vbo_mesh.tex_sampler);
 
 
-    ret = vk_set_image_layout(vk,cmd_buffer_2,d->vbo_mesh.tex_image,VK_ACCESS_HOST_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,srr);
-    ret = vk_submit_cmd_buffer(vk,cmd_buffer_2);
-    ret = vk_create_view(vk,d->vbo_mesh.tex_image,VK_FORMAT_R32G32B32A32_SFLOAT,srr,&d->vbo_mesh.tex_image_view);
-
+	ret = vk_set_image_layout(
+	    vk, cmd_buffer_2, d->vbo_mesh.tex_image, VK_ACCESS_HOST_WRITE_BIT,
+	    VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+	    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, srr);
+	ret = vk_submit_cmd_buffer(vk, cmd_buffer_2);
+	ret = vk_create_view(vk, d->vbo_mesh.tex_image,
+	                     VK_FORMAT_R32G32B32A32_SFLOAT, srr,
+	                     &d->vbo_mesh.tex_image_view);
 }

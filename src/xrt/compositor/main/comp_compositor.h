@@ -45,15 +45,16 @@ struct comp_swapchain_image
 	VkImageView *views;
 };
 
-struct comp_texture {
-        VkSampler sampler;
-        VkImage image;
-        VkImageLayout imageLayout;
-        VkDeviceMemory deviceMemory;
-        VkImageView view;
-        uint32_t width, height;
-        uint32_t mipLevels;
-    };
+struct comp_texture
+{
+	VkSampler sampler;
+	VkImage image;
+	VkImageLayout imageLayout;
+	VkDeviceMemory deviceMemory;
+	VkImageView view;
+	uint32_t width, height;
+	uint32_t mipLevels;
+};
 
 /*!
  * A swapchain that is almost a one to one mapping to a OpenXR swapchain.

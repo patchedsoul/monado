@@ -83,12 +83,12 @@ struct comp_distortion
 		void *data;
 		size_t stride;
 		size_t num;
-        VkImage tex_image;
-        VkImageView tex_image_view;
-        VkSampler tex_sampler;
-        VkDeviceMemory tex_memory;
-        uint32_t tex_width;
-        uint32_t tex_height;
+		VkImage tex_image;
+		VkImageView tex_image_view;
+		VkSampler tex_sampler;
+		VkDeviceMemory tex_memory;
+		uint32_t tex_width;
+		uint32_t tex_height;
 	} vbo_mesh;
 
 	struct
@@ -104,9 +104,9 @@ struct comp_distortion
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkDescriptorSet descriptor_sets[2];
 
-    //descriptor sets with an additional texture for mesh distortion
-    VkDescriptorSetLayout tex_descriptor_set_layout;
-    VkDescriptorSet tex_descriptor_sets[2];
+	// descriptor sets with an additional texture for mesh distortion
+	VkDescriptorSetLayout tex_descriptor_set_layout;
+	VkDescriptorSet tex_descriptor_sets[2];
 };
 
 

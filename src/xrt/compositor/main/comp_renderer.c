@@ -353,13 +353,13 @@ renderer_build_command_buffer(struct comp_renderer *r,
 
 	if (r->distortion->distortion_model == XRT_DISTORTION_MODEL_MESHUV) {
 		// Mesh distortion
-        comp_distortion_draw_mesh(r->distortion, command_buffer, 0);
+		comp_distortion_draw_mesh(r->distortion, command_buffer, 0);
 		renderer_set_viewport_scissor(scale_x, scale_y, &viewport,
 		                              &scissor,
 		                              &r->c->xdev->hmd->views[1]);
 		vk->vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 		vk->vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-        comp_distortion_draw_mesh(r->distortion, command_buffer, 1);
+		comp_distortion_draw_mesh(r->distortion, command_buffer, 1);
 
 	} else {
 		// 'OpenHMD' fragment shader distortion
@@ -395,7 +395,7 @@ renderer_init_descriptor_pool(struct comp_renderer *r)
 	    },
 	    {
 	        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = 4,
+	        .descriptorCount = 4,
 	    },
 	};
 
@@ -661,7 +661,7 @@ renderer_render(struct comp_renderer *r)
 	renderer_aquire_swapchain_image(r);
 	vk->vkDeviceWaitIdle(vk->device);
 	renderer_submit_queue(r);
-    renderer_present_swapchain_image(r);
+	renderer_present_swapchain_image(r);
 }
 
 static void
