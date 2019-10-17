@@ -229,6 +229,7 @@ comp_distortion_destroy(struct comp_distortion *d)
 	if (d->distortion_model = XRT_DISTORTION_MODEL_MESHUV) {
 		vk->vkDestroyDescriptorSetLayout(
 		    vk->device, d->tex_descriptor_set_layout, NULL);
+		// TODO: cleanup texture resources
 	}
 
 	_buffer_destroy(vk, &d->ubo_handle);
@@ -1059,7 +1060,13 @@ comp_distortion_init_textures(struct comp_distortion *d,
 	};
 
 	ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to initialise command buffer!");
+	}
 	ret = vk_init_cmd_buffer(&c->vk, &cmd_buffer_2);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to initialise command buffer 2!");
+	}
 
 	d->vbo_mesh.tex_width = 16;
 	d->vbo_mesh.tex_height = 16;
@@ -1067,20 +1074,31 @@ comp_distortion_init_textures(struct comp_distortion *d,
 	    vk, d->vbo_mesh.tex_width, d->vbo_mesh.tex_height,
 	    VK_FORMAT_R32G32B32A32_SFLOAT, &d->vbo_mesh.tex_memory,
 	    &d->vbo_mesh.tex_image);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to create image!");
+	}
 	ret = vk_set_image_layout(
 	    vk, cmd_buffer, d->vbo_mesh.tex_image, VK_ACCESS_HOST_WRITE_BIT,
 	    VK_ACCESS_HOST_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
 	    VK_IMAGE_LAYOUT_GENERAL, srr);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to queue transition to GENERAL layout!");
+	}
+
 	ret = vk_submit_cmd_buffer(vk, cmd_buffer);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to transition to GENERAL layout!");
+	}
 
 	vk->vkGetImageMemoryRequirements(vk->device, d->vbo_mesh.tex_image,
 	                                 &mem_reqs);
-	// Set memory allocation size to required memory size
 
-	float dummy_data[16 * 16 * 4];
-	int rowOffset = 16 * 4;
-	for (uint32_t i = 0; i < 16; i++) {
-		for (uint32_t j = 0; j < 64; j += 4) {
+	// create some dummy data for testing (16x16 green image)
+	int dim = 16;
+	float dummy_data[dim * dim * 4];
+	int rowOffset = dim * 4;
+	for (uint32_t i = 0; i < dim; i++) {
+		for (uint32_t j = 0; j < dim * 4; j += 4) {
 			dummy_data[j + (i * rowOffset)] = 0.0f;
 			dummy_data[j + 1 + (i * rowOffset)] = 1.0f;
 			dummy_data[j + 2 + (i * rowOffset)] = 0.0f;
@@ -1091,18 +1109,38 @@ comp_distortion_init_textures(struct comp_distortion *d,
 	void *data_ptr;
 	ret = vk->vkMapMemory(vk->device, d->vbo_mesh.tex_memory, 0,
 	                      mem_reqs.size, 0, &data_ptr);
-	memcpy(data_ptr, dummy_data, 16 * 16 * 4 * 4);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to map memory for distortion texture!");
+	}
+
+	memcpy(data_ptr, dummy_data, dim * dim * 4 * 4);
 	vk->vkUnmapMemory(vk->device, d->vbo_mesh.tex_memory);
 
 	ret = vk_create_sampler(vk, &d->vbo_mesh.tex_sampler);
-
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to create sampler!");
+	}
 
 	ret = vk_set_image_layout(
 	    vk, cmd_buffer_2, d->vbo_mesh.tex_image, VK_ACCESS_HOST_WRITE_BIT,
 	    VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
 	    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, srr);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk,
+		         "Failed to queue transition to "
+		         "SHADER_READ_ONLY_OPTIMAL layout!");
+	}
 	ret = vk_submit_cmd_buffer(vk, cmd_buffer_2);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(
+		    vk,
+		    "Failed to transition to SHADER_READ_ONLY_OPTIMAL layout!");
+	}
+
 	ret = vk_create_view(vk, d->vbo_mesh.tex_image,
 	                     VK_FORMAT_R32G32B32A32_SFLOAT, srr,
 	                     &d->vbo_mesh.tex_image_view);
+	if (ret != VK_SUCCESS) {
+		VK_DEBUG(vk, "Failed to transition to create image view!");
+	}
 }
