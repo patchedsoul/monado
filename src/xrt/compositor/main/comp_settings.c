@@ -42,7 +42,7 @@ comp_settings_init(struct comp_settings *s, struct xrt_device *xdev)
 	s->nominal_frame_interval_ns = interval_ns;
 	s->print_spew = debug_get_bool_option_print_spew();
 	s->print_debug = debug_get_bool_option_print_debug();
-	s->validate_vulkan = debug_get_bool_option_validate_vulkan();
+    s->validate_vulkan = true;//debug_get_bool_option_validate_vulkan();
 
 	if (debug_get_bool_option_force_nvidia()) {
 		s->window_type = WINDOW_DIRECT_NVIDIA;

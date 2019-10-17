@@ -237,7 +237,7 @@ vk_create_image_simple(struct vk_bundle *vk,
 	    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	    .queueFamilyIndexCount = 0,
 	    .pQueueFamilyIndices = NULL,
-	    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
 
 	VkImage image;
@@ -360,8 +360,8 @@ vk_create_sampler(struct vk_bundle *vk, VkSampler *out_sampler)
 	    .pNext = NULL,
 	    .flags = 0,
 	    .magFilter = VK_FILTER_LINEAR,
-	    .minFilter = VK_FILTER_LINEAR,
-	    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 	    .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
 	    .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
 	    .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -757,7 +757,7 @@ vk_get_device_functions(struct vk_bundle *vk)
 	vk->vkGetBufferMemoryRequirements = GET_DEV_PROC(vk, vkGetBufferMemoryRequirements);
 	vk->vkCreateImage                 = GET_DEV_PROC(vk, vkCreateImage);
 	vk->vkGetImageMemoryRequirements  = GET_DEV_PROC(vk, vkGetImageMemoryRequirements);
-	vk->vkBindImageMemory             = GET_DEV_PROC(vk, vkBindImageMemory);
+    vk->vkBindImageMemory             = GET_DEV_PROC(vk, vkBindImageMemory);
 	vk->vkDestroyImage                = GET_DEV_PROC(vk, vkDestroyImage);
 	vk->vkCreateImageView             = GET_DEV_PROC(vk, vkCreateImageView);
 	vk->vkDestroyImageView            = GET_DEV_PROC(vk, vkDestroyImageView);

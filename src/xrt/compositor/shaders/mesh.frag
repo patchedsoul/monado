@@ -9,7 +9,7 @@
 
 #version 450
 
-layout (binding = 0) uniform sampler2D texSampler;
+layout (binding = 0) uniform sampler2D texSampler[2];
 layout (binding = 1, std140) uniform UBO
 {
 	// Distoriton coefficients (PanoTools model) [a,b,c,d]
@@ -28,13 +28,15 @@ layout (binding = 1, std140) uniform UBO
 	float WarpScale;
 } ubo;
 
-layout (location = 0)  in vec2 inUV;
+layout (location = 0) in vec2 inUV;
+
 layout (location = 0) out vec4 outColor;
 
 void main()
 {
-	vec3 color = texture(texSampler, inUV).xyz;
-
+    vec2 uv=inUV;
+    uv.y =1.0-uv.y;
+    vec3 color = texture(texSampler[1], uv).xyz;
 #if 0
 	if (inUV.x < 0.0 || inUV.x > 1.0 || inUV.y < 0.0 || inUV.y > 1.0) {
 		color = vec3(1.0, 0.0, 1.0);
@@ -46,5 +48,5 @@ void main()
 	}
 #endif
 
-	outColor = vec4(color, 1.0);
+        outColor = vec4(color, 1.0);
 }
