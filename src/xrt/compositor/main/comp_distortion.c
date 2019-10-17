@@ -195,9 +195,9 @@ comp_distortion_init(struct comp_distortion *d,
 
 	d->distortion_model = distortion_model;
 
-	//! Add support for 3 channels as well.
+    //! Add support for 1 channels as well.
 	assert(parts->distortion.mesh.data == NULL ||
-	       parts->distortion.mesh.num_uv_channels == 1);
+           parts->distortion.mesh.num_uv_channels == 3);
 
 	d->vbo_mesh.data = parts->distortion.mesh.data;
 	d->vbo_mesh.stride = parts->distortion.mesh.stride;
@@ -403,15 +403,21 @@ comp_distortion_init_pipeline(struct comp_distortion *d,
 		vertex_input_attribute_descriptions[0].binding = 0;
 		vertex_input_attribute_descriptions[0].location = 0;
 		vertex_input_attribute_descriptions[0].format =
-		    VK_FORMAT_R32G32B32A32_SFLOAT;
+            VK_FORMAT_R32G32B32A32_SFLOAT;
 		vertex_input_attribute_descriptions[0].offset = 0;
+
+        vertex_input_attribute_descriptions[1].binding = 0;
+        vertex_input_attribute_descriptions[1].location = 1;
+        vertex_input_attribute_descriptions[1].format =
+            VK_FORMAT_R32G32B32A32_SFLOAT;
+        vertex_input_attribute_descriptions[1].offset = 16 ;
 
 		vertex_input_binding_description.binding = 0;
 		vertex_input_binding_description.inputRate =
 		    VK_VERTEX_INPUT_RATE_VERTEX;
 		vertex_input_binding_description.stride = d->vbo_mesh.stride;
 
-		vertex_input_state.vertexAttributeDescriptionCount = 1;
+        vertex_input_state.vertexAttributeDescriptionCount = 2;
 		vertex_input_state.pVertexAttributeDescriptions =
 		    vertex_input_attribute_descriptions;
 		vertex_input_state.vertexBindingDescriptionCount = 1;

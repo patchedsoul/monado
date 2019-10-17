@@ -28,25 +28,36 @@ layout (binding = 1, std140) uniform UBO
 	float WarpScale;
 } ubo;
 
-layout (location = 0) in vec2 inUV;
+layout (location = 0) in vec2 in_ruv;
+layout (location = 1) in vec2 in_guv;
+layout (location = 2) in vec2 in_buv;
 
-layout (location = 0) out vec4 outColor;
+layout (location = 0) out vec4 out_color;
 
 void main()
 {
-    vec2 uv=inUV;
-    uv.y =1.0-uv.y;
-    vec3 color = texture(texSampler[1], uv).xyz;
+    vec2 ruv=in_ruv;
+    ruv.y =1.0-ruv.y;
+    vec2 guv=in_guv;
+    guv.y =1.0-guv.y;
+    vec2 buv=in_buv;
+    buv.y =1.0-buv.y;
+
+
+    vec3 rcolor = texture(texSampler[0], ruv).xyz;
+    vec3 gcolor = texture(texSampler[0], guv).xyz;
+    vec3 bcolor = texture(texSampler[0], buv).xyz;
+
 #if 0
-	if (inUV.x < 0.0 || inUV.x > 1.0 || inUV.y < 0.0 || inUV.y > 1.0) {
+        if (in_ruv.x < 0.0 || in_ruv.x > 1.0 || in_ruv.y < 0.0 || in_ruv.y > 1.0) {
 		color = vec3(1.0, 0.0, 1.0);
 	} else {
-		float t = floor(inUV.x * 16) + floor(inUV.y * 16);
+                float t = floor(in_ruv.x * 16) + floor(in_ruv.y * 16);
 		bool isEven = mod(t, 2.0) == 0.0;
 		// color = color * float(isEven);
 		color = vec3(isEven, isEven, isEven);
 	}
 #endif
 
-        outColor = vec4(color, 1.0);
+        out_color = vec4(rcolor.x,gcolor.y,bcolor.z, 1.0);
 }
