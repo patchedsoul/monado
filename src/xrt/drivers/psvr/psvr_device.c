@@ -22,6 +22,7 @@
 #include "util/u_time.h"
 #include "util/u_debug.h"
 #include "util/u_device.h"
+#include "util/u_pscalib.h"
 #include "util/u_distortion_mesh.h"
 
 #include "tracking/t_imu.h"
@@ -60,6 +61,7 @@ struct psvr_device
 	struct xrt_tracked_psvr *tracker;
 
 	struct psvr_parsed_sensor last;
+	struct xrt_offset_scale3 accel_calib;
 
 	struct
 	{
@@ -212,9 +214,9 @@ scale_led_power(uint8_t power)
 static void
 accel_from_psvr_vec(const struct xrt_vec3_i32 *accel, struct xrt_vec3 *out_vec)
 {
-	out_vec->x = accel->x * (MATH_GRAVITY_M_S2 / 16384.0);
-	out_vec->y = accel->y * (MATH_GRAVITY_M_S2 / 16384.0);
-	out_vec->z = accel->z * (MATH_GRAVITY_M_S2 / 16384.0);
+	out_vec->x = accel->x * (1.f / 16384.f);
+	out_vec->y = accel->y * (1.f / 16384.f);
+	out_vec->z = accel->z * (1.f / 16384.f);
 }
 
 static void
@@ -232,8 +234,15 @@ update_fusion(struct psvr_device *psvr,
 {
 	struct xrt_vec3 mag = {0.0f, 0.0f, 0.0f};
 	(void)mag;
+	struct xrt_vec3 accel_float;
 
-	accel_from_psvr_vec(&sample->accel, &psvr->read.accel);
+	accel_from_psvr_vec(&(sample->accel), &accel_float);
+	u_apply_offset_scale(&(psvr->accel_calib), &accel_float,
+	                     &(psvr->read.accel));
+	sample->accel.x *= MATH_GRAVITY_M_S2;
+	sample->accel.y *= MATH_GRAVITY_M_S2;
+	sample->accel.z *= MATH_GRAVITY_M_S2;
+
 	gyro_from_psvr_vec(&sample->gyro, &psvr->read.gyro);
 
 	if (psvr->tracker != NULL) {
@@ -506,6 +515,16 @@ read_calibration_data(struct psvr_device *psvr)
 		return -1;
 	}
 
+	//! @todo eew gross way of parsing
+	float calib[18];
+	int *data = (int *)&psvr->calibration.data[20];
+	for (size_t i = 0; i < 18; i += 3) {
+		calib[i + 0] = *(float *)(data++);
+		calib[i + 1] = *(float *)(data++);
+		calib[i + 2] = *(float *)(data++);
+		data++;
+	}
+	u_load_ps_calib(calib, &(psvr->accel_calib));
 #if 0
 	for (size_t i = 0; i < sizeof(psvr->calibration.data); i++) {
 		fprintf(stderr, "%02x ", psvr->calibration.data[i]);
