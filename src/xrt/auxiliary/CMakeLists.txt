@@ -43,8 +43,6 @@ set(TRACKING_SOURCE_FILES
 	)
 
 set(UTIL_SOURCE_FILES
-	util/u_misc.c
-	util/u_misc.h
 	util/u_debug.c
 	util/u_debug.h
 	util/u_device.c
@@ -60,6 +58,8 @@ set(UTIL_SOURCE_FILES
 	util/u_hashmap.h
 	util/u_hashset.cpp
 	util/u_hashset.h
+	util/u_misc.c
+	util/u_misc.h
 	util/u_sink.h
 	util/u_sink_converter.c
 	util/u_sink_queue.c

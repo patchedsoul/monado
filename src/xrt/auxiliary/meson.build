@@ -6,8 +6,6 @@ aux_include = include_directories('.')
 lib_aux_util = static_library(
 	'aux_util',
 	files(
-		'util/u_misc.c',
-		'util/u_misc.h',
 		'util/u_debug.c',
 		'util/u_debug.h',
 		'util/u_device.c',
@@ -23,6 +21,8 @@ lib_aux_util = static_library(
 		'util/u_hashmap.h',
 		'util/u_hashset.cpp',
 		'util/u_hashset.h',
+		'util/u_misc.c',
+		'util/u_misc.h',
 		'util/u_sink.h',
 		'util/u_sink_converter.c',
 		'util/u_sink_queue.c',
