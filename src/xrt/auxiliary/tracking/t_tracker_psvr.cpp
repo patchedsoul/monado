@@ -74,19 +74,29 @@ typedef struct model_vertex
 
 } model_vertex_t;
 
+typedef struct match_data
+{
+    float angle;
+    float distance;
+    uint32_t vertex_index;
+} match_data_t;
+
 typedef struct match_vertex
 {
-	float angle;
-	float distance;
-	uint32_t vertex_index;
+    uint32_t vertex_index;
+    std::vector<match_data_t> vertex_data;
 } match_vertex_t;
 
 
-typedef struct match
+typedef struct match_vertices
 {
-	std::vector<match_vertex_t> verts;
-} match_t;
+    std::vector<match_vertex_t> verts;
+} match_vertices_t;
 
+typedef struct match_model
+{
+    std::vector<match_data_t> data;
+} match_model_t;
 
 
 class TrackerPSVR
@@ -122,14 +132,14 @@ public:
 
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
-	std::vector<match_t> matches;
+    std::vector<match_model_t> matches;
 };
 
 static float
 dist_3d(Eigen::Vector3f a, Eigen::Vector3f b)
 {
-	return sqrt(a[0] - b[0]) * (a[0] - b[0]) +
-	       (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]);
+    return sqrt((a[0] - b[0]) * (a[0] - b[0]) +
+           (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
 }
 
 static void
@@ -196,6 +206,145 @@ filter_update(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
 		current_kf->correct(measurement);
 	}
 }
+
+
+static bool match_possible(match_model_t* match) {
+
+    // check if this match makes sense e.g. that top is 'above' bottom, that 'left' is left of right
+    // check that unobservable combinations do not appear in the first n entries e.g. SR cannot be observed at the same time as SL
+    return  true;
+}
+
+static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, match_vertices_t* match_vertices)
+{
+
+    match_vertices->verts.clear();
+
+    model_vertex_t ref_a = meas_data->at(0);
+    model_vertex_t ref_b = meas_data->at(1);
+    Eigen::Vector3f ref_vec = ref_b.position-ref_a.position;
+    float ref_len = dist_3d(ref_a.position,ref_b.position);
+
+    for (uint32_t i=0;i<meas_data->size();i++) {
+        match_vertex_t mv;
+        for (uint32_t j=0;i<meas_data->size();j++) {
+            model_vertex_t vp = meas_data->at(j);
+            Eigen::Vector3f point_vec = vp.position-ref_a.position;
+            match_data_t md;
+            md.vertex_index = j;
+            if (i != j) {
+                Eigen::Vector3f plane_norm = ref_vec.cross(point_vec).normalized();
+                if (plane_norm.z() < 0) {
+                    md.angle = -1 * acos(point_vec.normalized().dot(ref_vec.normalized()));
+                }
+                else
+                {
+                    md.angle = acos(point_vec.normalized().dot(ref_vec.normalized()));
+                }
+                md.distance = dist_3d(point_vec,ref_a.position)/ref_len;
+            }
+            else
+            {
+               md.angle = 0.0f;
+               md.distance = 0.0f;
+            }
+            mv.vertex_data.push_back(md);
+
+        }
+        match_vertices->verts.push_back(mv);
+    }
+
+
+}
+
+static bool disambiguate(TrackerPSVR &t,model_vertex_t* measured_points,model_vertex_t* last_measurement,uint32_t frame_no) {
+    //global tracked_labels
+    //global bestModel
+
+    std::vector<model_vertex_t> active_leds;
+    for (uint32_t i=0;i<PSVR_NUM_LEDS;i++) {
+    if (measured_points[i].active) {
+        active_leds.push_back(measured_points[i]);
+    }
+
+    if (active_leds.size() < 3) {
+        printf("Need at least 3 points to disabiguate\n");
+        return false;
+    }
+
+    //create our angle/distance data for our leds
+
+    match_vertices_t measurement_data;
+
+    verts_to_measurement(&active_leds,&measurement_data);
+
+    /*float lowestError=65535.0f;
+    for (uint32_t i=0;i< t.matches.size();i++ ) {
+        match_t m = t.matches[i];
+        float squaredSum =0.0f;
+        float signDiff=0.0f;
+        // we have 2 measurements per vertex (distance and angle)
+        // and we are comparing only the 'non-basis vector' elements
+
+        for (uint32_t j =0; j < active_leds ;j++)
+            for i in range(4,len(measurement_verts)*2):
+                squaredSum += (measurement[i] - model[i]) * (measurement[i] - model[i])
+
+            rmsError = math.sqrt(squaredSum) +  last_diff(measurement_verts,model[-1],last_verts) +signDiff
+            if (rmsError <= lowestError) and not ignore:
+                lowestError = rmsError
+                bestModel = model
+
+        #print ("MEAS:",measurement)
+        #print ("BEST:",lowestError,bestModel)
+    tracked_labels=[]
+    resetLabels(frame_no)
+    #now we can position our markers for the basis vector.
+    label_index= bestModel[-1][0][0][0]
+    label_txt= bestModel[-1][0][0][1]
+    transform = mathutils.Matrix.Translation(measurement_verts[0])
+    set_object_transform(label_txt,transform,frame_no)
+    traces[label_index].append(measurement_verts[0][:])
+    tracked_labels.append([label_index,label_txt])
+
+    label_index= bestModel[-1][1][0][0]
+    label_txt= bestModel[-1][1][0][1]
+    transform = mathutils.Matrix.Translation(measurement_verts[1])
+    set_object_transform(label_txt,transform,frame_no)
+    traces[label_index].append(measurement_verts[1][:])
+    tracked_labels.append([label_index,label_txt])
+
+    #now that we have our basis vector, and a model with all 'the other points' in it,
+    #we can find the closest value pair that matches our 'other points.
+    #TODO: we may have a best fit already due to the permutations, maybe leave this out.
+    for i in range(4,measurement_len*2,2):
+        measure_ang = measurement[i]
+        measure_dist = measurement[i+1]
+        lowestErrorC=65535.0
+        model_index = 0
+        #print("MEASUREMENT: ",int(i/2),measure_ang,measure_dist)
+        for j in range(4,model_len*2,2):
+            #print("MODEL: ",int(j/2),bestModel[j],bestModel[j+1],bestModel[-1][int(j/2)][0][1])
+            errorA = measure_ang - bestModel[j]
+            signDiff = math.copysign(1,measure_ang) - math.copysign(1,bestModel[j])
+
+            errorB = measure_dist - bestModel[j+1]
+            rmsError = math.sqrt((errorA * errorA) + (errorB * errorB) + (signDiff * signDiff))
+            if rmsError < lowestErrorC:
+                model_index = int(j/2)
+                lowestErrorC = rmsError
+        measurement_index = int(i/2)
+
+        label_index = bestModel[-1][model_index][0][0]
+        label_txt =   bestModel[-1][model_index][0][1]
+        transform = mathutils.Matrix.Translation(measurement_verts[measurement_index])
+        set_object_transform(label_txt,transform,frame_no)
+        traces[label_index].append(measurement_verts[measurement_index][:])
+        tracked_labels.append([label_index,label_txt])*/
+    }
+}
+
+
 
 static void
 remove_outliers(std::vector<cv::Point3f> *orig_points,
@@ -289,18 +438,17 @@ static void
 create_model(TrackerPSVR &t)
 {
 	t.model_vertices[0] = {0, Eigen::Vector3f(-2.51408f, 3.77113f, 0.0f),
-	                       TAG_TL};
-	t.model_vertices[0] = {1, Eigen::Vector3f(-2.51408f, -3.77113f, 0.0f),
-	                       TAG_TR};
-	t.model_vertices[0] = {2, Eigen::Vector3f(0.0f, 0.0f, 1.07253f), TAG_C};
-	t.model_vertices[0] = {3, Eigen::Vector3f(2.51408f, 3.77113f, 0.0f),
-	                       TAG_BL};
-	t.model_vertices[0] = {4, Eigen::Vector3f(2.51408f, -3.77113f, 0.0f),
-	                       TAG_BR};
-	t.model_vertices[0] = {5, Eigen::Vector3f(0.0f, 4.52535f, -3.36583f),
-	                       TAG_SL};
-	t.model_vertices[0] = {6, Eigen::Vector3f(0.0f, -4.52535f, -3.36584f),
-	                       TAG_SR};
+                           TAG_TL,true};
+    t.model_vertices[1] = {1, Eigen::Vector3f(-2.51408f, -3.77113f, 0.0f),
+                           TAG_TR,true};
+    t.model_vertices[2] = {2, Eigen::Vector3f(0.0f, 0.0f, 1.07253f), TAG_C,true};
+    t.model_vertices[3] = {3, Eigen::Vector3f(2.51408f, 3.77113f, 0.0f),TAG_BL,true};
+    t.model_vertices[4] = {4, Eigen::Vector3f(2.51408f, -3.77113f, 0.0f),
+                           TAG_BR,true};
+    t.model_vertices[5] = {5, Eigen::Vector3f(0.0f, 4.52535f, -3.36583f),
+                           TAG_SL,true};
+    t.model_vertices[6] = {6, Eigen::Vector3f(0.0f, -4.52535f, -3.36584f),
+                           TAG_SR,true};
 }
 
 static float
@@ -321,35 +469,39 @@ create_match_list(TrackerPSVR &t)
 {
 	// create our permutation list
 	for (auto &&vec : iter::permutations(t.model_vertices)) {
-		match_t m;
-		match_vertex_t mv;
+        match_model_t m;
+
 		model_vertex_t ref_pt_a = vec[0];
 		model_vertex_t ref_pt_b = vec[1];
 		Eigen::Vector3f ref_vec = ref_pt_b.position - ref_pt_a.position;
 		float normScale = dist_3d(ref_pt_a.position, ref_pt_b.position);
-		for (auto &&i : vec) {
-			mv.distance =
+
+        match_data_t md;
+        for (auto &&i : vec) {
+            md.distance =
 			    dist_3d(i.position, ref_pt_a.position) / normScale;
 			Eigen::Vector3f plane_norm =
 			    ref_vec.cross(i.position).normalized();
 			if (ref_vec.normalized() != i.position.normalized()) {
-				mv.vertex_index = i.model_index;
+                md.vertex_index = i.model_index;
 				if (plane_norm.normalized().z() < 0) {
-					mv.angle =
+                    md.angle =
 					    -1 *
 					    acos(i.position.normalized().dot(
 					        ref_vec.normalized()));
 				} else {
-					mv.angle =
+                    md.angle =
 					    acos(i.position.normalized().dot(
 					        ref_vec.normalized()));
 				}
 			} else {
-				mv.angle = 0.0f;
+                md.angle = 0.0f;
 			}
-			m.verts.push_back(mv);
+            m.data.push_back(md);
 		}
-		t.matches.push_back(m);
+        if (match_possible(&m)){
+            t.matches.push_back(m);
+        }
 	}
 }
 
@@ -474,6 +626,14 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	// try matching our leds against the predictions
 	// if error low, fit model using raw and filtered positions
 
+    std::vector<model_vertex_t> world_measurement;
+    for (uint32_t i=0;i< pruned_points.size();i++) {
+        model_vertex_t mv;
+        mv.position = pruned_points[i];
+        world_measurement.push_back(mv);
+    }
+
+    //disambiguate(&world_measurement,)
 
 
 	// if error too large, brute-force disambiguate
