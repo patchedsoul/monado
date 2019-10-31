@@ -9,6 +9,7 @@
 #include "xrt/xrt_tracking.h"
 
 #include "tracking/t_tracking.h"
+#include "tracking/t_calibration_opencv.h"
 
 #include "util/u_misc.h"
 #include "util/u_debug.h"
@@ -215,10 +216,13 @@ static bool match_possible(match_model_t* match) {
     return  true;
 }
 
-static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, match_vertices_t* match_vertices)
+static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, std::vector<match_data_t>* match_vertices)
 {
 
-    match_vertices->verts.clear();
+    if (meas_data->size() < 3) {
+        return;
+    }
+    match_vertices->clear();
 
     model_vertex_t ref_a = meas_data->at(0);
     model_vertex_t ref_b = meas_data->at(1);
@@ -226,78 +230,66 @@ static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, match_v
     float ref_len = dist_3d(ref_a.position,ref_b.position);
 
     for (uint32_t i=0;i<meas_data->size();i++) {
-        match_vertex_t mv;
-        for (uint32_t j=0;i<meas_data->size();j++) {
-            model_vertex_t vp = meas_data->at(j);
-            Eigen::Vector3f point_vec = vp.position-ref_a.position;
-            match_data_t md;
-            md.vertex_index = j;
-            if (i != j) {
-                Eigen::Vector3f plane_norm = ref_vec.cross(point_vec).normalized();
-                if (plane_norm.z() < 0) {
-                    md.angle = -1 * acos(point_vec.normalized().dot(ref_vec.normalized()));
-                }
-                else
-                {
-                    md.angle = acos(point_vec.normalized().dot(ref_vec.normalized()));
-                }
-                md.distance = dist_3d(point_vec,ref_a.position)/ref_len;
+        model_vertex_t vp = meas_data->at(i);
+        Eigen::Vector3f point_vec = vp.position-ref_a.position;
+        match_data_t md;
+        md.vertex_index = i;
+        if (i != 0) {
+            Eigen::Vector3f plane_norm = ref_vec.cross(point_vec).normalized();
+            if (plane_norm.z() < 0) {
+                md.angle = -1 * acos(point_vec.normalized().dot(ref_vec.normalized()));
+            } else {
+                md.angle = acos(point_vec.normalized().dot(ref_vec.normalized()));
             }
-            else
-            {
-               md.angle = 0.0f;
-               md.distance = 0.0f;
-            }
-            mv.vertex_data.push_back(md);
-
+            printf("WAT: %f %f\n",dist_3d(point_vec,ref_a.position),ref_len);
+            md.distance = dist_3d(vp.position,ref_a.position)/ref_len;
         }
-        match_vertices->verts.push_back(mv);
+        else
+        {
+           md.angle = 0.0f;
+           md.distance = 0.0f;
+        }
+        match_vertices->push_back(md);
     }
 
 
 }
 
-static bool disambiguate(TrackerPSVR &t,model_vertex_t* measured_points,model_vertex_t* last_measurement,uint32_t frame_no) {
+static bool disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_points,model_vertex_t* last_measurement,uint32_t frame_no) {
     //global tracked_labels
     //global bestModel
 
-    std::vector<model_vertex_t> active_leds;
-    for (uint32_t i=0;i<PSVR_NUM_LEDS;i++) {
-    if (measured_points[i].active) {
-        active_leds.push_back(measured_points[i]);
-    }
 
-    if (active_leds.size() < 3) {
+    if (measured_points->size() < 3) {
         printf("Need at least 3 points to disabiguate\n");
         return false;
     }
 
-    //create our angle/distance data for our leds
 
-    match_vertices_t measurement_data;
-
-    verts_to_measurement(&active_leds,&measurement_data);
-
-    /*float lowestError=65535.0f;
+    float lowestError=65535.0f;
+    int32_t bestModel = -1;
     for (uint32_t i=0;i< t.matches.size();i++ ) {
-        match_t m = t.matches[i];
+        match_model_t m = t.matches[i];
         float squaredSum =0.0f;
         float signDiff=0.0f;
+
         // we have 2 measurements per vertex (distance and angle)
         // and we are comparing only the 'non-basis vector' elements
 
-        for (uint32_t j =0; j < active_leds ;j++)
-            for i in range(4,len(measurement_verts)*2):
-                squaredSum += (measurement[i] - model[i]) * (measurement[i] - model[i])
+        for (uint32_t j =2; j < measured_points->size() ;j++) {
+                squaredSum += (measured_points->at(j).distance - m.data.at(j).distance) * (measured_points->at(j).distance - m.data.at(j).distance);
+                squaredSum += (measured_points->at(j).angle - m.data.at(j).angle) * (measured_points->at(j).angle - m.data.at(j).angle);
 
-            rmsError = math.sqrt(squaredSum) +  last_diff(measurement_verts,model[-1],last_verts) +signDiff
-            if (rmsError <= lowestError) and not ignore:
-                lowestError = rmsError
-                bestModel = model
 
-        #print ("MEAS:",measurement)
-        #print ("BEST:",lowestError,bestModel)
-    tracked_labels=[]
+            float rmsError = sqrt(squaredSum);// +  last_diff(measurement_verts,model[-1],last_verts) +signDiff
+            if (rmsError <= lowestError) {
+                lowestError = rmsError;
+                bestModel = i;
+            }
+        }
+    }
+    printf ("ERR: %f BEST: %d",lowestError,bestModel);
+    /*    tracked_labels=[]
     resetLabels(frame_no)
     #now we can position our markers for the basis vector.
     label_index= bestModel[-1][0][0][0]
@@ -341,7 +333,9 @@ static bool disambiguate(TrackerPSVR &t,model_vertex_t* measured_points,model_ve
         set_object_transform(label_txt,transform,frame_no)
         traces[label_index].append(measurement_verts[measurement_index][:])
         tracked_labels.append([label_index,label_txt])*/
-    }
+
+
+
 }
 
 
@@ -351,7 +345,11 @@ remove_outliers(std::vector<cv::Point3f> *orig_points,
                 std::vector<Eigen::Vector3f> *pruned_points,
                 float outlier_thresh)
 {
-	// immediately prune anything that is measured as
+
+    if (orig_points->size() == 0) {
+        return;
+    }
+    // immediately prune anything that is measured as
 	// 'behind' the camera
 	std::vector<Eigen::Vector3f> temp_points;
 
@@ -478,20 +476,22 @@ create_match_list(TrackerPSVR &t)
 
         match_data_t md;
         for (auto &&i : vec) {
+            Eigen::Vector3f point_vec = i.position-ref_pt_a.position;
+            md.vertex_index = i.model_index;
             md.distance =
 			    dist_3d(i.position, ref_pt_a.position) / normScale;
 			Eigen::Vector3f plane_norm =
-			    ref_vec.cross(i.position).normalized();
-			if (ref_vec.normalized() != i.position.normalized()) {
-                md.vertex_index = i.model_index;
+                ref_vec.cross(point_vec).normalized();
+            if (ref_pt_a.position != i.position) {
+
 				if (plane_norm.normalized().z() < 0) {
                     md.angle =
 					    -1 *
-					    acos(i.position.normalized().dot(
+                        acos(point_vec.normalized().dot(
 					        ref_vec.normalized()));
 				} else {
                     md.angle =
-					    acos(i.position.normalized().dot(
+                        acos(point_vec.normalized().dot(
 					        ref_vec.normalized()));
 				}
 			} else {
@@ -538,14 +538,14 @@ do_view(TrackerPSVR &t, View &view, cv::Mat &grey)
 	//! @todo Re-enable masks.
 	t.sbd->detect(view.frame_rectified, // image
 	              view.keypoints,       // keypoints
-	              cv::noArray());       // mask
+                  cv::noArray());       // mask
 }
 
 static void
 process(TrackerPSVR &t, struct xrt_frame *xf)
 {
 	// Only IMU data
-	if (xf == NULL) {
+    if (xf == NULL) {
 		return;
 	}
 	float dt = 1.0f;
@@ -555,7 +555,32 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 
 	model_vertex_t measured_pose[PSVR_NUM_LEDS];
 
-	// get our raw measurements
+    if (!t.calibrated) {
+        bool ok = calibration_get_stereo(
+            "PS4_EYE",                  // name
+            xf->width,                  // width
+            xf->height,                 // height
+            false,                      // use_fisheye
+            &t.view[0].undistort_map_x, // l_undistort_map_x
+            &t.view[0].undistort_map_y, // l_undistort_map_y
+            &t.view[0].rectify_map_x,   // l_rectify_map_x
+            &t.view[0].rectify_map_y,   // l_rectify_map_y
+            &t.view[1].undistort_map_x, // r_undistort_map_x
+            &t.view[1].undistort_map_y, // r_undistort_map_y
+            &t.view[1].rectify_map_x,   // r_rectify_map_x
+            &t.view[1].rectify_map_y,   // r_rectify_map_y
+            &t.disparity_to_depth);     // disparity_to_depth
+
+        if (ok) {
+            printf("loaded calibration for camera!\n");
+            t.calibrated = true;
+        } else {
+            xrt_frame_reference(&xf, NULL);
+            return;
+        }
+    }
+
+    // get our raw measurements
 
 	t.view[0].keypoints.clear();
 	t.view[1].keypoints.clear();
@@ -626,14 +651,16 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	// try matching our leds against the predictions
 	// if error low, fit model using raw and filtered positions
 
-    std::vector<model_vertex_t> world_measurement;
+    std::vector<model_vertex_t> world_pruned;
     for (uint32_t i=0;i< pruned_points.size();i++) {
         model_vertex_t mv;
         mv.position = pruned_points[i];
-        world_measurement.push_back(mv);
+        world_pruned.push_back(mv);
     }
+    std::vector<match_data_t> match_verts;
+    verts_to_measurement(&world_pruned,&match_verts);
 
-    //disambiguate(&world_measurement,)
+    disambiguate(t,&match_verts,NULL,0);
 
 
 	// if error too large, brute-force disambiguate
@@ -862,6 +889,31 @@ t_psvr_create(struct xrt_frame_context *xfctx,
 
 	auto &t = *(new TrackerPSVR());
 	int ret;
+
+    for (uint32_t i=0;i<PSVR_NUM_LEDS;i++){
+        init_filter(t.track_filters[i],0.1f,0.1f,1.0f);
+    }
+
+    // clang-format off
+    cv::SimpleBlobDetector::Params blob_params;
+    blob_params.filterByArea = false;
+    blob_params.filterByConvexity = false;
+    blob_params.filterByInertia = false;
+    blob_params.filterByColor = true;
+    blob_params.blobColor = 255; // 0 or 255 - color comes from binarized image?
+    blob_params.minArea = 1;
+    blob_params.maxArea = 1000;
+    blob_params.maxThreshold = 51; // using a wide threshold span slows things down bigtime
+    blob_params.minThreshold = 50;
+    blob_params.thresholdStep = 1;
+    blob_params.minDistBetweenBlobs = 5;
+    blob_params.minRepeatability = 1; // need this to avoid error?
+    // clang-format on
+
+    t.sbd = cv::SimpleBlobDetector::create(blob_params);
+
+    create_model(t);
+    create_match_list(t);
 
 	t.base.get_tracked_pose = t_psvr_get_tracked_pose;
 	t.base.push_imu = t_psvr_push_imu;
