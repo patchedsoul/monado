@@ -362,6 +362,11 @@ remove_outliers(std::vector<cv::Point3f> *orig_points,
 			temp_points.push_back(Eigen::Vector3f(p.x, p.y, p.z));
 		}
 	}
+
+    if (temp_points.size() == 0)
+    {
+        return;
+    }
 	std::vector<float> x_values;
 	std::vector<float> y_values;
 	std::vector<float> z_values;
