@@ -11,3 +11,4 @@
 
 #include "t_imu.cpp"
 #include "t_tracker_psmv_fusion.cpp"
+#include "t_tracker_psvr_fusion.cpp"

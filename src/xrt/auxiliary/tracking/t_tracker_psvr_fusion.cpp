@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
- * @brief  PS Move tracker code that is expensive to compile.
+ * @brief  PSVR tracker code that is expensive to compile.
  *
  * Typically built as a part of t_kalman.cpp to reduce incremental build times.
  *
@@ -12,7 +12,7 @@
  * @ingroup aux_tracking
  */
 
-#include "t_tracker_psmv_fusion.h"
+#include "t_tracker_psvr_fusion.h"
 
 #include "tracking/t_fusion.h"
 #include "tracking/t_imu_fusion.h"
@@ -29,19 +29,19 @@
 #include "flexkalman/PoseState.h"
 
 
-using PSMVState = flexkalman::pose_externalized_rotation::State;
-using PSMVProcessModel =
+using PSVRState = flexkalman::pose_externalized_rotation::State;
+using PSVRProcessModel =
     flexkalman::PoseSeparatelyDampedConstantVelocityProcessModel;
 
 namespace xrt_fusion {
 
-struct PSMVTrackingInfo
+struct PSVRTrackingInfo
 {
 	bool valid{false};
 	bool tracked{false};
 };
 namespace {
-	class PSMVFusion : public PSMVFusionInterface
+	class PSVRFusion : public PSVRFusionInterface
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -73,41 +73,41 @@ namespace {
 		void
 		reset_filter_and_imu();
 
-		PSMVState filter_state;
-		PSMVProcessModel process_model;
+		PSVRState filter_state;
+		PSVRProcessModel process_model;
 
 		xrt_fusion::SimpleIMUFusion imu;
 
 		bool tracked{false};
-		PSMVTrackingInfo orientation_state;
-		PSMVTrackingInfo position_state;
+		PSVRTrackingInfo orientation_state;
+		PSVRTrackingInfo position_state;
 	};
 
 
 
 	void
-	PSMVFusion::clear_position_tracked_flag()
+	PSVRFusion::clear_position_tracked_flag()
 	{
 		position_state.tracked = false;
 	}
 
 	void
-	PSMVFusion::reset_filter()
+	PSVRFusion::reset_filter()
 	{
-		filter_state = PSMVState{};
+		filter_state = PSVRState{};
 		tracked = false;
-		position_state = PSMVTrackingInfo{};
+		position_state = PSVRTrackingInfo{};
 	}
 	void
-	PSMVFusion::reset_filter_and_imu()
+	PSVRFusion::reset_filter_and_imu()
 	{
 		reset_filter();
-		orientation_state = PSMVTrackingInfo{};
+		orientation_state = PSVRTrackingInfo{};
 		imu = SimpleIMUFusion{};
 	}
 
 	void
-	PSMVFusion::process_imu_data(
+	PSVRFusion::process_imu_data(
 	    time_duration_ns delta_ns,
 	    const struct xrt_tracking_sample *sample,
 	    const struct xrt_vec3 *orientation_variance_optional)
@@ -146,7 +146,7 @@ namespace {
 	}
 
 	void
-	PSMVFusion::process_3d_vision_data(
+	PSVRFusion::process_3d_vision_data(
 	    time_duration_ns delta_ns,
 	    const struct xrt_vec3 *position,
 	    const struct xrt_vec3 *variance_optional,
@@ -173,7 +173,7 @@ namespace {
 			fprintf(
 			    stderr,
 			    "Warning - measurement residual is %f, resetting "
-			    "filter PSMVstate\n",
+			    "filter PSVRstate\n",
 			    resid);
 			reset_filter();
 			return;
@@ -191,7 +191,7 @@ namespace {
 	}
 
 	void
-	PSMVFusion::get_prediction(timepoint_ns when_ns,
+	PSVRFusion::get_prediction(timepoint_ns when_ns,
 	                           struct xrt_space_relation *out_relation)
 	{
 		if (out_relation == NULL) {
@@ -238,10 +238,10 @@ namespace {
 } // namespace
 
 
-std::unique_ptr<PSMVFusionInterface>
-PSMVFusionInterface::create()
+std::unique_ptr<PSVRFusionInterface>
+PSVRFusionInterface::create()
 {
-	auto ret = std::make_unique<PSMVFusion>();
+	auto ret = std::make_unique<PSVRFusion>();
 	return ret;
 }
 } // namespace xrt_fusion

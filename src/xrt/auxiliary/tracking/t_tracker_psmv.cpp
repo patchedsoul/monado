@@ -5,6 +5,7 @@
  * @brief  PS Move tracker code.
  * @author Pete Black <pblack@collabora.com>
  * @author Jakob Bornecrantz <jakob@collabora.com>
+ * @author Ryan Pavlik <ryan.pavlik@collabora.com>
  * @ingroup aux_tracking
  */
 
@@ -170,50 +171,7 @@ do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 	}
 }
 
-/*!
- * @brief Helper struct that keeps the value that produces the lowest "score" as
- * computed by your functor.
- *
- * Having this as a struct with a method, instead of a single "algorithm"-style
- * function, allows you to keep your complicated filtering logic in your own
- * loop, just calling in when you have a new candidate for "best".
- *
- * @note Create by calling make_lowest_score_finder() with your
- * function/lambda that takes an element and returns the score, to deduce the
- * un-spellable typename of the lambda.
- *
- * @tparam ValueType The type of a single element value - whatever you want to
- * assign a score to.
- * @tparam FunctionType The type of your functor/lambda that turns a ValueType
- * into a float "score". Usually deduced.
- */
-template <typename ValueType, typename FunctionType> struct FindLowestScore
-{
-	const FunctionType score_functor;
-	bool got_one{false};
-	ValueType best{};
-	float best_score{0};
 
-	void
-	handle_candidate(ValueType val)
-	{
-		float score = score_functor(val);
-		if (!got_one || score < best_score) {
-			best = val;
-			best_score = score;
-			got_one = true;
-		}
-	}
-};
-
-
-//! Factory function for FindLowestScore to deduce the functor type.
-template <typename ValueType, typename FunctionType>
-static FindLowestScore<ValueType, FunctionType>
-make_lowest_score_finder(FunctionType scoreFunctor)
-{
-	return FindLowestScore<ValueType, FunctionType>{scoreFunctor};
-}
 
 //! Convert our 2d point + disparities into 3d points.
 static cv::Point3f
@@ -476,6 +434,7 @@ frame(TrackerPSMV &t, struct xrt_frame *xf)
 	}
 
 	xrt_frame_reference(&t.frame, xf);
+
 	// Wake up the thread.
 	os_thread_helper_signal_locked(&t.oth);
 
