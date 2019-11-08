@@ -923,6 +923,7 @@ vive_device_create(struct os_hid_device *mainboard_dev,
 		vive_parse_config(d, config);
 		free(config);
 	}
+	d->imu.gyro_bias = (struct xrt_vec3){0.004600, -0.036700, -0.037049};
 
 	// TODO: Replace hard coded values from OpenHMD with config
 	double w_meters = 0.122822 / 2.0;
