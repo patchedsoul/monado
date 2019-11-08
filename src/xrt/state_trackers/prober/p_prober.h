@@ -166,6 +166,12 @@ struct prober
  */
 
 /*!
+ * Load the JSON config file.
+ */
+cJSON *
+p_json_open_or_create_main_file(void);
+
+/*!
  * Dump the given device to stdout.
  */
 void

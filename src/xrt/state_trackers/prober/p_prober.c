@@ -9,6 +9,7 @@
 
 #include "util/u_var.h"
 #include "util/u_misc.h"
+#include "util/u_json.h"
 #include "util/u_debug.h"
 #include "p_prober.h"
 
@@ -325,6 +326,9 @@ initialize(struct prober *p, struct xrt_prober_entry_lists *lists)
 	u_var_add_bool((void *)p, &p->print_spew, "Spew");
 
 	int ret;
+
+	cJSON *json = p_json_open_or_create_main_file();
+	cJSON_Delete(json);
 
 	ret = collect_entries(p);
 	if (ret != 0) {
