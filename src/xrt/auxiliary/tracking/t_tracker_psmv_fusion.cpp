@@ -45,6 +45,10 @@ namespace {
 	{
 	public:
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+		PSMVFusion()
+		{
+			yawProcess.setNoiseAutocorrelation(0.001); //! @todo
+		}
 
 		void
 		clear_position_tracked_flag() override;
@@ -75,6 +79,11 @@ namespace {
 
 		State filter_state;
 		ProcessModel process_model;
+		flexkalman::PureVectorState<1> yaw{
+		    Eigen::Matrix<double, 1, 1>::Constant(0),
+		    Eigen::Matrix<double, 1, 1>::Constant(1.e-4)};
+		flexkalman::ConstantProcess<flexkalman::PureVectorState<1>>
+		    yawProcess{};
 
 		xrt_fusion::SimpleIMUFusion imu;
 
