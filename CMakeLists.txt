@@ -32,6 +32,7 @@ find_package(JPEG)
 find_package(SDL2)
 find_package(Threads)
 find_package(ZLIB)
+find_package(JsonCpp)
 
 # @TODO Turn into a find_package LIBUVC file.
 pkg_check_modules(LIBUVC libuvc)
