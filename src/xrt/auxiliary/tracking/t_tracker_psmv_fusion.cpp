@@ -29,13 +29,13 @@
 #include "flexkalman/PoseState.h"
 
 
-using PSMVState = flexkalman::pose_externalized_rotation::State;
-using PSMVProcessModel =
+using State = flexkalman::pose_externalized_rotation::State;
+using ProcessModel =
     flexkalman::PoseSeparatelyDampedConstantVelocityProcessModel;
 
 namespace xrt_fusion {
 
-struct PSMVTrackingInfo
+struct TrackingInfo
 {
 	bool valid{false};
 	bool tracked{false};
@@ -73,14 +73,14 @@ namespace {
 		void
 		reset_filter_and_imu();
 
-		PSMVState filter_state;
-		PSMVProcessModel process_model;
+		State filter_state;
+		ProcessModel process_model;
 
 		xrt_fusion::SimpleIMUFusion imu;
 
 		bool tracked{false};
-		PSMVTrackingInfo orientation_state;
-		PSMVTrackingInfo position_state;
+		TrackingInfo orientation_state;
+		TrackingInfo position_state;
 	};
 
 
@@ -94,15 +94,15 @@ namespace {
 	void
 	PSMVFusion::reset_filter()
 	{
-		filter_state = PSMVState{};
+		filter_state = State{};
 		tracked = false;
-		position_state = PSMVTrackingInfo{};
+		position_state = TrackingInfo{};
 	}
 	void
 	PSMVFusion::reset_filter_and_imu()
 	{
 		reset_filter();
-		orientation_state = PSMVTrackingInfo{};
+		orientation_state = TrackingInfo{};
 		imu = SimpleIMUFusion{};
 	}
 
@@ -173,7 +173,7 @@ namespace {
 			fprintf(
 			    stderr,
 			    "Warning - measurement residual is %f, resetting "
-			    "filter PSMVstate\n",
+			    "filter state\n",
 			    resid);
 			reset_filter();
 			return;

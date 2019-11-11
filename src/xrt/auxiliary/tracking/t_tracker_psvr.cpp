@@ -25,6 +25,9 @@
 
 #include "os/os_threading.h"
 
+#include <json/json.h>
+#include <iostream>
+
 #include <stdio.h>
 #include <assert.h>
 #include <pthread.h>
@@ -88,12 +91,202 @@ public:
 	std::unique_ptr<xrt_fusion::PSVRFusionInterface> filter;
 
 	xrt_vec3 tracked_object_position;
+
+	Json::Value blob_data{Json::arrayValue};
 };
 
 static void
+refresh_gui_frame(TrackerPSVR &t, struct xrt_frame *xf)
+{
+	if (t.debug.sink == NULL) {
+		return;
+	}
+
+	// Also dereferences the old frame.
+	u_frame_create_one_off(XRT_FORMAT_R8G8B8, xf->width, xf->height,
+	                       &t.debug.frame);
+	t.debug.frame->source_sequence = xf->source_sequence;
+
+	int rows = xf->height;
+	int cols = xf->width / 2;
+
+	t.debug.rgb[0] = cv::Mat(rows,                   // rows
+	                         cols,                   // cols
+	                         CV_8UC3,                // channels
+	                         t.debug.frame->data,    // data
+	                         t.debug.frame->stride); // stride
+
+	t.debug.rgb[1] = cv::Mat(rows,                           // rows
+	                         cols,                           // cols
+	                         CV_8UC3,                        // channels
+	                         t.debug.frame->data + 3 * cols, // data
+	                         t.debug.frame->stride);         // stride
+}
+
+
+/*!
+ * @brief Perform per-view (two in a stereo camera image) processing on an
+ * image, before tracking math is performed.
+ *
+ * Right now, this is mainly finding blobs/keypoints.
+ */
+static void
+do_view(TrackerPSVR &t, View &view, cv::Mat &grey, cv::Mat &rgb)
+{
+	// Undistort the whole image.
+	cv::remap(grey,                 // src
+	          view.frame_undist,    // dst
+	          view.undistort_map_x, // map1
+	          view.undistort_map_y, // map2
+	          cv::INTER_LINEAR,     // interpolation
+	          cv::BORDER_CONSTANT,  // borderMode
+	          cv::Scalar(0, 0, 0)); // borderValue
+
+	// Rectify the whole image.
+	cv::remap(view.frame_undist,    // src
+	          view.frame_rectified, // dst
+	          view.rectify_map_x,   // map1
+	          view.rectify_map_y,   // map2
+	          cv::INTER_LINEAR,     // interpolation
+	          cv::BORDER_CONSTANT,  // borderMode
+	          cv::Scalar(0, 0, 0)); // borderValue
+
+	cv::threshold(view.frame_rectified, // src
+	              view.frame_rectified, // dst
+	              32.0,                 // thresh
+	              255.0,                // maxval
+	              0);                   // type
+
+	// tracker_measurement_t m = {};
+
+	// Do blob detection with our masks.
+	//! @todo Re-enable masks.
+	t.sbd->detect(view.frame_rectified, // image
+	              view.keypoints,       // keypoints
+	              cv::noArray());       // mask
+
+
+	// Debug is wanted, draw the keypoints.
+	if (rgb.cols > 0) {
+		cv::drawKeypoints(
+		    view.frame_rectified,                       // image
+		    view.keypoints,                             // keypoints
+		    rgb,                                        // outImage
+		    cv::Scalar(255, 0, 0),                      // color
+		    cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS); // flags
+	}
+}
+
+/*!
+ * @brief Helper struct that keeps the value that produces the lowest "score" as
+ * computed by your functor.
+ *
+ * Having this as a struct with a method, instead of a single "algorithm"-style
+ * function, allows you to keep your complicated filtering logic in your own
+ * loop, just calling in when you have a new candidate for "best".
+ *
+ * @note Create by calling make_lowest_score_finder() with your
+ * function/lambda that takes an element and returns the score, to deduce the
+ * un-spellable typename of the lambda.
+ *
+ * @tparam ValueType The type of a single element value - whatever you want to
+ * assign a score to.
+ * @tparam FunctionType The type of your functor/lambda that turns a ValueType
+ * into a float "score". Usually deduced.
+ */
+template <typename ValueType, typename FunctionType> struct FindLowestScore
+{
+	const FunctionType score_functor;
+	bool got_one{false};
+	ValueType best{};
+	float best_score{0};
+
+	void
+	handle_candidate(ValueType val)
+	{
+		float score = score_functor(val);
+		if (!got_one || score < best_score) {
+			best = val;
+			best_score = score;
+			got_one = true;
+		}
+	}
+};
+
+
+//! Factory function for FindLowestScore to deduce the functor type.
+template <typename ValueType, typename FunctionType>
+static FindLowestScore<ValueType, FunctionType>
+make_lowest_score_finder(FunctionType scoreFunctor)
+{
+	return FindLowestScore<ValueType, FunctionType>{scoreFunctor};
+}
+
+
+struct BlobInfo
+{
+	BlobInfo(cv::Point2f l, cv::Point2f r, cv::Point3f w)
+	    : left(l), right(r), world(w)
+	{}
+	cv::Point2f left;
+	cv::Point2f right;
+	cv::Point3f world;
+};
+
+//! Convert our 2d point + disparities into 3d points.
+static cv::Point3f
+world_point_from_blobs(cv::Point2f left,
+                       cv::Point2f right,
+                       const cv::Matx44d &disparity_to_depth)
+{
+	float disp = right.x - left.x;
+	cv::Vec4d xydw(left.x, left.y, disp, 1.0f);
+	// Transform
+	cv::Vec4d h_world = disparity_to_depth * xydw;
+
+	// Divide by scale to get 3D vector from homogeneous
+	// coordinate. invert x while we are here.
+	cv::Point3f world_point(-h_world[0] / h_world[3],
+	                        h_world[1] / h_world[3],
+	                        h_world[2] / h_world[3]);
+
+	return world_point;
+}
+static Json::Value
+to_json(cv::Point2f point)
+{
+	auto val = Json::Value{Json::arrayValue};
+	val.append(point.x);
+	val.append(point.y);
+	return val;
+}
+static Json::Value
+to_json(cv::Point3f point)
+{
+	auto val = Json::Value{Json::arrayValue};
+	val.append(point.x);
+	val.append(point.y);
+	val.append(point.z);
+	return val;
+}
+static void
+log_blobs(TrackerPSVR &t, std::vector<BlobInfo> const &blobs)
+{
+
+	auto blobsVal = Json::Value{Json::arrayValue};
+	for (auto const &blob : blobs) {
+		auto entry = Json::Value(Json::objectValue);
+		entry["left"] = to_json(blob.left);
+		entry["right"] = to_json(blob.right);
+		entry["world"] = to_json(blob.world);
+		blobsVal.append(entry);
+	}
+	t.blob_data.append(blobsVal);
+}
+static void
 process(TrackerPSVR &t, struct xrt_frame *xf)
 {
-	// Only IMU data
+	// Only IMU data: nothing to do
 	if (xf == NULL) {
 		return;
 	}
@@ -130,7 +323,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	}
 
 	// Create the debug frame if needed.
-	// refresh_gui_frame(t, xf);
+	refresh_gui_frame(t, xf);
 
 	t.view[0].keypoints.clear();
 	t.view[1].keypoints.clear();
@@ -158,6 +351,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	const cv::Matx44d disparity_to_depth =
 	    static_cast<cv::Matx44d>(t.disparity_to_depth);
 
+	std::vector<BlobInfo> blobs;
 	for (const cv::KeyPoint &l_keypoint : t.view[0].keypoints) {
 		cv::Point2f l_blob = l_keypoint.pt;
 
@@ -177,18 +371,19 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 		if (nearest_blob.got_one) {
 			cv::Point3f pt = world_point_from_blobs(
 			    l_blob, nearest_blob.best, disparity_to_depth);
-			nearest_world.handle_candidate(pt);
+			blobs.emplace_back(l_blob, nearest_blob.best, pt);
+			// nearest_world.handle_candidate(pt);
 		}
 	}
-
-	if (nearest_world.got_one) {
-		cv::Point3f world_point = nearest_world.best;
-		// update internal state
-		memcpy(&t.tracked_object_position, &world_point.x,
-		       sizeof(t.tracked_object_position));
-	} else {
-		t.filter->clear_position_tracked_flag();
-	}
+	log_blobs(t, blobs);
+	// if (nearest_world.got_one) {
+	// 	cv::Point3f world_point = nearest_world.best;
+	// 	// update internal state
+	// 	memcpy(&t.tracked_object_position, &world_point.x,
+	// 	       sizeof(t.tracked_object_position));
+	// } else {
+	// t.filter->clear_position_tracked_flag();
+	// }
 
 	if (t.debug.frame != NULL) {
 		t.debug.sink->push_frame(t.debug.sink, t.debug.frame);
@@ -198,8 +393,8 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 
 	xrt_frame_reference(&xf, NULL);
 	xrt_frame_reference(&t.debug.frame, NULL);
-	if (nearest_world.got_one) {
 #if 0
+	if (nearest_world.got_one) {
 		//! @todo something less arbitrary for the lever arm?
 		//! This puts the origin approximately under the PS
 		//! button.
@@ -212,7 +407,6 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 		// Not sure how to estimate the depth variance without
 		// some research.
 		xrt_vec3 variance{1.e-4f, 1.e-4f, 4.e-4f};
-#endif
 		t.filter->process_3d_vision_data(
 		    0, &t.tracked_object_position, NULL, NULL,
 		    //! @todo tune cutoff for residual arbitrarily "too large"
@@ -220,6 +414,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	} else {
 		t.filter->clear_position_tracked_flag();
 	}
+#endif
 }
 
 /*!
@@ -395,6 +590,12 @@ t_psvr_node_destroy(struct xrt_frame_node *node)
 	// Tidy variable setup.
 	u_var_remove_root(t_ptr);
 
+	{
+		std::cout << "Writing data file\n";
+		std::ofstream data{"data.json"};
+		data << t_ptr->blob_data.toStyledString();
+	}
+
 	delete t_ptr;
 }
 
@@ -437,7 +638,7 @@ t_psvr_create(struct xrt_frame_context *xfctx,
 	t.node.break_apart = t_psvr_node_break_apart;
 	t.node.destroy = t_psvr_node_destroy;
 	t.fusion.rot.w = 1.0f;
-	t.filter = xrt_fusion::PSVRFusionInterface::create();
+	// t.filter = xrt_fusion::PSVRFusionInterface::create();
 
 	ret = os_thread_helper_init(&t.oth);
 	if (ret != 0) {
@@ -454,6 +655,23 @@ t_psvr_create(struct xrt_frame_context *xfctx,
 	t.fusion.rot.y = 1.0f;
 	t.fusion.rot.z = 0.0f;
 	t.fusion.rot.w = 0.0f;
+
+	cv::SimpleBlobDetector::Params blob_params;
+	blob_params.filterByArea = false;
+	blob_params.filterByConvexity = true;
+	blob_params.minConvexity = 0.8;
+	blob_params.filterByInertia = false;
+	blob_params.filterByColor = true;
+	blob_params.blobColor =
+	    255; // 0 or 255 - color comes from binarized image?
+	blob_params.minArea = 1;
+	blob_params.maxArea = 1000;
+	blob_params.maxThreshold =
+	    51; // using a wide threshold span slows things down bigtime
+	blob_params.minThreshold = 50;
+	blob_params.thresholdStep = 1;
+	blob_params.minDistBetweenBlobs = 5;
+	blob_params.minRepeatability = 1; // need this to avoid error?
 
 	t.sbd = cv::SimpleBlobDetector::create(blob_params);
 	xrt_frame_context_add(xfctx, &t.node);
