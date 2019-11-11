@@ -125,6 +125,12 @@ public:
 		struct xrt_quat rot = {};
 	} fusion;
 
+    struct
+    {
+        struct xrt_vec3 pos = {};
+        struct xrt_quat rot = {};
+    } optical;
+
 	model_vertex_t model_vertices[PSVR_NUM_LEDS];
 	cv::KalmanFilter track_filters[PSVR_NUM_LEDS];
 
@@ -137,6 +143,8 @@ public:
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
     std::vector<match_model_t> matches;
+
+    FILE* dump_file;
 };
 
 static float
@@ -292,53 +300,10 @@ static bool disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_poin
         }
     }
     printf ("ERR: %f BEST: %d",lowestError,bestModel);
-    /*    tracked_labels=[]
-    resetLabels(frame_no)
-    #now we can position our markers for the basis vector.
-    label_index= bestModel[-1][0][0][0]
-    label_txt= bestModel[-1][0][0][1]
-    transform = mathutils.Matrix.Translation(measurement_verts[0])
-    set_object_transform(label_txt,transform,frame_no)
-    traces[label_index].append(measurement_verts[0][:])
-    tracked_labels.append([label_index,label_txt])
-
-    label_index= bestModel[-1][1][0][0]
-    label_txt= bestModel[-1][1][0][1]
-    transform = mathutils.Matrix.Translation(measurement_verts[1])
-    set_object_transform(label_txt,transform,frame_no)
-    traces[label_index].append(measurement_verts[1][:])
-    tracked_labels.append([label_index,label_txt])
-
-    #now that we have our basis vector, and a model with all 'the other points' in it,
-    #we can find the closest value pair that matches our 'other points.
-    #TODO: we may have a best fit already due to the permutations, maybe leave this out.
-    for i in range(4,measurement_len*2,2):
-        measure_ang = measurement[i]
-        measure_dist = measurement[i+1]
-        lowestErrorC=65535.0
-        model_index = 0
-        #print("MEASUREMENT: ",int(i/2),measure_ang,measure_dist)
-        for j in range(4,model_len*2,2):
-            #print("MODEL: ",int(j/2),bestModel[j],bestModel[j+1],bestModel[-1][int(j/2)][0][1])
-            errorA = measure_ang - bestModel[j]
-            signDiff = math.copysign(1,measure_ang) - math.copysign(1,bestModel[j])
-
-            errorB = measure_dist - bestModel[j+1]
-            rmsError = math.sqrt((errorA * errorA) + (errorB * errorB) + (signDiff * signDiff))
-            if rmsError < lowestErrorC:
-                model_index = int(j/2)
-                lowestErrorC = rmsError
-        measurement_index = int(i/2)
-
-        label_index = bestModel[-1][model_index][0][0]
-        label_txt =   bestModel[-1][model_index][0][1]
-        transform = mathutils.Matrix.Translation(measurement_verts[measurement_index])
-        set_object_transform(label_txt,transform,frame_no)
-        traces[label_index].append(measurement_verts[measurement_index][:])
-        tracked_labels.append([label_index,label_txt])*/
-
-
-
+    match_model_t m = t.matches[bestModel];
+    for (uint32_t i=0;i<measured_points->size();i++) {
+        measured_points->at(i).vertex_index = m.data.at(i).vertex_index;
+    }
 }
 
 
@@ -658,25 +623,92 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 
 	// try matching our leds against the predictions
 	// if error low, fit model using raw and filtered positions
-
+    if (pruned_points.size() < 7) {
     std::vector<model_vertex_t> world_pruned;
     for (uint32_t i=0;i< pruned_points.size();i++) {
         model_vertex_t mv;
         mv.position = pruned_points[i];
         world_pruned.push_back(mv);
+        fprintf(t.dump_file,"%f,%f,%f\n",mv.position.x(),mv.position.y(),mv.position.z());
     }
-    std::vector<match_data_t> match_verts;
-    verts_to_measurement(&world_pruned,&match_verts);
+    fprintf(t.dump_file,"\n");
 
-    disambiguate(t,&match_verts,NULL,0);
+    if (world_pruned.size() > 2)
+    {
+        std::vector<match_data_t> match_verts;
+        verts_to_measurement(&world_pruned,&match_verts);
+
+        disambiguate(t,&match_verts,NULL,0);
+
+        //take our first two tracked verts, and compute the positions of all the other verts relative to that.
+        Eigen::Vector3f meas_ref_a = world_pruned[0].position;
+        Eigen::Vector3f meas_ref_b = world_pruned[1].position;
 
 
-	// if error too large, brute-force disambiguate
-	// fit model to raw measurements only
+        Eigen::Vector3f model_ref_a = t.model_vertices[match_verts.at(0).vertex_index].position;
+        Eigen::Vector3f model_ref_b = t.model_vertices[match_verts.at(1).vertex_index].position;
 
-	// update filter
+        //as a limited enhancement - use the largest triangle
 
-	filter_update(measured_pose, t.track_filters, dt);
+        float highestLength = 0.0f;
+        uint32_t best_model_vert = 0;
+        uint32_t c=0;
+        for (uint32_t i=0;i < match_verts.size();i++) {
+            Eigen::Vector3f model_vert = t.model_vertices[match_verts.at(i).vertex_index].position;
+            float l = dist_3d(model_vert,model_ref_a);
+            if ( i  > 1 && ( l > highestLength) ) {
+                 best_model_vert  = i;
+                 highestLength = l;
+            }
+        }
+
+        Eigen::Vector3f meas_ref_c = world_pruned[best_model_vert].position;
+
+        float model_scale  = dist_3d(meas_ref_b,meas_ref_a) / dist_3d(model_ref_b,model_ref_a);
+        model_ref_a = model_scale * model_ref_a;
+        model_ref_b = model_scale *  model_ref_b;
+        Eigen::Vector3f model_ref_c =  model_scale * t.model_vertices[match_verts[best_model_vert].vertex_index].position;
+
+        //get the center vertex position of of model - we will transform
+        //this into measurement space
+        Eigen::Vector3f model_center_offset = model_ref_a - (model_scale * t.model_vertices[2].position); //2 is TAG_C
+        Eigen::Matrix4f tri1_a_basis;
+        Eigen::Matrix4f tri1_b_basis;
+        Eigen::Matrix4f tri1_c_basis;
+        Eigen::Matrix4f a_model_to_meas;
+        Eigen::Matrix4f b_model_to_meas;
+        Eigen::Matrix4f c_model_to_meas;
+
+        match_triangles(&tri1_a_basis,&a_model_to_meas,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
+        match_triangles(&tri1_b_basis,&b_model_to_meas,model_ref_b,model_ref_c,model_ref_a,meas_ref_b,meas_ref_c,meas_ref_a);
+        match_triangles(&tri1_c_basis,&c_model_to_meas,model_ref_c,model_ref_a,model_ref_b,meas_ref_c,meas_ref_a,meas_ref_b);
+
+        Eigen::Matrix4f meas_a_basis = tri1_a_basis * a_model_to_meas;
+        Eigen::Matrix4f meas_b_basis = tri1_b_basis * b_model_to_meas;
+        Eigen::Matrix4f meas_c_basis = tri1_c_basis * c_model_to_meas;
+
+        Eigen::Matrix4f model_center_transform =  tri1_a_basis * a_model_to_meas * tri1_a_basis.inverse();
+
+
+        t.optical.pos.x = model_center_transform.col(3)[0];
+        t.optical.pos.y = model_center_transform.col(3)[1];
+        t.optical.pos.z = model_center_transform.col(3)[2];
+        Eigen::Matrix3f r = model_center_transform.block(0,0,3,3);
+        Eigen::Quaternionf rot(r);
+        t.optical.rot.x = rot.x();
+        t.optical.rot.y = rot.y();
+        t.optical.rot.z = rot.z();
+        t.optical.rot.w = rot.w();
+
+        // update filter
+
+        filter_update(measured_pose, t.track_filters, dt);
+    }
+
+    } else {
+        printf("Too many blobs to be a PSVR! %d\n",pruned_points.size());
+    }
+
 
 	// predict again, using camera-frame -> screen latency as dt.
 	// match triangles from model to filtered measurement
@@ -738,8 +770,8 @@ get_pose(TrackerPSVR &t,
 		return;
 	}
 
-	out_relation->pose.position = t.fusion.pos;
-	out_relation->pose.orientation = t.fusion.rot;
+    out_relation->pose.position = t.optical.pos;
+    out_relation->pose.orientation = t.optical.rot;
 
 	//! @todo assuming that orientation is actually currently tracked.
 	out_relation->relation_flags = (enum xrt_space_relation_flags)(
@@ -880,9 +912,6 @@ t_psvr_start(struct xrt_tracked_psvr *xtvr)
 	int ret;
 
 
-
-	// TODO: remove 'impossible' permutations
-
 	ret = os_thread_helper_start(&t.oth, t_psvr_run, &t);
 	if (ret != 0) {
 		return ret;
@@ -955,6 +984,8 @@ t_psvr_create(struct xrt_frame_context *xfctx,
 
 	*out_sink = &t.sink;
 	*out_xtvr = &t.base;
+
+    t.dump_file = fopen("/tmp/psvr_dump.txt","w");
 
 	return 0;
 }

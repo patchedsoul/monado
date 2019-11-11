@@ -845,7 +845,7 @@ disco_leds(struct psvr_device *psvr)
 
 	for (size_t i = 0; i < ARRAY_SIZE(leds); i++) {
 		int ret = control_leds(psvr, (enum psvr_leds)leds[i],
-		                       PSVR_LED_POWER_MAX, PSVR_LED_ALL);
+                               PSVR_LED_POWER_MAX, PSVR_LED_ALL);
 		if (ret < 0) {
 			return ret;
 		}
@@ -1084,7 +1084,7 @@ psvr_device_create(struct hid_device_info *hmd_handle_info,
 	if (debug_get_bool_option_psvr_disco()) {
 		ret = disco_leds(psvr);
 	} else {
-		ret = control_leds(psvr, PSVR_LED_ALL, PSVR_LED_POWER_MAX,
+        ret = control_leds(psvr, PSVR_LED_ALL, 64,
 		                   (enum psvr_leds)0);
 	}
 	if (ret < 0) {
