@@ -13,6 +13,9 @@
 #error "This header is C++-only."
 #endif
 
+#include "t_lowpass.h"
+#include "math/m_api.h"
+
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -136,6 +139,7 @@ private:
 	Eigen::Vector3d angVel_{Eigen::Vector3d::Zero()};
 	Eigen::Quaterniond quat_{Eigen::Quaterniond::Identity()};
 	double gravity_scale_;
+	LowPassIIR<3> accel_{200 /* hz cutoff frequency */};
 	bool started_{false};
 };
 } // namespace xrt_fusion
