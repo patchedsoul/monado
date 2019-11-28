@@ -81,6 +81,7 @@ typedef struct match_data
     float angle;
     float distance;
     uint32_t vertex_index;
+    Eigen::Vector3f position;
 } match_data_t;
 
 typedef struct match_vertex
@@ -132,6 +133,7 @@ public:
     } optical;
 
 	model_vertex_t model_vertices[PSVR_NUM_LEDS];
+    std::vector<match_data_t> last_vertices;
 	cv::KalmanFilter track_filters[PSVR_NUM_LEDS];
 
 	View view[2];
@@ -245,6 +247,7 @@ static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, std::ve
         Eigen::Vector3f point_vec = vp.position-ref_a.position;
         match_data_t md;
         md.vertex_index = i;
+        md.position = vp.position;
         if (i != 0) {
             Eigen::Vector3f plane_norm = ref_vec.cross(point_vec).normalized();
             if (plane_norm.z() < 0) {
@@ -252,18 +255,48 @@ static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, std::ve
             } else {
                 md.angle = acos(point_vec.normalized().dot(ref_vec.normalized()));
             }
-            printf("WAT: %f %f\n",dist_3d(point_vec,ref_a.position),ref_len);
+            //printf("WAT: %f %f\n",dist_3d(point_vec,ref_a.position),ref_len);
             md.distance = dist_3d(vp.position,ref_a.position)/ref_len;
+
+            //z dir is inverted in camera coords
+            if (vp.position.dot(Eigen::Vector3f(0.0,0.0,-1.0f)) < 0 ) {
+                        md.distance *= -1;
+                    }
         }
         else
         {
            md.angle = 0.0f;
            md.distance = 0.0f;
         }
+        //fix up any NaNs
+        if (md.angle != md.angle) {md.angle = 0.0f;}
+        if (md.distance != md.distance) {md.distance = 0.0f;}
+
         match_vertices->push_back(md);
     }
 
 
+}
+
+static float
+last_diff(TrackerPSVR &t,
+          std::vector<match_data_t>* meas_pose,
+          std::vector<match_data_t>* last_pose)
+{
+    float diff = 0.0f;
+    for (uint32_t i = 0; i < meas_pose->size(); i++) {
+            uint32_t last_index = meas_pose->at(i).vertex_index;
+            for (uint32_t j = 0; j < last_pose->size(); j++) {
+                if (last_pose->at(j).vertex_index == last_index)
+                {
+                    float d = fabs(dist_3d(meas_pose->at(i).position,last_pose->at(j).position));
+                    diff += d;
+
+                }
+            }
+
+    }
+    return diff * 0.1f;
 }
 
 static bool disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_points,model_vertex_t* last_measurement,uint32_t frame_no) {
@@ -277,33 +310,63 @@ static bool disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_poin
     }
 
 
+
     float lowestError=65535.0f;
     int32_t bestModel = -1;
     for (uint32_t i=0;i< t.matches.size();i++ ) {
         match_model_t m = t.matches[i];
+
         float squaredSum =0.0f;
         float signDiff=0.0f;
 
         // we have 2 measurements per vertex (distance and angle)
         // and we are comparing only the 'non-basis vector' elements
 
-        for (uint32_t j =2; j < measured_points->size() ;j++) {
-                squaredSum += (measured_points->at(j).distance - m.data.at(j).distance) * (measured_points->at(j).distance - m.data.at(j).distance);
-                squaredSum += (measured_points->at(j).angle - m.data.at(j).angle) * (measured_points->at(j).angle - m.data.at(j).angle);
+        //fill in our 'proposed' vertex indices from the model data (this will be overwritten once our best model is selected
+        for (uint32_t i=0;i<measured_points->size();i++) {
+            measured_points->at(i).vertex_index = m.data.at(i).vertex_index;
+        }
 
+        //reject any configuration that puts 'TL' or 'TR' above 'BL' or
 
-            float rmsError = sqrt(squaredSum);// +  last_diff(measurement_verts,model[-1],last_verts) +signDiff
+        float ld = last_diff(t,measured_points,&t.last_vertices);
+        //printf("last diff: model %d %f\n",i,ld);
+
+        for (uint32_t j =1; j < measured_points->size() ;j++) {
+                squaredSum += fabs(measured_points->at(j).distance - m.data.at(j).distance);// * (measured_points->at(j).distance - m.data.at(j).distance);
+                squaredSum += fabs(measured_points->at(j).angle - m.data.at(j).angle);// * (measured_points->at(j).angle - m.data.at(j).angle);
+                //printf("%d squaredSum: %f\n",j,squaredSum);
+        }
+            float rmsError = squaredSum;// + ld;//sqrt(squaredSum);
             if (rmsError <= lowestError) {
                 lowestError = rmsError;
                 bestModel = i;
             }
-        }
+
     }
-    printf ("ERR: %f BEST: %d",lowestError,bestModel);
+    printf ("ERR: %f BEST: %d\n",lowestError,bestModel);
+
+    printf("model %d:\t",bestModel);
     match_model_t m = t.matches[bestModel];
+
+    for (uint32_t i=0;i < m.data.size();i++) {
+        printf(" %d %f %f ",m.data[i].vertex_index,m.data[i].distance,m.data[i].angle);
+    }
+    printf("\n");
+
+    printf("meas  ?:\t");
+    for (uint32_t i=0;i<measured_points->size();i++) {
+        printf("? %f %f ",measured_points->at(i).distance,measured_points->at(i).angle);
+    }
+    printf("\n");
+
+
+
     for (uint32_t i=0;i<measured_points->size();i++) {
         measured_points->at(i).vertex_index = m.data.at(i).vertex_index;
+        printf("%d %f %f %f %d\n",i, measured_points->at(i).position.x(), measured_points->at(i).position.y(),measured_points->at(i).position.z(),measured_points->at(i).vertex_index);
     }
+
 }
 
 
@@ -382,27 +445,26 @@ match_triangles(Eigen::Matrix4f *t1_mat,
 	*t1_mat = Eigen::Matrix4f().Identity();
 	Eigen::Matrix4f t2_mat = Eigen::Matrix4f().Identity();
 
-	Eigen::Vector3f t1_x_vec = (t1_b - t1_a).normalized();
-	Eigen::Vector3f t1_z_vec =
-	    (t1_c - t1_a).cross(t1_b - t1_a).normalized();
+    Eigen::Vector3f t1_x_vec = (t1_b - t1_a).normalized();
+    Eigen::Vector3f t1_z_vec = (t1_c - t1_a).cross(t1_b - t1_a).normalized();
 	Eigen::Vector3f t1_y_vec = t1_x_vec.cross(t1_z_vec).normalized();
 
 	Eigen::Vector3f t2_x_vec = (t2_b - t2_a).normalized();
-	Eigen::Vector3f t2_z_vec =
-	    (t2_c - t2_a).cross(t2_b - t2_a).normalized();
+    Eigen::Vector3f t2_z_vec = (t2_c - t2_a).cross(t2_b - t2_a).normalized();
 	Eigen::Vector3f t2_y_vec = t2_x_vec.cross(t2_z_vec).normalized();
 
 	t1_mat->col(0) << t1_x_vec[0], t1_x_vec[1], t1_x_vec[2], 0.0f;
 	t1_mat->col(1) << t1_y_vec[0], t1_y_vec[1], t1_y_vec[2], 0.0f;
 	t1_mat->col(2) << t1_z_vec[0], t1_z_vec[1], t1_z_vec[2], 0.0f;
-	t1_mat->col(3) << t1_x_vec[0], t1_x_vec[1], t1_x_vec[2], 1.0f;
+    t1_mat->col(3) << t1_a[0], t1_a[1], t1_a[2], 1.0f;
 
 	t2_mat.col(0) << t2_x_vec[0], t2_x_vec[1], t2_x_vec[2], 0.0f;
 	t2_mat.col(1) << t2_y_vec[0], t2_y_vec[1], t2_y_vec[2], 0.0f;
 	t2_mat.col(2) << t2_z_vec[0], t2_z_vec[1], t2_z_vec[2], 0.0f;
-	t2_mat.col(3) << t2_x_vec[0], t2_x_vec[1], t2_x_vec[2], 1.0f;
+    t2_mat.col(3) << t2_a[0], t2_a[1], t2_a[2], 1.0f;
 
-	*t1_to_t2_mat = t1_mat->inverse() * t2_mat;
+    *t1_to_t2_mat = t1_mat->inverse() * t2_mat;
+
 }
 
 static void
@@ -422,18 +484,7 @@ create_model(TrackerPSVR &t)
                            TAG_SR,true};
 }
 
-static float
-last_diff(TrackerPSVR &t,
-          model_vertex_t *measured_pose,
-          model_vertex_t *predicted_pose)
-{
-	for (uint32_t i = 0; i < PSVR_NUM_LEDS; i++) {
-		if (measured_pose[i].active) {
-			// TODO: finish this
-		}
-	}
-	return 0.0f;
-}
+
 
 static void
 create_match_list(TrackerPSVR &t)
@@ -453,6 +504,10 @@ create_match_list(TrackerPSVR &t)
             md.vertex_index = i.model_index;
             md.distance =
 			    dist_3d(i.position, ref_pt_a.position) / normScale;
+            if (i.position.dot(Eigen::Vector3f(0.0,0.0,1.0f)) < 0 ) {
+                        md.distance *= -1;
+                    }
+
 			Eigen::Vector3f plane_norm =
                 ref_vec.cross(point_vec).normalized();
             if (ref_pt_a.position != i.position) {
@@ -470,6 +525,10 @@ create_match_list(TrackerPSVR &t)
 			} else {
                 md.angle = 0.0f;
 			}
+            //fix up any NaNs
+            if (md.angle != md.angle) {md.angle = 0.0f;}
+            if (md.distance != md.distance) {md.distance = 0.0f;}
+
             m.data.push_back(md);
 		}
         if (match_possible(&m)){
@@ -559,6 +618,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	t.view[1].keypoints.clear();
 	t.l_blobs.clear();
 	t.r_blobs.clear();
+
 
 	int cols = xf->width / 2;
 	int rows = xf->height;
@@ -653,7 +713,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
         float highestLength = 0.0f;
         uint32_t best_model_vert = 0;
         uint32_t c=0;
-        for (uint32_t i=0;i < match_verts.size();i++) {
+        for (uint32_t i=2;i < match_verts.size();i++) {
             Eigen::Vector3f model_vert = t.model_vertices[match_verts.at(i).vertex_index].position;
             float l = dist_3d(model_vert,model_ref_a);
             if ( i  > 1 && ( l > highestLength) ) {
@@ -661,10 +721,9 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
                  highestLength = l;
             }
         }
-
         Eigen::Vector3f meas_ref_c = world_pruned[best_model_vert].position;
 
-        float model_scale  = dist_3d(meas_ref_b,meas_ref_a) / dist_3d(model_ref_b,model_ref_a);
+        float model_scale  = dist_3d(meas_ref_a,meas_ref_b) / dist_3d(model_ref_a,model_ref_b);
         model_ref_a = model_scale * model_ref_a;
         model_ref_b = model_scale *  model_ref_b;
         Eigen::Vector3f model_ref_c =  model_scale * t.model_vertices[match_verts[best_model_vert].vertex_index].position;
@@ -680,29 +739,36 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
         Eigen::Matrix4f c_model_to_meas;
 
         match_triangles(&tri1_a_basis,&a_model_to_meas,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
-        match_triangles(&tri1_b_basis,&b_model_to_meas,model_ref_b,model_ref_c,model_ref_a,meas_ref_b,meas_ref_c,meas_ref_a);
-        match_triangles(&tri1_c_basis,&c_model_to_meas,model_ref_c,model_ref_a,model_ref_b,meas_ref_c,meas_ref_a,meas_ref_b);
+        //match_triangles(&tri1_b_basis,&b_model_to_meas,model_ref_b,model_ref_c,model_ref_a,meas_ref_b,meas_ref_c,meas_ref_a);
+        //match_triangles(&tri1_c_basis,&c_model_to_meas,model_ref_c,model_ref_a,model_ref_b,meas_ref_c,meas_ref_a,meas_ref_b);
 
-        Eigen::Matrix4f meas_a_basis = tri1_a_basis * a_model_to_meas;
-        Eigen::Matrix4f meas_b_basis = tri1_b_basis * b_model_to_meas;
-        Eigen::Matrix4f meas_c_basis = tri1_c_basis * c_model_to_meas;
+     //   Eigen::Matrix4f meas_a_basis = tri1_a_basis * a_model_to_meas;
+     //   Eigen::Matrix4f meas_b_basis = tri1_b_basis * b_model_to_meas;
+     //   Eigen::Matrix4f meas_c_basis = tri1_c_basis * c_model_to_meas;
 
-        Eigen::Matrix4f model_center_transform =  tri1_a_basis * a_model_to_meas * tri1_a_basis.inverse();
+        Eigen::Matrix4f model_center_transform = tri1_a_basis * a_model_to_meas * tri1_a_basis.inverse();
 
 
-        t.optical.pos.x = model_center_transform.col(3)[0];
-        t.optical.pos.y = model_center_transform.col(3)[1];
-        t.optical.pos.z = model_center_transform.col(3)[2];
+        t.optical.pos.x = model_center_transform(0,3); //row-first
+        t.optical.pos.y = model_center_transform(1,3);
+        t.optical.pos.z = model_center_transform(2,3);
+        printf("POS: %f %f %f\n",t.optical.pos.x,t.optical.pos.y,t.optical.pos.z);
         Eigen::Matrix3f r = model_center_transform.block(0,0,3,3);
         Eigen::Quaternionf rot(r);
         t.optical.rot.x = rot.x();
         t.optical.rot.y = rot.y();
         t.optical.rot.z = rot.z();
         t.optical.rot.w = rot.w();
+        printf("ROT: %f %f %f %f\n",t.optical.rot.x,t.optical.rot.y,t.optical.rot.z,t.optical.rot.w);
 
+        //t.optical.rot.w = 1.0f;
         // update filter
 
         filter_update(measured_pose, t.track_filters, dt);
+        t.last_vertices.clear();
+        for (uint32_t i=0;i<match_verts.size();i++) {
+            t.last_vertices.push_back(match_verts[i]);
+        }
     }
 
     } else {
