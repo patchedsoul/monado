@@ -82,6 +82,19 @@ option(BUILD_WITH_PSMV "Enable Playstation Move driver" ON)
 option(BUILD_WITH_HYDRA "Enable Hydra driver" ON)
 option(BUILD_WITH_NS "Enable North Star driver" ON)
 
+
+option(BUILD_AS_CXX "Build C sources as C++, for type checking." OFF)
+function(xrt_set_language)
+    if(NOT BUILD_AS_CXX)
+        return()
+    endif()
+    foreach(FN ${ARGN})
+        if(${FN} MATCHES "\.c$")
+            set_source_files_properties(${FN} PROPERTIES LANGUAGE CXX)
+        endif()
+    endforeach()
+endfunction()
+
 ###
 # Flags
 ###

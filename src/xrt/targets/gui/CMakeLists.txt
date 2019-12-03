@@ -58,3 +58,5 @@ endif()
 if(DRIVER_LIBRARIES)
 	target_link_libraries(gui PRIVATE ${DRIVER_LIBRARIES})
 endif()
+
+xrt_set_language(${SOURCE_FILES})

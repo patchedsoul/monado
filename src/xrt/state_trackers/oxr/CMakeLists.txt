@@ -64,3 +64,5 @@ target_include_directories(st_oxr SYSTEM
 	PRIVATE
 	${VULKAN_INCLUDE_DIR}
 	)
+
+xrt_set_language(${OXR_SOURCE_FILES})

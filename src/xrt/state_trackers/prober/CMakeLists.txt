@@ -55,3 +55,5 @@ target_include_directories(st_prober
 	PRIVATE
 	${PROBER_INCLUDES}
 	)
+
+xrt_set_language(${PROBER_SOURCE_FILES})

@@ -34,6 +34,7 @@ if(BUILD_DRIVER_HDK)
 	# Use OBJECT to not create a archive, since it just gets in the way.
 	add_library(drv_hdk OBJECT ${HDK_SOURCE_FILES})
 	list(APPEND ENABLED_HEADSET_DRIVERS hdk)
+	xrt_set_language(${HDK_SOURCE_FILES})
 endif()
 
 
@@ -46,6 +47,7 @@ if(BUILD_DRIVER_HYDRA)
 	# Use OBJECT to not create a archive, since it just gets in the way.
 	add_library(drv_hydra OBJECT ${HYDRA_SOURCE_FILES})
 	list(APPEND ENABLED_DRIVERS hydra)
+	xrt_set_language(${HYDRA_SOURCE_FILES})
 endif()
 
 if(BUILD_DRIVER_NS)
@@ -74,6 +76,7 @@ if(BUILD_DRIVER_OHMD)
 		PRIVATE ${OPENHMD_INCLUDE_DIRS}
 		)
 	list(APPEND ENABLED_HEADSET_DRIVERS openhmd)
+	xrt_set_language(${OHMD_SOURCE_FILES})
 endif()
 
 
@@ -86,6 +89,7 @@ if(BUILD_DRIVER_PSMV)
 	# Use OBJECT to not create a archive, since it just gets in the way.
 	add_library(drv_psmv OBJECT ${PSMOVE_SOURCE_FILES})
 	list(APPEND ENABLED_DRIVERS psmv)
+	xrt_set_language(${PSMOVE_SOURCE_FILES})
 endif()
 
 
@@ -104,6 +108,7 @@ if(BUILD_DRIVER_PSVR)
 		PRIVATE ${HIDAPI_INCLUDE_DIRS}
 		)
 	list(APPEND ENABLED_HEADSET_DRIVERS psvr)
+	xrt_set_language(${PSVR_SOURCE_FILES})
 endif()
 
 if(BUILD_DRIVER_VIVE)
@@ -120,6 +125,7 @@ if(BUILD_DRIVER_VIVE)
 	target_include_directories(drv_vive SYSTEM PRIVATE ../../external)
 	target_link_libraries(drv_vive z)
 	list(APPEND ENABLED_HEADSET_DRIVERS vive)
+	xrt_set_language(${VIVE_SOURCE_FILES})
 endif()
 
 if(BUILD_DRIVER_V4L2)
@@ -130,6 +136,7 @@ if(BUILD_DRIVER_V4L2)
 	# Use OBJECT to not create a archive, since it just gets in the way.
 	add_library(drv_v4l2 OBJECT ${V4L2_SOURCE_FILES})
 	list(APPEND ENABLED_DRIVERS v4l2)
+	xrt_set_language(${V4L2_SOURCE_FILES})
 endif()
 
 if(ENABLED_HEADSET_DRIVERS)

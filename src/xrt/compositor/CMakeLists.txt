@@ -118,4 +118,6 @@ if(BUILD_WITH_EGL)
 	target_include_directories(comp SYSTEM PRIVATE ${EGL_INCLUDE_DIRS})
 endif()
 
+xrt_set_language(${SOURCE_FILES})
+
 add_subdirectory(shaders)

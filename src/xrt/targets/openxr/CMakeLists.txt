@@ -130,3 +130,5 @@ if(MANIFEST_RELATIVE_DIR)
 	configure_file(make_manifest.cmake ${CMAKE_CURRENT_BINARY_DIR}/make_manifest.cmake @ONLY)
 	install(SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/make_manifest.cmake)
 endif()
+
+xrt_set_language(${SOURCE_FILES})

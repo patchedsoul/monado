@@ -12,3 +12,5 @@ set(SOURCE_FILES
 	)
 
 add_library(target_lists OBJECT ${SOURCE_FILES})
+
+xrt_set_language(${SOURCE_FILES})

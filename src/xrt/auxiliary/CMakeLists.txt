@@ -117,6 +117,11 @@ target_include_directories(aux_math SYSTEM
 	PRIVATE ${EIGEN3_INCLUDE_DIR}
 	)
 
+xrt_set_language(${OGL_SOURCE_FILES})
+xrt_set_language(${UTIL_SOURCE_FILES})
+xrt_set_language(${OS_SOURCE_FILES})
+xrt_set_language(${MATH_SOURCE_FILES})
+
 # Tracking library.
 # Use OBJECT to not create a archive, since it just gets in the way.
 add_library(aux_tracking OBJECT ${TRACKING_SOURCE_FILES})
@@ -133,3 +138,5 @@ if(BUILD_TRACKING)
 		${OpenCV_INCLUDE_DIRS}
 		)
 endif()
+
+xrt_set_language(${TRACKING_SOURCE_FILES})

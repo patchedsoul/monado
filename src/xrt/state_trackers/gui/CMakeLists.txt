@@ -42,3 +42,5 @@ target_include_directories(st_gui
 	PRIVATE
 	${GUI_INCLUDES}
 	)
+
+xrt_set_language(${GUI_SOURCE_FILES})
