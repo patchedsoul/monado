@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 
+#include "oxr_two_call.h"
 
 struct binding_template
 {
@@ -472,8 +473,31 @@ oxr_action_enumerate_bound_sources(struct oxr_logger *log,
                                    uint32_t *sourceCountOutput,
                                    XrPath *sources)
 {
-	//! @todo Implement
-	return oxr_error(log, XR_ERROR_HANDLE_INVALID, " not implemented");
+	struct oxr_interaction_profile *p;
+	if (!interaction_profile_find(log, sess->sys->inst, sess->left, &p)) {
+		return XR_ERROR_RUNTIME_FAILURE;
+	}
+
+	size_t num = 0;
+
+	for (size_t y = 0; y < p->num_bindings; y++) {
+		struct oxr_binding *b = &p->bindings[y];
+
+		for (size_t z = 0; z < b->num_keys; z++) {
+			if (b->keys[z] == key) {
+				if (sourceCapacityInput > 0) {
+					if (num > sourceCapacityInput)
+						return XR_ERROR_SIZE_INSUFFICIENT;
+					sources[num] = b->paths[0];
+				}
+				num++;
+				break;
+			}
+		}
+	}
+
+	OXR_TWO_CALL_HELPER_DIRECT(log, sourceCapacityInput, sourceCountOutput,
+	                           num, XR_SUCCESS);
 }
 
 
