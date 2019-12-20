@@ -340,7 +340,7 @@ get_binding(struct oxr_logger *log,
             uint32_t *num_outputs)
 {
 	struct xrt_device *xdev = NULL;
-	struct oxr_binding *bindings[32];
+	struct oxr_binding **bindings;
 	const char *profile_str;
 	const char *user_path_str;
 	size_t length;
@@ -388,9 +388,14 @@ get_binding(struct oxr_logger *log,
 
 	oxr_slog(slog, "\t\tProfile: %s\n", profile_str);
 
-	size_t num = 0;
-	oxr_binding_find_bindings_from_key(log, profile, act->key, bindings,
-	                                   &num);
+	uint32_t num = 0;
+	oxr_binding_find_bindings_from_key(log, profile, act->key, 0, &num,
+	                                   NULL);
+
+	bindings = malloc(sizeof(struct oxr_binding *) * num);
+	oxr_binding_find_bindings_from_key(log, profile, act->key, num, &num,
+	                                   &bindings);
+
 	if (num == 0) {
 		oxr_slog(slog, "\t\tNo bindings\n");
 		return;
@@ -419,6 +424,8 @@ get_binding(struct oxr_logger *log,
 			oxr_slog(slog, "\t\t\t\tRejected! (NO XDEV MAPPING)\n");
 		}
 	}
+
+	free(bindings);
 }
 
 

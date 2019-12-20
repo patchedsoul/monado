@@ -368,14 +368,15 @@ void
 oxr_binding_destroy_all(struct oxr_logger *log, struct oxr_instance *inst);
 
 /*!
- * Find all bindings that is the given action key is bound to.
+ * Find all bindings that the given action key is bound to.
  */
-void
+XrResult
 oxr_binding_find_bindings_from_key(struct oxr_logger *log,
-                                   struct oxr_interaction_profile *profile,
+                                   struct oxr_interaction_profile *p,
                                    uint32_t key,
-                                   struct oxr_binding *bindings[32],
-                                   size_t *num_bindings);
+                                   uint32_t bindingsCapacityInput,
+                                   uint32_t *bindingsCountOutput,
+                                   struct oxr_binding ***bindings);
 
 XrResult
 oxr_action_suggest_interaction_profile_bindings(

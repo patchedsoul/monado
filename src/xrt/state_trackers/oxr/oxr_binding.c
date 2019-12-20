@@ -293,20 +293,19 @@ oxr_find_profile_for_device(struct oxr_logger *log,
 	}
 }
 
-void
+XrResult
 oxr_binding_find_bindings_from_key(struct oxr_logger *log,
                                    struct oxr_interaction_profile *p,
                                    uint32_t key,
-                                   struct oxr_binding *bindings[32],
-                                   size_t *num_bindings)
+                                   uint32_t bindingsCapacityInput,
+                                   uint32_t *bindingsCountOutput,
+                                   struct oxr_binding ***bindings)
 {
 	if (p == NULL) {
-		*num_bindings = 0;
-		return;
+		*bindingsCountOutput = 0;
+		return XR_SUCCESS;
 	}
 
-	//! @todo This function should be a two call function, or handle more
-	//! then 32 bindings.
 	size_t num = 0;
 
 	for (size_t y = 0; y < p->num_bindings; y++) {
@@ -314,18 +313,19 @@ oxr_binding_find_bindings_from_key(struct oxr_logger *log,
 
 		for (size_t z = 0; z < b->num_keys; z++) {
 			if (b->keys[z] == key) {
-				bindings[num++] = b;
+				if (bindingsCapacityInput > 0) {
+					if (num > bindingsCapacityInput)
+						return XR_ERROR_SIZE_INSUFFICIENT;
+					(*bindings)[num] = b;
+				}
+				num++;
 				break;
 			}
 		}
-
-		if (num >= 32) {
-			*num_bindings = num;
-			return;
-		}
 	}
 
-	*num_bindings = num;
+	OXR_TWO_CALL_HELPER_DIRECT(log, bindingsCapacityInput,
+	                           bindingsCountOutput, num, XR_SUCCESS);
 }
 
 void
