@@ -195,6 +195,9 @@ oxr_path_get_string(struct oxr_logger *log,
                     const char **out_str,
                     size_t *out_length)
 {
+	if (xr_path == XR_NULL_PATH)
+		return XR_ERROR_PATH_INVALID;
+
 	struct oxr_path *path = oxr_path(xr_path);
 
 	*out_str = get_item(path)->c_str;
