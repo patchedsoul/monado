@@ -228,7 +228,7 @@ t_settings_stereo_load_v1(FILE *calib_file,
 
 	if (raw.camera_translation_mat.size() == cv::Size(3, 1)) {
 		fprintf(stderr,
-		        "Radjusting translation, re-run calibration.\n");
+		        "Readjusting translation, re-run calibration.\n");
 		raw.camera_translation[0] =
 		    raw.camera_translation_mat.at<double>(0, 0);
 		raw.camera_translation[1] =
