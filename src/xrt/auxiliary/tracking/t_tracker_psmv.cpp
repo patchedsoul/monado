@@ -28,6 +28,7 @@
 #include <assert.h>
 #include <pthread.h>
 
+DEBUG_GET_ONCE_BOOL_OPTION(dump, "PSMV_DUMP_FRAMES", false)
 
 /*!
  * Single camera.
@@ -87,6 +88,8 @@ struct TrackerPSMV
 	std::unique_ptr<xrt_fusion::PSMVFusionInterface> filter;
 
 	xrt_vec3 tracked_object_position;
+
+	cv::Ptr<cv::VideoWriter> video_writer;
 };
 
 static void
@@ -269,6 +272,16 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	cv::Mat l_grey(rows, cols, CV_8UC1, xf->data, stride);
 	cv::Mat r_grey(rows, cols, CV_8UC1, xf->data + cols, stride);
+
+	if (t.video_writer) {
+		if (!t.video_writer->isOpened()) {
+			t.video_writer->open(
+			    "psmove_%04d.png",
+			    0 /*cv::VideoWriter::fourcc('M', 'J', 'P', 'G')*/,
+			    60, cv::Size(l_grey.cols, l_grey.rows));
+		}
+		(*t.video_writer) << l_grey;
+	}
 
 	do_view(t, t.view[0], l_grey, t.debug.rgb[0]);
 	do_view(t, t.view[1], r_grey, t.debug.rgb[1]);
@@ -631,6 +644,9 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	// clang-format on
 
 	t.sbd = cv::SimpleBlobDetector::create(blob_params);
+	if (debug_get_bool_option_dump()) {
+		t.video_writer.reset(new cv::VideoWriter());
+	}
 	xrt_frame_context_add(xfctx, &t.node);
 
 	// Everything is safe, now setup the variable tracking.
