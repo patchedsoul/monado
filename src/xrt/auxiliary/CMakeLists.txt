@@ -36,6 +36,8 @@ if(BUILD_TRACKING)
 	list(APPEND TRACKING_SOURCE_FILES
 		tracking/t_calibration_opencv.hpp
 		tracking/t_calibration.cpp
+		tracking/t_conefitting.cpp
+		tracking/t_conefitting.hpp
 		tracking/t_convert.cpp
 		tracking/t_debug_hsv_filter.cpp
 		tracking/t_debug_hsv_picker.cpp
