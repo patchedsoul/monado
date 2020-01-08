@@ -114,6 +114,8 @@ if build_tracking
 	tracking_srcs += [
 		'tracking/t_calibration.cpp',
 		'tracking/t_calibration_opencv.hpp',
+		'tracking/t_conefitting.cpp',
+		'tracking/t_conefitting.hpp',
 		'tracking/t_convert.cpp',
 		'tracking/t_debug_hsv_filter.cpp',
 		'tracking/t_debug_hsv_picker.cpp',
