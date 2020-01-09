@@ -110,7 +110,7 @@ struct TrackerPSMV
  *
  * Right now, this is mainly finding blobs/keypoints.
  */
-static void
+XRT_MAYBE_UNUSED static void
 do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 {
 	// Undistort and rectify the whole image.
@@ -214,41 +214,13 @@ world_point_from_blobs(cv::Point2f left,
 }
 
 /*!
- * @brief Perform tracking computations on a frame of video data.
+ * @brief Perform disparity and blob-based tracking
  */
-static void
-process(TrackerPSMV &t, struct xrt_frame *xf)
+XRT_MAYBE_UNUSED static bool
+stereo_blob_tracking(TrackerPSMV &t,
+                     const cv::Mat &l_grey,
+                     const cv::Mat &r_grey)
 {
-	// Only IMU data: nothing to do
-	if (xf == NULL) {
-		return;
-	}
-
-	// Wrong type of frame: unreference and return?
-	if (xf->format != XRT_FORMAT_L8) {
-		xrt_frame_reference(&xf, NULL);
-		return;
-	}
-
-	if (!t.calibrated) {
-		return;
-	}
-
-	// Create the debug frame if needed.
-	t.debug.refresh(xf);
-
-	t.view[0].keypoints.clear();
-	t.view[1].keypoints.clear();
-
-	int cols = xf->width / 2;
-	int rows = xf->height;
-	int stride = xf->stride;
-
-	cv::Mat l_grey(rows, cols, CV_8UC1, xf->data, stride);
-	cv::Mat r_grey(rows, cols, CV_8UC1, xf->data + cols, stride);
-
-	do_view(t, t.view[0], l_grey, t.debug.rgb[0]);
-	do_view(t, t.view[1], r_grey, t.debug.rgb[1]);
 
 	cv::Point3f last_point(t.tracked_object_position.x,
 	                       t.tracked_object_position.y,
@@ -295,13 +267,14 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 		t.filter->clear_position_tracked_flag();
 	}
 
-	// We are done with the debug frame.
-	t.debug.submit();
+	return nearest_world.got_one;
+}
 
-	// We are done with the frame.
-	xrt_frame_reference(&xf, NULL);
+XRT_MAYBE_UNUSED static void
+incorporate_stereo_blob_tracking(TrackerPSMV &t, bool gotTracking)
+{
 
-	if (nearest_world.got_one) {
+	if (gotTracking) {
 #if 0
 		//! @todo something less arbitrary for the lever arm?
 		//! This puts the origin approximately under the PS
@@ -323,6 +296,61 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 	} else {
 		t.filter->clear_position_tracked_flag();
 	}
+}
+
+/*!
+ * @brief Perform tracking computations on a frame of video data.
+ */
+static void
+process(TrackerPSMV &t, struct xrt_frame *xf)
+{
+	// Only IMU data: nothing to do
+	if (xf == NULL) {
+		return;
+	}
+
+	// Wrong type of frame: unreference and return?
+	if (xf->format != XRT_FORMAT_L8) {
+		xrt_frame_reference(&xf, NULL);
+		return;
+	}
+
+	if (!t.calibrated) {
+		return;
+	}
+
+	// Create the debug frame if needed.
+	t.debug.refresh(xf);
+
+	t.view[0].keypoints.clear();
+	t.view[1].keypoints.clear();
+
+	int cols = xf->width / 2;
+	int rows = xf->height;
+	int stride = xf->stride;
+
+	cv::Mat l_grey(rows, cols, CV_8UC1, xf->data, stride);
+	cv::Mat r_grey(rows, cols, CV_8UC1, xf->data + cols, stride);
+
+	do_view(t, t.view[0], l_grey, t.debug.rgb[0]);
+	do_view(t, t.view[1], r_grey, t.debug.rgb[1]);
+
+	bool gotTracking = stereo_blob_tracking(t, l_grey, r_grey);
+
+	// Update debug view
+	if (t.debug.frame != NULL) {
+		t.debug.sink->push_frame(t.debug.sink, t.debug.frame);
+		t.debug.rgb[0] = cv::Mat();
+		t.debug.rgb[1] = cv::Mat();
+	}
+
+	// We are done with the debug frame.
+	t.debug.submit();
+
+	// We are done with the frame.
+	xrt_frame_reference(&xf, NULL);
+
+	incorporate_stereo_blob_tracking(t, gotTracking);
 }
 
 /*!
