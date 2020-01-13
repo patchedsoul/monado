@@ -1317,3 +1317,99 @@ t_calibration_stereo_create(struct xrt_frame_context *xfctx,
 #endif
 	return ret;
 }
+
+//! Helper for NormalizedCoordsCache constructors
+static inline std::vector<cv::Vec2f>
+generateInputCoords(cv::Size size)
+{
+	std::vector<cv::Vec2f> inputCoords;
+
+	const auto n = size.width * size.height;
+	inputCoords.reserve(n);
+	for (int row = 0; row < size.height; ++row) {
+		for (int col = 0; col < size.width; ++col) {
+			inputCoords.emplace_back(col, row);
+		}
+	}
+	return inputCoords;
+}
+
+//! Helper for NormalizedCoordsCache constructors
+static inline void
+populateCacheMats(cv::Size size,
+                  const std::vector<cv::Vec2f> &inputCoords,
+                  const std::vector<cv::Vec2f> &outputCoords,
+                  cv::Mat &cacheX,
+                  cv::Mat &cacheY)
+{
+	assert(size.height != 0);
+	assert(size.width != 0);
+	cacheX.create(size, CV_32FC1);
+	cacheY.create(size, CV_32FC1);
+	const auto n = size.width * size.height;
+	// Populate the cache matrices
+	for (int i = 0; i < n; ++i) {
+		auto input =
+		    cv::Point{int(inputCoords[i][0]), int(inputCoords[i][1])};
+		cacheX.at<float>(input) = outputCoords[i][0];
+		cacheY.at<float>(input) = outputCoords[i][1];
+	}
+}
+
+NormalizedCoordsCache::NormalizedCoordsCache(
+    cv::Size size,
+    const cv::Matx33d &intrinsics,
+    const cv::Matx<double, 5, 1> &distortion)
+{
+	std::vector<cv::Vec2f> inputCoords = generateInputCoords(size);
+	assert(!inputCoords.empty());
+	// Undistort/reproject those coordinates in one call, to make use of
+	// cached internal/intermediate computations.
+	std::vector<cv::Vec2f> outputCoords;
+	outputCoords.reserve(inputCoords.size());
+	cv::undistortPoints(inputCoords, outputCoords, intrinsics, distortion);
+
+	populateCacheMats(size, inputCoords, outputCoords, cacheX_, cacheY_);
+}
+
+NormalizedCoordsCache::NormalizedCoordsCache(cv::Size size,
+                                             const cv::Mat &intrinsics,
+                                             const cv::Mat &distortion)
+{
+	std::vector<cv::Vec2f> inputCoords = generateInputCoords(size);
+	// Undistort/reproject those coordinates in one call, to make use of
+	// cached internal/intermediate computations.
+	std::vector<cv::Vec2f> outputCoords;
+	outputCoords.reserve(inputCoords.size());
+	cv::undistortPoints(inputCoords, outputCoords, intrinsics, distortion);
+
+	populateCacheMats(size, inputCoords, outputCoords, cacheX_, cacheY_);
+}
+
+cv::Vec2f
+NormalizedCoordsCache::getNormalizedImageCoords(cv::Point2f origCoords) const
+{
+	/*
+	 * getRectSubPix is more strict than the docs would imply:
+	 *
+	 * - Source must be 1 or 3 channels
+	 * - Can sample from u8 into u8, u8 into f32, or f32 into f32 - that's
+	 *   it (though the latter is provided by a template function internally
+	 *   so could be extended...)
+	 */
+	cv::Mat patch;
+	cv::getRectSubPix(cacheX_, cv::Size(1, 1), origCoords, patch);
+	auto x = patch.at<float>(0, 0);
+	cv::getRectSubPix(cacheY_, cv::Size(1, 1), origCoords, patch);
+	auto y = patch.at<float>(0, 0);
+	return {x, y};
+}
+
+cv::Vec3f
+NormalizedCoordsCache::getNormalizedVector(cv::Point2f origCoords) const
+{
+	// cameras traditionally look along -z, so we want negative sqrt
+	auto pt = getNormalizedImageCoords(origCoords);
+	auto z = -std::sqrt(1.f - pt.dot(pt));
+	return {pt[0], pt[1], z};
+}
