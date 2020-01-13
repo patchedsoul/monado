@@ -161,3 +161,46 @@ struct StereoRectificationMaps
 	 */
 	StereoRectificationMaps(t_stereo_camera_calibration &data);
 };
+
+
+/*!
+ * @brief Provides cached, precomputed access to normalized image coordinates
+ * from original, distorted ones.
+ */
+class NormalizedCoordsCache
+{
+public:
+	//! Set up the precomputed cache for a given camera.
+	NormalizedCoordsCache(cv::Size size,
+	                      const cv::Matx33d &intrinsics,
+	                      const cv::Matx<double, 5, 1> &distortion);
+
+	/*!
+	 * @brief Set up the precomputed cache for a given camera.
+	 *
+	 * Less-strongly-typed overload.
+	 */
+	NormalizedCoordsCache(cv::Size size,
+	                      const cv::Mat &intrinsics,
+	                      const cv::Mat &distortion);
+
+	/*!
+	 * @brief Get normalized, undistorted coordinates from a point in the
+	 * original (distorted, etc.) image.
+	 */
+	cv::Vec2f
+	getNormalizedImageCoords(cv::Point2f origCoords) const;
+
+	/*!
+	 * @brief Get normalized vector in the camera-space direction
+	 * corresponding to the original (distorted, etc.) image coordinates.
+	 *
+	 * Note that the Z component will be negative by convention.
+	 */
+	cv::Vec3f
+	getNormalizedVector(cv::Point2f origCoords) const;
+
+private:
+	cv::Mat cacheX_;
+	cv::Mat cacheY_;
+};

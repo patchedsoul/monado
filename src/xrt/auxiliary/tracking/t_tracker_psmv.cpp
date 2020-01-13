@@ -99,6 +99,8 @@ struct TrackerPSMV
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
 
 	std::unique_ptr<xrt_fusion::PSMVFusionInterface> filter;
+	std::unique_ptr<NormalizedCoordsCache> l_normalized_cache;
+	std::unique_ptr<NormalizedCoordsCache> r_normalized_cache;
 
 	xrt_vec3 tracked_object_position;
 };
@@ -631,6 +633,14 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 
 	t.sbd = cv::SimpleBlobDetector::create(blob_params);
 	xrt_frame_context_add(xfctx, &t.node);
+
+	// Create objects for quickly determining the un-distorted coordinates
+	// of a point.
+	cv::Size size(data->image_size_pixels.w, data->image_size_pixels.h);
+	t.l_normalized_cache.reset(new NormalizedCoordsCache(
+	    size, t.view[0].intrinsics, t.view[0].distortion));
+	t.r_normalized_cache.reset(new NormalizedCoordsCache(
+	    size, t.view[1].intrinsics, t.view[1].distortion));
 
 	// Everything is safe, now setup the variable tracking.
 	u_var_add_root(&t, "PSMV Tracker", true);
