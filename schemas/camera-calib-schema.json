@@ -1,0 +1,287 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "license": "SPDX-License-Identifier: BSL-1.0",
+    "definitions": {
+        "vec3": {
+            "type": "array",
+            "items": {
+                "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+        },
+        "matrix33": {
+            "type": "array",
+            "description": "A 3x3 matrix",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+                "type": "array",
+                "description": "A row of a 3x3 matrix",
+                "items": {
+                    "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+            },
+            "$comment": "Unfortunately these often auto-format badly - one element per line. They look better all on one line.",
+            "examples": [
+                [
+                    [
+                        1,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        1,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        1
+                    ]
+                ]
+            ]
+        },
+        "fisheyeDistortion": {
+            "title": "Fisheye distortion coefficients",
+            "description": "k_1 thru k_4",
+            "type": "array",
+            "items": {
+                "title": "k",
+                "type": "number",
+                "default": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+        },
+        "rectilinearDistortion": {
+            "title": "Standard (rectilinear/pinhole model) distortion coefficients",
+            "description": "Following the standard model as laid out in the OpenCV calib3d documentation",
+            "type": "object",
+            "properties": {
+                "radial": {
+                    "title": "Radial distortion coefficients",
+                    "description": "Commonly referred to as k_i. The most common distortion coefficients.",
+                    "type": "array",
+                    "items": {
+                        "title": "k",
+                        "type": "number",
+                        "default": 0
+                    },
+                    "minItems": 2,
+                    "maxItems": 6
+                },
+                "tangential": {
+                    "title": "Tangential distortion coefficients",
+                    "description": "p_1 and p_2",
+                    "type": "array",
+                    "items": {
+                        "title": "p",
+                        "type": "number",
+                        "default": 0
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                },
+                "thinPrism": {
+                    "title": "Thin prism distortion coefficients",
+                    "description": "s_1 thru s_4",
+                    "type": "array",
+                    "items": {
+                        "type": "number",
+                        "default": 0
+                    },
+                    "minItems": 4,
+                    "maxItems": 4
+                }
+            }
+        },
+        "intrinsics": {
+            "type": "object",
+            "title": "Camera Intrinsics",
+            "description": "The components of the camera intrinsics matrix. [f_x, s, c_x] is the first row, [0, f_y, c_y] is the second row, and [0, 0, 1] is the third row.",
+            "properties": {
+                "f_x": {
+                    "type": "number",
+                    "title": "X focal length",
+                    "description": "Top-left element of the intrinsics matrix"
+                },
+                "f_y": {
+                    "type": "number",
+                    "title": "Y focal length",
+                    "description": "Center element of the intrinsics matrix"
+                },
+                "s": {
+                    "type": "number",
+                    "title": "Skew",
+                    "description": "The center-top element of the intrinsics matrix - usually 0",
+                    "default": 0
+                },
+                "c_x": {
+                    "type": "number",
+                    "title": "X center of projection",
+                    "description": "aka X component of the principal point or optical center"
+                },
+                "c_y": {
+                    "type": "number",
+                    "title": "Y center of projection",
+                    "description": "aka Y component of the principal point or optical center"
+                }
+            },
+            "required": [
+                "f_x",
+                "f_y",
+                "c_x",
+                "c_y"
+            ]
+        },
+        "resolution": {
+            "title": "Resolution",
+            "type": "object",
+            "properties": {
+                "width": {
+                    "type": "number"
+                },
+                "height": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "width",
+                "height"
+            ]
+        },
+        "calibration": {
+            "type": "object",
+            "title": "Resolution-specific calibration",
+            "properties": {
+                "resolution": {
+                    "$ref": "#/definitions/resolution"
+                },
+                "intrinsics": {
+                    "$ref": "#/definitions/intrinsics"
+                },
+                "isFisheye": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "distortion": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/definitions/fisheyeDistortion"
+                        },
+                        {
+                            "$ref": "#/definitions/rectilinearDistortion"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "resolution",
+                "intrinsics"
+            ]
+        },
+        "calibrations": {
+            "type": "array",
+            "title": "Calibrations",
+            "description": "One per resolution for this sensor/lens.",
+            "items": {
+                "$ref": "#/definitions/calibration"
+            }
+        },
+        "camera": {
+            "type": "object",
+            "properties": {
+                "calibrations": {
+                    "$ref": "#/definitions/calibrations"
+                }
+            }
+        },
+        "stereo_camera": {
+            "type": "object",
+            "properties": {
+                "sensors": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                        "type": "object",
+                        "title": "Sensor/View Data",
+                        "properties": {
+                            "calibrations": {
+                                "$ref": "#/definitions/calibrations"
+                            }
+                        }
+                    }
+                },
+                "essential_matrix": {
+                    "$ref": "#/definitions/matrix33"
+                },
+                "transform": {
+                    "title": "Transform from first to second sensor",
+                    "type": "object",
+                    "properties": {
+                        "rotation": {
+                            "title": "Rotation from first sensor",
+                            "description": "Represented as a unit quaternion in xyzw order",
+                            "type": "array",
+                            "items": [
+                                {
+                                    "title": "qx",
+                                    "type": "number",
+                                    "default": 0
+                                },
+                                {
+                                    "title": "qy",
+                                    "type": "number",
+                                    "default": 0
+                                },
+                                {
+                                    "title": "qz",
+                                    "type": "number",
+                                    "default": 0
+                                },
+                                {
+                                    "title": "qw",
+                                    "type": "number",
+                                    "default": 1
+                                }
+                            ],
+                            "minItems": 4,
+                            "maxItems": 4
+                        },
+                        "translation": {
+                            "title": "Translation from first sensor",
+                            "$ref": "#/definitions/vec3"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "sensors",
+                "essential_matrix",
+                "fundamentalMatrix",
+                "transform"
+            ]
+        }
+    },
+    "title": "Camera calibration data",
+    "description": "Stores calibration data for a mono or stereo camera",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "camera": {
+            "$ref": "#/definitions/camera"
+        },
+        "stereo_camera": {
+            "$ref": "#/definitions/stereo_camera"
+        }
+    },
+    "maxProperties": 2,
+    "minProperties": 1
+}
