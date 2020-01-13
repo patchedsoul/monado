@@ -64,6 +64,9 @@ struct p_factory
 
 	// Frameserver.
 	struct xrt_fs *xfs;
+	bool stereo_sbs;
+	bool ps4_cam;
+	size_t mode_num;
 };
 
 
@@ -92,8 +95,18 @@ on_video_device(struct xrt_prober *xp,
 		return;
 	}
 
-	// Hardcoded to PS4 camera.
-	if (strcmp(name, "USB Camera-OV580") != 0) {
+	// Hardcoded to PS4, Index and ELP cameras.
+	if (strcmp(name, "USB Camera-OV580") == 0) {
+		fact->ps4_cam = true;
+		fact->stereo_sbs = true;
+		fact->mode_num = 1;
+	} else if (strcmp(name, "3D Camera") == 0) {
+		fact->mode_num = 0;
+		fact->stereo_sbs = true;
+	} else if (strcmp(name, "3D USB Camera") == 0) {
+		fact->mode_num = 2;
+		fact->stereo_sbs = true;
+	} else {
 		return;
 	}
 
@@ -151,12 +164,12 @@ p_factory_ensure_frameserver(struct p_factory *fact)
 	// Hardcoded quirk sink.
 	struct u_sink_quirk_params qp;
 	U_ZERO(&qp);
-	qp.stereo_sbs = true;
-	qp.ps4_cam = true;
+	qp.stereo_sbs = fact->stereo_sbs;
+	qp.ps4_cam = fact->ps4_cam;
 	u_sink_quirk_create(&fact->xfctx, xsink, &qp, &xsink);
 
 	// Start the stream now.
-	xrt_fs_stream_start(fact->xfs, xsink, 1);
+	xrt_fs_stream_start(fact->xfs, xsink, fact->mode_num);
 }
 #endif
 
