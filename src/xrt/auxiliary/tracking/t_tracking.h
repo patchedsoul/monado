@@ -79,7 +79,7 @@ struct xrt_tracked_psvr;
  */
 
 //! Maximum size of rectilinear distortion coefficient array
-#define XRT_DISTORTION_MAX_DIM (5)
+#define XRT_DISTORTION_MAX_DIM (8)
 
 /*!
  * @brief Essential calibration data for a single camera, or single lens/sensor

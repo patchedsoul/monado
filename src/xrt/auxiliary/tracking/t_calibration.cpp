@@ -686,7 +686,7 @@ process_view_samples(class Calibration &c,
 		crit_flag |= cv::TermCriteria::EPS;
 		crit_flag |= cv::TermCriteria::COUNT;
 		cv::TermCriteria term_criteria = {crit_flag, 100, DBL_EPSILON};
-
+#if 0
 		int flags = 0;
 		flags |= cv::fisheye::CALIB_FIX_SKEW;
 		flags |= cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC;
@@ -718,6 +718,17 @@ process_view_samples(class Calibration &c,
 		// Probably a busted work-around for busted function.
 		new_intrinsics_mat.at<double>(0, 2) = (cols - 1) / 2.0;
 		new_intrinsics_mat.at<double>(1, 2) = (rows - 1) / 2.0;
+#endif
+
+		rp_error = cv::calibrateCamera( //
+		    c.state.board_models_f32,   // objectPoints
+		    view.measured_f32,          // imagePoints
+		    image_size,                 // imageSize
+		    intrinsics_mat,             // cameraMatrix
+		    distortion_mat,             // distCoeffs
+		    cv::noArray(),              // rvecs
+		    cv::noArray(),              // tvecs
+		    CV_CALIB_RATIONAL_MODEL, term_criteria);
 	} else {
 		rp_error = cv::calibrateCamera( //
 		    c.state.board_models_f32,   // objectPoints
@@ -744,16 +755,25 @@ process_view_samples(class Calibration &c,
 	// clang-format on
 
 	if (c.use_fisheye) {
-		cv::fisheye::initUndistortRectifyMap(
-		    intrinsics_mat,         // K
-		    distortion_fisheye_mat, // D
-		    cv::Matx33d::eye(),     // R
-		    new_intrinsics_mat,     // P
-		    image_size,             // size
-		    CV_32FC1,               // m1type
-		    view.map1,              // map1
-		    view.map2);             // map2
+		// cv::fisheye::initUndistortRectifyMap(
+		//     intrinsics_mat,         // K
+		//     distortion_fisheye_mat, // D
+		//     cv::Matx33d::eye(),     // R
+		//     new_intrinsics_mat,     // P
+		//     image_size,             // size
+		//     CV_32FC1,               // m1type
+		//     view.map1,              // map1
+		//     view.map2);             // map2
 
+		cv::initUndistortRectifyMap( //
+		    intrinsics_mat,          // K
+		    distortion_mat,          // D
+		    cv::noArray(),           // R
+		    intrinsics_mat,          // P
+		    image_size,              // size
+		    CV_32FC1,                // m1type
+		    view.map1,               // map1
+		    view.map2);              // map2
 		// Set the maps as valid.
 		view.maps_valid = true;
 	} else {
