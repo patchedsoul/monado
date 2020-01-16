@@ -133,6 +133,7 @@ struct v4l2_fs
 	struct
 	{
 		bool ps4_cam;
+		bool generic_stereo;
 	} quirks;
 
 	struct v4l2_frame frames[NUM_V4L2_BUFFERS];
@@ -322,6 +323,9 @@ v4l2_query_cap_and_validate(struct v4l2_fs *vid)
 	vid->quirks.ps4_cam =
 	    strcmp(card, "USB Camera-OV580: USB Camera-OV") == 0;
 
+	// ELP stereo fisheye
+	vid->quirks.generic_stereo =
+	    strcmp(card, "3D USB Camera: 3D USB Camera") == 0;
 	if (vid->quirks.ps4_cam) {
 		// The experimented best controls to best track things.
 		v4l2_add_control_state(vid, V4L2_CID_GAIN, 0, 2, "gain");
@@ -533,6 +537,9 @@ v4l2_list_modes_size(struct v4l2_fs *vid,
 
 	if (vid->quirks.ps4_cam) {
 		v4l2_quirk_apply_ps4(vid, desc);
+	}
+	if (vid->quirks.generic_stereo) {
+		desc->base.stereo_format = XRT_STEREO_FORMAT_SBS;
 	}
 }
 
