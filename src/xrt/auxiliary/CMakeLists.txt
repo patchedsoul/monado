@@ -48,6 +48,7 @@ if(BUILD_TRACKING)
 		tracking/t_tracker_psmv_fusion.hpp
 		tracking/t_tracker_psmv.cpp
 		tracking/t_tracker_psvr.cpp
+                tracking/t_tracker_leap.cpp
 		)
 endif()
 

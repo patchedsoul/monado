@@ -70,6 +70,7 @@ extern "C" {
 
 struct xrt_tracked_psmv;
 struct xrt_tracked_psvr;
+struct xrt_tracked_leap;
 
 
 /*
@@ -291,6 +292,16 @@ t_psvr_create(struct xrt_frame_context *xfctx,
               struct t_stereo_camera_calibration *data,
               struct xrt_tracked_psvr **out_xtvr,
               struct xrt_frame_sink **out_sink);
+
+int
+t_leap_start(struct xrt_tracked_psvr *xtvr);
+
+int
+t_leap_create(struct xrt_frame_context *xfctx,
+              struct t_stereo_camera_calibration *data,
+              struct xrt_tracked_leap **out_xtleap,
+              struct xrt_frame_sink **out_sink);
+
 
 
 /*

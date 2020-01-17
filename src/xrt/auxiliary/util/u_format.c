@@ -22,6 +22,7 @@ u_format_str(enum xrt_format f)
 	case XRT_FORMAT_R8G8: return "XRT_FORMAT_R8G8";
 	case XRT_FORMAT_R8: return "XRT_FORMAT_R8";
 	case XRT_FORMAT_L8: return "XRT_FORMAT_L8";
+    case XRT_FORMAT_L8_LEAP: return "XRT_FORMAT_L8_LEAP";
 	case XRT_FORMAT_BITMAP_8X1: return "XRT_FORMAT_BITMAP_8X1";
 	case XRT_FORMAT_BITMAP_8X8: return "XRT_FORMAT_BITMAP_8X8";
 	case XRT_FORMAT_YUV888: return "XRT_FORMAT_YUV888";
@@ -41,6 +42,7 @@ u_format_is_blocks(enum xrt_format f)
 	case XRT_FORMAT_R8G8:
 	case XRT_FORMAT_R8:
 	case XRT_FORMAT_L8:
+    case XRT_FORMAT_L8_LEAP:
 	case XRT_FORMAT_BITMAP_8X1:
 	case XRT_FORMAT_BITMAP_8X8:
 	case XRT_FORMAT_YUV888:
@@ -68,6 +70,7 @@ u_format_block_width(enum xrt_format f)
 		// Regular one pixel per block formats.
 		return 1;
 	case XRT_FORMAT_YUV422:
+    case XRT_FORMAT_L8_LEAP:
 		// Two pixels per block.
 		return 2;
 	case XRT_FORMAT_BITMAP_8X8:
@@ -88,6 +91,7 @@ u_format_block_height(enum xrt_format f)
 	case XRT_FORMAT_R8G8:
 	case XRT_FORMAT_R8:
 	case XRT_FORMAT_L8:
+    case XRT_FORMAT_L8_LEAP:
 	case XRT_FORMAT_BITMAP_8X1:
 	case XRT_FORMAT_YUV888:
 	case XRT_FORMAT_YUV422:
@@ -110,6 +114,7 @@ u_format_block_size(enum xrt_format f)
 		// One byte blocks
 		return 1;
 	case XRT_FORMAT_R8G8:
+    case XRT_FORMAT_L8_LEAP:
 		// Two bytes, 16bits.
 		return 2;
 	case XRT_FORMAT_R8G8B8:

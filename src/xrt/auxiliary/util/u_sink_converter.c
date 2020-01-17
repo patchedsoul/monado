@@ -159,6 +159,39 @@ from_YUV422_to_R8G8B8(struct u_sink_converter *s,
 }
 
 
+//LEAP Motion interleaved L8 format
+
+inline static void
+L8LEAP_to_L8(const uint8_t *input, uint32_t *l8a, uint32_t *l8b)
+{
+    *l8a = input[0];
+    *l8b = input[1];
+}
+
+static void
+from_L8LEAP_to_L8(struct u_sink_converter *s,
+                      uint32_t w,
+                      uint32_t h,
+                      size_t stride,
+                      const uint8_t *data)
+{
+    for (uint32_t y = 0; y < h; y++) {
+        for (uint32_t x = 0; x < w; x += 2) {
+            const uint8_t *src = data;
+            uint8_t *dst = s->frame->data;
+            uint8_t *dst2 = s->frame->data + s->frame->stride/2 * s->frame->height;
+
+            src = src + (y * stride) + (x * 2);
+            dst = dst + (y * s->frame->stride/2) + x;
+            dst2 = dst2 + (y * s->frame->stride/2) + x;
+            L8LEAP_to_L8(src, dst,dst2);
+        }
+    }
+}
+
+
+
+
 /*
  *
  * MJPEG
@@ -316,6 +349,12 @@ receive_frame_r8g8b8_or_l8(struct xrt_frame_sink *xs, struct xrt_frame *xf)
 	case XRT_FORMAT_R8G8B8:
 		s->downstream->push_frame(s->downstream, xf);
 		return;
+    case XRT_FORMAT_L8_LEAP:
+        ensure_data(s, XRT_FORMAT_L8, xf->width * 2, xf->height);
+        from_L8LEAP_to_L8(s, xf->width, xf->height, xf->stride,
+                              xf->data);
+        xf->width *=2;
+        break;
 	case XRT_FORMAT_YUV422:
 		ensure_data(s, XRT_FORMAT_R8G8B8, xf->width, xf->height);
 		from_YUV422_to_R8G8B8(s, xf->width, xf->height, xf->stride,
