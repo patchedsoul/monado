@@ -131,6 +131,7 @@ if build_tracking
 		'tracking/t_helper_debug_sink.hpp',
 		'tracking/t_hsv_filter.c',
 		'tracking/t_kalman.cpp',
+		'tracking/t_tracker_leap.cpp',
 		'tracking/t_tracker_psmv.cpp',
 		'tracking/t_tracker_psmv_fusion.hpp',
 		'tracking/t_tracker_psvr.cpp',

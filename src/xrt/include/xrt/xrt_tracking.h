@@ -176,6 +176,40 @@ struct xrt_tracked_psvr
 };
 
 
+/*!
+ * A Leap Motion tracker - notional single tracked object
+ */
+struct xrt_tracked_leap
+{
+	//! The tracking system origin for this object.
+	struct xrt_tracking_origin *origin;
+
+	//! Device owning this object.
+	struct xrt_device *xdev;
+
+	/*!
+	 * Push a IMU sample into the tracking system.
+	 */
+	void (*push_imu)(struct xrt_tracked_leap *,
+	                 timepoint_ns timestamp_ns,
+	                 struct xrt_tracking_sample *sample);
+
+	/*!
+	 * Called by the owning @ref xrt_device @ref xdev to get the pose of
+	 * the object in the tracking space at the given time.
+	 */
+	void (*get_tracked_pose)(struct xrt_tracked_leap *,
+	                         struct time_state *timekeeper,
+	                         timepoint_ns when_ns,
+	                         struct xrt_space_relation *out_relation);
+
+	/*!
+	 * Destroy this tracked leap.
+	 */
+	void (*destroy)(struct xrt_tracked_leap *);
+};
+
+
 /*
  *
  * Helper functions.
@@ -239,6 +273,36 @@ xrt_tracked_psvr_destroy(struct xrt_tracked_psvr **xtvr_ptr)
 
 	xtvr->destroy(xtvr);
 	*xtvr_ptr = NULL;
+}
+
+
+static inline void
+xrt_tracked_leap_get_tracked_pose(struct xrt_tracked_leap *leap,
+                                  struct time_state *timekeeper,
+                                  timepoint_ns when_ns,
+                                  struct xrt_space_relation *out_relation)
+{
+	leap->get_tracked_pose(leap, timekeeper, when_ns, out_relation);
+}
+
+static inline void
+xrt_tracked_leap_push_imu(struct xrt_tracked_leap *leap,
+                          timepoint_ns timestamp_ns,
+                          struct xrt_tracking_sample *sample)
+{
+	leap->push_imu(leap, timestamp_ns, sample);
+}
+
+static inline void
+xrt_tracked_leap_destroy(struct xrt_tracked_leap **xtleap_ptr)
+{
+	struct xrt_tracked_leap *xtleap = *xtleap_ptr;
+	if (xtleap == NULL) {
+		return;
+	}
+
+	xtleap->destroy(xtleap);
+	*xtleap_ptr = NULL;
 }
 
 
