@@ -30,4 +30,32 @@ u_json_get_double_array(const cJSON *json_array,
                         size_t max_size);
 #ifdef __cplusplus
 } // extern "C"
+
+#include <memory>
+
+namespace impl {
+/*!
+ * @brief Stateless deleter functor for cJSON objects.
+ *
+ * @see unique_cJSON
+ */
+struct cJSON_Deleter
+{
+	void
+	operator()(cJSON *obj) const
+	{
+		cJSON_Delete(obj);
+	}
+};
+} // namespace impl
+
+/*!
+ * Unique-ownership pointer for cJSON objects.
+ *
+ * Use only for cJSON_Create... calls: the cJSON_Add...ToObject calls return a
+ * non-owning pointer (because they are owned by the parent you pass in). When
+ * adding a unique_cJSON to a parent structure, use .release() to transfer
+ * ownership.
+ */
+using unique_cJSON = std::unique_ptr<cJSON, impl::cJSON_Deleter>;
 #endif // __cplusplus
