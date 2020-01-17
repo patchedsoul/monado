@@ -71,6 +71,7 @@ extern "C" {
 struct xrt_tracked_psmv;
 struct xrt_tracked_psvr;
 
+typedef struct cJSON cJSON;
 
 /*
  *
@@ -146,6 +147,53 @@ bool
 t_stereo_camera_calibration_load_v1_hack(
     struct t_stereo_camera_calibration **out_data);
 
+/*!
+ * @brief Allocate and return a camera calibration based on the provided JSON
+ * data.
+ */
+bool
+t_camera_calibration_from_json(const cJSON *json,
+                               struct t_camera_calibration **out_data);
+
+/*!
+ * @brief Allocate and return a stereo camera calibration based on the provided
+ * JSON data.
+ */
+bool
+t_stereo_camera_calibration_from_json(
+    const cJSON *json, struct t_stereo_camera_calibration **out_data);
+
+/*!
+ * @brief Given a JSON object with either a "camera" or "stereo_camera" key,
+ * parse the appropriate calibration into a newly-allocated structure.
+ *
+ * The pointer that doesn't match will be set to NULL.
+ */
+bool
+t_stereo_or_mono_camera_calibration_from_json(
+    const cJSON *json,
+    struct t_stereo_camera_calibration **out_stereo,
+    struct t_camera_calibration **out_mono);
+
+/*!
+ * @brief Serialize a mono camera's calibration data into a JSON object to store
+ * to disk.
+ *
+ * The top level will be an object with a "camera" key.
+ */
+bool
+t_camera_calibration_to_json(const struct t_camera_calibration *calib,
+                             cJSON **out_json);
+
+/*!
+ * @brief Serialize a stereo camera's calibration data into a JSON object to
+ * store to disk.
+ *
+ * The top level will be an object with a "stereo_camera" key.
+ */
+bool
+t_stereo_camera_calibration_to_json(
+    const struct t_stereo_camera_calibration *calib, cJSON **out_json);
 
 /*
  *
