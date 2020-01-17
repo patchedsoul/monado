@@ -18,10 +18,27 @@
 #include <stdbool.h>
 
 
+#ifdef __cplusplus
 /*!
- * Array size helper.
+ * @brief Array size helper.
+ *
+ * Equivalent to std::size in C++17.
+ *
+ * In C translation units, a macro does an equivalent task.
+ */
+template <typename T, size_t N>
+constexpr size_t
+ARRAY_SIZE(const T (&array)[N]) noexcept
+{
+	return N;
+}
+#else
+/*!
+ * @brief Array size helper.
  */
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
+
 
 
 /*
