@@ -728,7 +728,8 @@ process_view_samples(class Calibration &c,
 		    distortion_mat,             // distCoeffs
 		    cv::noArray(),              // rvecs
 		    cv::noArray(),              // tvecs
-		    CV_CALIB_RATIONAL_MODEL, term_criteria);
+		    cv::CALIB_RATIONAL_MODEL | cv::CALIB_THIN_PRISM_MODEL |
+		        cv::CALIB_TILTED_MODEL);
 	} else {
 		rp_error = cv::calibrateCamera( //
 		    c.state.board_models_f32,   // objectPoints
@@ -746,12 +747,12 @@ process_view_samples(class Calibration &c,
 	std::cout << "image_size: " << image_size << "\n";
 	std::cout << "rp_error: " << rp_error << "\n";
 	std::cout << "intrinsics_mat:\n" << intrinsics_mat << "\n";
-	if (c.use_fisheye) {
+	// if (c.use_fisheye) {
 		std::cout << "new_intrinsics_mat:\n" << new_intrinsics_mat << "\n";
 		std::cout << "distortion_fisheye_mat:\n" << distortion_fisheye_mat << "\n";
-	} else {
+	// } else {
 		std::cout << "distortion_mat:\n" << distortion_mat << "\n";
-	}
+	// }
 	// clang-format on
 
 	if (c.use_fisheye) {
