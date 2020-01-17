@@ -72,7 +72,7 @@
                         "default": 0
                     },
                     "minItems": 2,
-                    "maxItems": 6
+                    "maxItems": 4
                 },
                 "tangential": {
                     "title": "Tangential distortion coefficients",
@@ -85,17 +85,6 @@
                     },
                     "minItems": 2,
                     "maxItems": 2
-                },
-                "thinPrism": {
-                    "title": "Thin prism distortion coefficients",
-                    "description": "s_1 thru s_4",
-                    "type": "array",
-                    "items": {
-                        "type": "number",
-                        "default": 0
-                    },
-                    "minItems": 4,
-                    "maxItems": 4
                 }
             }
         },
@@ -164,7 +153,7 @@
                 "intrinsics": {
                     "$ref": "#/definitions/intrinsics"
                 },
-                "isFisheye": {
+                "use_fisheye": {
                     "type": "boolean",
                     "default": false
                 },
@@ -218,6 +207,11 @@
                     }
                 },
                 "essential_matrix": {
+                    "title": "Stereo camera essential matrix",
+                    "$ref": "#/definitions/matrix33"
+                },
+                "fundamental_matrix": {
+                    "title": "Stereo camera fundamental matrix",
                     "$ref": "#/definitions/matrix33"
                 },
                 "transform": {
@@ -263,7 +257,7 @@
             "required": [
                 "sensors",
                 "essential_matrix",
-                "fundamentalMatrix",
+                "fundamental_matrix",
                 "transform"
             ]
         }
