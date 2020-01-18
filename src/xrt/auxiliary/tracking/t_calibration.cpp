@@ -14,6 +14,7 @@
 #include "util/u_debug.h"
 #include "util/u_frame.h"
 #include "util/u_format.h"
+#include "util/u_json.h"
 
 #include "tracking/t_tracking.h"
 #include "tracking/t_calibration_opencv.hpp"
@@ -70,6 +71,8 @@ struct ViewState
 
 	cv::Rect pre_rect = {};
 	cv::Rect post_rect = {};
+
+	t_camera_calibration calib = {};
 
 	bool maps_valid = false;
 	cv::Mat map1 = {};
@@ -158,6 +161,8 @@ public:
 	char text[512] = {};
 
 	t_calibration_status *status;
+
+	std::string json;
 };
 
 
@@ -226,6 +231,18 @@ make_gui_str(class Calibration &c)
 	print_txt(rgb, c.text, 1.0);
 
 	send_rgb_frame(c);
+}
+
+static std::string
+cJSON_to_string(const cJSON *json)
+{
+	std::string ret;
+	char *buf = cJSON_Print(json);
+	if (buf) {
+		ret = buf;
+		free(buf);
+	}
+	return ret;
 }
 
 /*!
@@ -582,6 +599,23 @@ process_stereo_samples(class Calibration &c, int cols, int rows)
 
 	t_file_save_raw_data_hack(&data);
 
+	{
+		cJSON *calib = nullptr;
+
+		if (t_stereo_camera_calibration_to_json(&data, &calib)) {
+			c.json = cJSON_to_string(calib);
+			t_stereo_camera_calibration *temp = NULL;
+			assert(t_stereo_or_mono_camera_calibration_from_json(
+			    calib, &temp, NULL));
+			if (temp) {
+				free(temp);
+			}
+			cJSON_Delete(calib);
+
+			printf("Calibration json: %s\n", c.json.c_str());
+		}
+	}
+
 	// Preview undistortion/rectification.
 	StereoRectificationMaps maps(data);
 	c.state.view[0].map1 = maps.view[0].rectify.remap_x;
@@ -649,6 +683,10 @@ process_view_samples(class Calibration &c,
 		printf("};\n");
 	}
 
+	CameraCalibrationWrapper wrapped(view.calib);
+	view.calib.image_size_pixels.w = cols;
+	view.calib.image_size_pixels.h = rows;
+	view.calib.use_fisheye = c.use_fisheye;
 	if (c.use_fisheye) {
 		int crit_flag = 0;
 		crit_flag |= cv::TermCriteria::EPS;
@@ -663,25 +701,25 @@ process_view_samples(class Calibration &c,
 #endif
 
 		rp_error = cv::fisheye::calibrate(
-		    c.state.board_models_f64, // objectPoints
-		    view.measured_f64,        // imagePoints
-		    image_size,               // image_size
-		    intrinsics_mat,           // K (cameraMatrix 3x3)
-		    distortion_fisheye_mat,   // D (distCoeffs 4x1)
-		    cv::noArray(),            // rvecs
-		    cv::noArray(),            // tvecs
-		    flags,                    // flags
-		    term_criteria);           // criteria
+		    c.state.board_models_f64,       // objectPoints
+		    view.measured_f64,              // imagePoints
+		    image_size,                     // image_size
+		    wrapped.intrinsics_mat,         // K (cameraMatrix 3x3)
+		    wrapped.distortion_fisheye_mat, // D (distCoeffs 4x1)
+		    cv::noArray(),                  // rvecs
+		    cv::noArray(),                  // tvecs
+		    flags,                          // flags
+		    term_criteria);                 // criteria
 
 		double balance = 0.1f;
 
 		cv::fisheye::estimateNewCameraMatrixForUndistortRectify(
-		    intrinsics_mat,         // K
-		    distortion_fisheye_mat, // D
-		    image_size,             // image_size
-		    cv::Matx33d::eye(),     // R
-		    new_intrinsics_mat,     // P
-		    balance);               // balance
+		    wrapped.intrinsics_mat,         // K
+		    wrapped.distortion_fisheye_mat, // D
+		    image_size,                     // image_size
+		    cv::Matx33d::eye(),             // R
+		    new_intrinsics_mat,             // P
+		    balance);                       // balance
 
 		// Probably a busted work-around for busted function.
 		new_intrinsics_mat.at<double>(0, 2) = (cols - 1) / 2.0;
@@ -689,17 +727,21 @@ process_view_samples(class Calibration &c,
 	} else {
 		int flags = 0;
 
+		// Don't go all out right now, since we're doing something with
+		// this now.
+#if 0
 		// Go all out.
 		flags |= cv::CALIB_THIN_PRISM_MODEL;
 		flags |= cv::CALIB_RATIONAL_MODEL;
 		flags |= cv::CALIB_TILTED_MODEL;
+#endif
 
 		rp_error = cv::calibrateCamera( //
 		    c.state.board_models_f32,   // objectPoints
 		    view.measured_f32,          // imagePoints
 		    image_size,                 // imageSize
-		    intrinsics_mat,             // cameraMatrix
-		    distortion_mat,             // distCoeffs
+		    wrapped.intrinsics_mat,     // cameraMatrix
+		    wrapped.distortion_mat,     // distCoeffs
 		    cv::noArray(),              // rvecs
 		    cv::noArray(),              // tvecs
 		    flags);                     // flags
@@ -709,14 +751,18 @@ process_view_samples(class Calibration &c,
 
 		// Create the new camera matrix.
 		new_intrinsics_mat = cv::getOptimalNewCameraMatrix(
-		    intrinsics_mat, // cameraMatrix
-		    distortion_mat, // distCoeffs
-		    image_size,     // imageSize
-		    alpha,          // alpha
-		    cv::Size(),     // newImgSize
-		    NULL,           // validPixROI
-		    false);         // centerPrincipalPoint
+		    wrapped.intrinsics_mat, // cameraMatrix
+		    wrapped.distortion_mat, // distCoeffs
+		    image_size,             // imageSize
+		    alpha,                  // alpha
+		    cv::Size(),             // newImgSize
+		    NULL,                   // validPixROI
+		    false);                 // centerPrincipalPoint
 	}
+
+	wrapped.intrinsics_mat.copyTo(intrinsics_mat);
+	wrapped.distortion_mat.copyTo(distortion_mat);
+	wrapped.distortion_fisheye_mat.copyTo(distortion_fisheye_mat);
 
 	P("CALIBRATION DONE RP ERROR %f", rp_error);
 
@@ -734,21 +780,21 @@ process_view_samples(class Calibration &c,
 
 	if (c.use_fisheye) {
 		cv::fisheye::initUndistortRectifyMap(
-		    intrinsics_mat,         // K
-		    distortion_fisheye_mat, // D
-		    cv::Matx33d::eye(),     // R
-		    new_intrinsics_mat,     // P
-		    image_size,             // size
-		    CV_32FC1,               // m1type
-		    view.map1,              // map1
-		    view.map2);             // map2
+		    wrapped.intrinsics_mat,         // K
+		    wrapped.distortion_fisheye_mat, // D
+		    cv::Matx33d::eye(),             // R
+		    new_intrinsics_mat,             // P
+		    image_size,                     // size
+		    CV_32FC1,                       // m1type
+		    view.map1,                      // map1
+		    view.map2);                     // map2
 
 		// Set the maps as valid.
 		view.maps_valid = true;
 	} else {
 		cv::initUndistortRectifyMap( //
-		    intrinsics_mat,          // K
-		    distortion_mat,          // D
+		    wrapped.intrinsics_mat,  // K
+		    wrapped.distortion_mat,  // D
 		    cv::noArray(),           // R
 		    new_intrinsics_mat,      // P
 		    image_size,              // size
@@ -947,7 +993,23 @@ make_calibration_frame_mono(class Calibration &c)
 
 	if (c.state.board_models_f32.size() >= c.num_collect_total) {
 		process_view_samples(c, c.state.view[0], rgb.cols, rgb.rows);
+
+		cJSON *calib = nullptr;
+		if (t_camera_calibration_to_json(&c.state.view[0].calib,
+		                                 &calib)) {
+			c.json = cJSON_to_string(calib);
+			t_camera_calibration *temp;
+			assert(t_stereo_or_mono_camera_calibration_from_json(
+			    calib, NULL, &temp));
+			if (temp) {
+				free(temp);
+			}
+			cJSON_Delete(calib);
+
+			printf("Calibration json: %s\n", c.json.c_str());
+		}
 	}
+
 
 	// Draw text and finally send the frame off.
 	print_txt(rgb, c.text, 1.5);
