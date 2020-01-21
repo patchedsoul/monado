@@ -14,6 +14,7 @@
 #include "targets_enabled_drivers.h"
 #ifdef XRT_HAVE_OPENCV
 #include "tracking/t_tracking.h"
+#include "tracking/t_calibration.h"
 #endif
 
 #include "util/u_var.h"

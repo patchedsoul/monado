@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
- * @brief  Handling of files and calibration data.
+ * @brief  OpenCV calibration helpers and handling of calibration data files.
  * @author Pete Black <pblack@collabora.com>
  * @author Jakob Bornecrantz <jakob@collabora.com>
  * @author Ryan Pavlik <ryan.pavlik@collabora.com>
@@ -11,6 +11,7 @@
 
 #include "tracking/t_calibration_opencv.hpp"
 #include "util/u_misc.h"
+#include <sys/stat.h>
 
 
 /*

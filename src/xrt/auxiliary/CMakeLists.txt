@@ -34,13 +34,14 @@ set(TRACKING_SOURCE_FILES
 	)
 if(BUILD_TRACKING)
 	list(APPEND TRACKING_SOURCE_FILES
-		tracking/t_calibration_opencv.hpp
 		tracking/t_calibration.cpp
+		tracking/t_calibration.h
+		tracking/t_calibration_opencv.cpp
+		tracking/t_calibration_opencv.hpp
 		tracking/t_convert.cpp
 		tracking/t_debug_hsv_filter.cpp
 		tracking/t_debug_hsv_picker.cpp
 		tracking/t_debug_hsv_viewer.cpp
-		tracking/t_file.cpp
 		tracking/t_fusion.hpp
 		tracking/t_helper_debug_sink.hpp
 		tracking/t_hsv_filter.c

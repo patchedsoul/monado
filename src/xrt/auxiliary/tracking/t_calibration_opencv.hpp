@@ -15,18 +15,10 @@
 #error "This header is C++-only."
 #endif
 
-#include "tracking/t_tracking.h"
+#include "tracking/t_calibration.h"
 
 #include <opencv2/opencv.hpp>
-#include <sys/stat.h>
 
-
-/*!
- * Save raw calibration data to file, hack until prober has storage for such
- * things.
- */
-extern "C" bool
-t_file_save_raw_data_hack(struct t_stereo_camera_calibration *data);
 
 /*!
  * @brief Essential calibration data wrapped for C++.
@@ -62,7 +54,6 @@ struct CameraCalibrationWrapper
 		       distortion_fisheye_mat.size() == cv::Size(1, 4);
 	}
 };
-
 
 /*!
  * @brief Essential stereo calibration data wrapped for C++.
@@ -101,7 +92,6 @@ struct StereoCameraCalibrationWrapper
 		       view[1].isDataStorageValid();
 	}
 };
-
 
 /*!
  * @brief An x,y pair of matrices for the remap() function.

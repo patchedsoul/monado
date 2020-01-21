@@ -13,7 +13,7 @@
 #include "util/u_sink.h"
 
 #ifdef XRT_HAVE_OPENCV
-#include "tracking/t_tracking.h"
+#include "tracking/t_calibration.h"
 #endif
 
 #include "xrt/xrt_frame.h"
@@ -257,8 +257,7 @@ scene_render_select(struct gui_scene *scene, struct gui_program *p)
 	u_sink_create_to_r8g8b8_or_l8(cs->xfctx, raw, &raw);
 	u_sink_queue_create(cs->xfctx, raw, &raw);
 
-	t_calibration_stereo_create(cs->xfctx, &cs->params, &cs->status, rgb,
-	                            &cali);
+	t_calibration_create(cs->xfctx, &cs->params, &cs->status, rgb, &cali);
 	u_sink_split_create(cs->xfctx, raw, cali, &cali);
 	u_sink_deinterleaver_create(cs->xfctx, cali, &cali);
 	u_sink_queue_create(cs->xfctx, cali, &cali);

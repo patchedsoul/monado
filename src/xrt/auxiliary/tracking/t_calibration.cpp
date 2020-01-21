@@ -16,6 +16,7 @@
 #include "util/u_format.h"
 
 #include "tracking/t_tracking.h"
+#include "tracking/t_calibration.h"
 #include "tracking/t_calibration_opencv.hpp"
 
 #include <opencv2/opencv.hpp>
@@ -1225,11 +1226,11 @@ t_calibration_frame(struct xrt_frame_sink *xsink, struct xrt_frame *xf)
  */
 
 extern "C" int
-t_calibration_stereo_create(struct xrt_frame_context *xfctx,
-                            const struct t_calibration_params *params,
-                            struct t_calibration_status *status,
-                            struct xrt_frame_sink *gui,
-                            struct xrt_frame_sink **out_sink)
+t_calibration_create(struct xrt_frame_context *xfctx,
+                     const struct t_calibration_params *params,
+                     struct t_calibration_status *status,
+                     struct xrt_frame_sink *gui,
+                     struct xrt_frame_sink **out_sink)
 {
 	auto &c = *(new Calibration());
 
