@@ -570,6 +570,13 @@ process_stereo_samples(class Calibration &c, int cols, int rows)
 		// non-fisheye version
 		int flags = 0;
 
+#if 0
+		// Go all out
+		flags |= cv::CALIB_RATIONAL_MODEL;
+		flags |= cv::CALIB_TILTED_MODEL;
+		flags |= cv::CALIB_THIN_PRISM_MODEL;
+#endif
+
 		// Insists on 32-bit floats for object points and image points
 		rp_error = cv::stereoCalibrate(
 		    c.state.board_models_f32,       // objectPoints
