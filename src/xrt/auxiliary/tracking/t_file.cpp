@@ -167,11 +167,9 @@ StereoRectificationMaps::StereoRectificationMaps(
 
 		cv::stereoRectify(
 		    wrapped.view[0].intrinsics_mat, // cameraMatrix1
-		    /* cv::noArray(), */            // distCoeffs1
-		    wrapped.view[0].distortion_mat, // distCoeffs1
+		    cv::noArray(),                  // distCoeffs1
 		    wrapped.view[1].intrinsics_mat, // cameraMatrix2
-		    /* cv::noArray(), */            // distCoeffs2
-		    wrapped.view[1].distortion_mat, // distCoeffs2
+		    cv::noArray(),                  // distCoeffs2
 		    image_size,                     // imageSize
 		    wrapped.camera_rotation_mat,    // R
 		    wrapped.camera_translation_mat, // T
@@ -185,6 +183,20 @@ StereoRectificationMaps::StereoRectificationMaps(
 		    cv::Size(),                     // newImageSize
 		    NULL,                           // validPixROI1
 		    NULL);                          // validPixROI2
+	}
+
+	// Optional scaling of fov.
+	double fov_scale = 1.0;
+	if (fov_scale != 1.0) {
+		// Focal length, recalculate focal length.
+		double fc_new = disparity_to_depth_mat.at<double>(2, 3);
+
+		fc_new *= fov_scale;
+		disparity_to_depth_mat.at<double>(2, 3) = fc_new;
+		view[0].projection_mat.at<double>(0, 0) = fc_new;
+		view[0].projection_mat.at<double>(1, 1) = fc_new;
+		view[1].projection_mat.at<double>(0, 0) = fc_new;
+		view[1].projection_mat.at<double>(1, 1) = fc_new;
 	}
 
 	view[0].rectify = calibration_get_undistort_map(
