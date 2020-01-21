@@ -54,7 +54,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	pkg_search_module(WAYLAND_SCANNER wayland-scanner)
 	pkg_search_module(WAYLAND_PROTOCOLS wayland-protocols)
 
-	find_package(OpenGL COMPONENTS GLX)
+        find_package(OpenGL COMPONENTS GLX)
+        pkg_search_module(DBUS dbus-1)
+
 else()
 	find_package(OpenGL)
 endif()

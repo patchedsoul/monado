@@ -22,6 +22,8 @@ set(OS_SOURCE_FILES
 	os/os_hid.h
 	os/os_hid_hidraw.c
 	os/os_threading.h
+        os/os_ble.h
+        os/os_ble_dbus.c
 	)
 
 set(TRACKING_SOURCE_FILES
@@ -106,6 +108,10 @@ target_include_directories(aux_util SYSTEM
 
 # OS library.
 add_library(aux_os OBJECT ${OS_SOURCE_FILES})
+target_include_directories(aux_os SYSTEM
+        PRIVATE ${DBUS_INCLUDE_DIRS}
+        )
+
 
 # Math library.
 # Use OBJECT to not create a archive, since it just gets in the way.
