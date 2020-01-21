@@ -130,6 +130,8 @@ struct t_calibration_status
 	int cooldown;
 	//! Number of non-moving frames before capture.
 	int waits_remaining;
+	//! Returned data.
+	struct t_stereo_camera_calibration data;
 };
 
 struct t_calibration_params

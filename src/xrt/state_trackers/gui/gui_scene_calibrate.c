@@ -163,6 +163,12 @@ scene_render_video(struct gui_scene *scene, struct gui_program *p)
 	if (igButton("Exit", button_dims)) {
 		gui_scene_delete_me(p, &cs->base);
 	}
+	if (cs->status.finished) {
+		igSameLine(0.0f, 4.0f);
+		if (igButton("Save", button_dims)) {
+			t_file_save_raw_data_hack(&cs->status.data);
+		}
+	}
 
 	igEnd();
 }
