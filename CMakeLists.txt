@@ -76,6 +76,7 @@ cmake_dependent_option(BUILD_WITH_PSVR "Enable PSVR HMD driver" ON "HIDAPI_FOUND
 cmake_dependent_option(BUILD_WITH_VIVE "Enable Vive driver" ON "ZLIB_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_OPENHMD "Enable OpenHMD driver" ON "OPENHMD_FOUND" OFF)
 cmake_dependent_option(BUILD_WITH_SDL2 "Enable SDL2 based test application" ON "SDL2_FOUND" OFF)
+cmake_dependent_option(BUILD_WITH_DAYDREAM "Enable Bluetooth LE via DBUS" ON "DBUS_FOUND" OFF)
 
 # These all use the Monado internal hid wrapper which is assumed to be available.
 option(BUILD_WITH_HDK "Enable HDK driver" ON)
@@ -158,6 +159,11 @@ endif()
 
 if(BUILD_WITH_HYDRA)
 	set(BUILD_DRIVER_HYDRA TRUE)
+endif()
+
+if(BUILD_WITH_DAYDREAM)
+    add_definitions(-DXRT_HAVE_DBUS)
+    set(BUILD_DRIVER_DAYDREAM TRUE)
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra -Wno-unused-parameter")

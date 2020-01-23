@@ -64,6 +64,17 @@ if(BUILD_DRIVER_PSMV)
 	list(APPEND ENABLED_DRIVERS psmv)
 endif()
 
+if(BUILD_DRIVER_DAYDREAM)
+        set(DAYDREAM_SOURCE_FILES
+                daydream/daydream_driver.c
+                daydream/daydream_interface.h
+                daydream/daydream_prober.c
+                )
+
+        # Use OBJECT to not create a archive, since it just gets in the way.
+        add_library(drv_daydream OBJECT ${DAYDREAM_SOURCE_FILES})
+        list(APPEND ENABLED_DRIVERS daydream)
+endif()
 
 if(BUILD_DRIVER_PSVR)
 	set(PSVR_SOURCE_FILES

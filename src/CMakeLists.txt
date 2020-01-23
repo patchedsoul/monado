@@ -34,6 +34,11 @@ if(BUILD_DRIVER_VIVE)
 	set(XRT_BUILD_DRIVER_VIVE TRUE)
 endif()
 
+if(BUILD_DRIVER_DAYDREAM)
+        set(XRT_BUILD_DRIVER_DAYDREAM TRUE)
+endif()
+
+
 configure_file(targets_enabled_drivers.h.cmake_in ${CMAKE_CURRENT_BINARY_DIR}/targets_enabled_drivers.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 

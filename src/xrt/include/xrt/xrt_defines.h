@@ -146,6 +146,30 @@ struct xrt_vec3_i32
 	int32_t z;
 };
 
+
+/*!
+ * A 3 element vector with 16 bit signed integers.
+ *
+ * @ingroup xrt_iface math
+ */
+struct xrt_vec3_s16
+{
+        int16_t x;
+        int16_t y;
+        int16_t z;
+};
+
+/*!
+ * A 2 element vector with 16 bit signed integers.
+ *
+ * @ingroup xrt_iface math
+ */
+struct xrt_vec2_s16
+{
+        int16_t x;
+        int16_t y;
+};
+
 /*!
  * A 3 element colour with 8 bits per channel.
  *
@@ -346,6 +370,7 @@ enum xrt_device_name
 
 	XRT_DEVICE_PSMV = 2,
 	XRT_DEVICE_HYDRA = 3,
+        XRT_DEVICE_DAYDREAM = 4,
 };
 
 /*!
@@ -430,6 +455,14 @@ enum xrt_input_name
 	XRT_INPUT_HYDRA_JOYSTICK_VALUE               = XRT_INPUT_NAME(0x0037, VEC2_MINUS_ONE_TO_ONE),
 	XRT_INPUT_HYDRA_TRIGGER_VALUE                = XRT_INPUT_NAME(0x0038, VEC1_ZERO_TO_ONE),
 	XRT_INPUT_HYDRA_POSE                         = XRT_INPUT_NAME(0x0039, POSE),
+
+        XRT_INPUT_DAYDREAM_TOUCHPAD_CLICK            = XRT_INPUT_NAME(0x003A, BOOLEAN),
+        XRT_INPUT_DAYDREAM_BAR_CLICK                 = XRT_INPUT_NAME(0x003B, BOOLEAN),
+        XRT_INPUT_DAYDREAM_CIRCLE_CLICK              = XRT_INPUT_NAME(0x003C, BOOLEAN),
+        XRT_INPUT_DAYDREAM_VOLUP_CLICK               = XRT_INPUT_NAME(0x003D, BOOLEAN),
+        XRT_INPUT_DAYDREAM_VOLDN_CLICK               = XRT_INPUT_NAME(0x003E, BOOLEAN),
+        XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE            = XRT_INPUT_NAME(0x003F, VEC2_MINUS_ONE_TO_ONE),
+
 	// clang-format on
 };
 

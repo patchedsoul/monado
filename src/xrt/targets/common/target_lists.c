@@ -34,6 +34,10 @@
 #include "vive/vive_prober.h"
 #endif
 
+#ifdef XRT_BUILD_DRIVER_VIVE
+#include "daydream/daydream_interface.h"
+#endif
+
 /*!
  * Each entry should be a vendor ID (VID), product ID (PID), a "found" function,
  * and a string literal name.
@@ -88,6 +92,9 @@ xrt_auto_prober_creator target_auto_list[] = {
     // OpenHMD last as we want to override it with native drivers.
     oh_create_auto_prober,
 #endif
+
+    daydream_create_auto_prober,
+
     NULL, // Terminate
 };
 
