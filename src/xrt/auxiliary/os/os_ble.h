@@ -19,7 +19,7 @@ extern "C" {
 
 
 /*!
- * Representing a single hid interface on a device.
+ * Representing a single ble notify attribute on a device.
  */
 struct os_ble_device
 {

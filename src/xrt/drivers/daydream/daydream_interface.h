@@ -28,12 +28,10 @@ extern "C" {
  *
  * @ingroup drv_daydream
  */
-int
-daydream_found(struct xrt_prober *xp,
-           struct xrt_prober_device **devices,
-           size_t num_devices,
-           size_t index,
-           struct xrt_device **out_xdevs);
+
+
+struct xrt_auto_prober *
+daydream_create_auto_prober();
 
 /*!
  * @dir drivers/daydream

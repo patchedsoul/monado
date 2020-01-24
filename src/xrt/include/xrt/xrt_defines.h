@@ -146,29 +146,17 @@ struct xrt_vec3_i32
 	int32_t z;
 };
 
-
 /*!
- * A 3 element vector with 16 bit signed integers.
+ * A 2 element vector with 32 bit integers.
  *
  * @ingroup xrt_iface math
  */
-struct xrt_vec3_s16
+struct xrt_vec2_i32
 {
-        int16_t x;
-        int16_t y;
-        int16_t z;
+    int32_t x;
+    int32_t y;
 };
 
-/*!
- * A 2 element vector with 16 bit signed integers.
- *
- * @ingroup xrt_iface math
- */
-struct xrt_vec2_s16
-{
-        int16_t x;
-        int16_t y;
-};
 
 /*!
  * A 3 element colour with 8 bits per channel.
@@ -462,6 +450,7 @@ enum xrt_input_name
         XRT_INPUT_DAYDREAM_VOLUP_CLICK               = XRT_INPUT_NAME(0x003D, BOOLEAN),
         XRT_INPUT_DAYDREAM_VOLDN_CLICK               = XRT_INPUT_NAME(0x003E, BOOLEAN),
         XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE            = XRT_INPUT_NAME(0x003F, VEC2_MINUS_ONE_TO_ONE),
+     XRT_INPUT_DAYDREAM_POSE            = XRT_INPUT_NAME(0x0040, POSE),
 
 	// clang-format on
 };

@@ -34,7 +34,7 @@
 #include "vive/vive_prober.h"
 #endif
 
-#ifdef XRT_BUILD_DRIVER_VIVE
+#ifdef XRT_BUILD_DRIVER_DAYDREAM
 #include "daydream/daydream_interface.h"
 #endif
 

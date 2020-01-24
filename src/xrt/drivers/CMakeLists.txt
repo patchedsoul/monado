@@ -66,7 +66,8 @@ endif()
 
 if(BUILD_DRIVER_DAYDREAM)
         set(DAYDREAM_SOURCE_FILES
-                daydream/daydream_driver.c
+                daydream/daydream_device.c
+                daydream/daydream_device.h
                 daydream/daydream_interface.h
                 daydream/daydream_prober.c
                 )
