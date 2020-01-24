@@ -23,6 +23,7 @@
 
 #include "os/os_hid.h"
 
+#include "tracking/t_imu.h"
 
 #include "vive_device.h"
 #include "vive_protocol.h"
@@ -66,6 +67,11 @@ vive_device_destroy(struct xrt_device *xdev)
 		free(d->lh.sensors);
 		d->lh.sensors = NULL;
 		d->lh.num_sensors = 0;
+	}
+
+	if (d->imu.fusion != NULL) {
+		imu_fusion_destroy(d->imu.fusion);
+		d->imu.fusion = NULL;
 	}
 
 	// Remove the variable tracking.
@@ -259,7 +265,9 @@ oldest_sequence_index(uint8_t a, uint8_t b, uint8_t c)
 }
 
 static void
-update_imu(struct vive_device *d, struct vive_imu_report *report)
+update_imu(struct vive_device *d,
+           timepoint_ns timestamp_ns,
+           struct vive_imu_report *report)
 {
 	const struct vive_imu_sample *sample = report->sample;
 	uint8_t last_seq = d->imu.sequence;
@@ -365,9 +373,23 @@ update_imu(struct vive_device *d, struct vive_imu_report *report)
 		default: VIVE_ERROR("Unhandled Vive variant\n"); return;
 		}
 
+#if 0
 		math_quat_integrate_velocity(
 		    &d->rot_filtered, &angular_velocity,
 		    (float)(dt / VIVE_CLOCK_FREQ), &d->rot_filtered);
+#else
+		imu_fusion_incorporate_gyros_and_accelerometer(
+		    d->imu.fusion, timestamp_ns, &angular_velocity,
+		    &d->imu.variance.gyro, &acceleration,
+		    &d->imu.variance.accel, NULL);
+		struct xrt_vec3 angvel_dummy;
+		imu_fusion_get_prediction(d->imu.fusion, timestamp_ns,
+		                          &d->rot_filtered, &angvel_dummy);
+/*
+		imu_fusion_get_prediction_rotation_vec(
+		    d->imu.fusion, timestamp_ns, &d->imu.rotvec);
+*/
+#endif
 
 		d->last.acc = acceleration;
 		d->last.gyro = angular_velocity;
@@ -443,7 +465,7 @@ vive_mainboard_run_thread(void *ptr)
  */
 
 static bool
-vive_sensors_read_one_msg(struct vive_device *d)
+vive_sensors_read_one_msg(struct vive_device *d, struct time_state *time)
 {
 	uint8_t buffer[64];
 
@@ -463,7 +485,10 @@ vive_sensors_read_one_msg(struct vive_device *d)
 			VIVE_ERROR("Wrong IMU report size: %d", ret);
 			return false;
 		}
-		update_imu(d, (struct vive_imu_report *)buffer);
+
+		timepoint_ns now_ns = time_state_get_now(time);
+
+		update_imu(d, now_ns, (struct vive_imu_report *)buffer);
 		break;
 	default: VIVE_ERROR("Unknown sensor message type %d", buffer[0]); break;
 	}
@@ -476,17 +501,23 @@ vive_sensors_run_thread(void *ptr)
 {
 	struct vive_device *d = (struct vive_device *)ptr;
 
+	//! @todo this should be injected at construction time
+	struct time_state *time = time_state_create();
+
 	os_thread_helper_lock(&d->sensors_thread);
 	while (os_thread_helper_is_running_locked(&d->sensors_thread)) {
 		os_thread_helper_unlock(&d->sensors_thread);
 
-		if (!vive_sensors_read_one_msg(d)) {
+		if (!vive_sensors_read_one_msg(d, time)) {
 			return NULL;
 		}
 
 		// Just keep swimming.
 		os_thread_helper_lock(&d->sensors_thread);
 	}
+
+	// Does null checking and sets to null.
+	time_state_destroy(&time);
 
 	return NULL;
 }
@@ -1212,6 +1243,18 @@ vive_device_create(struct os_hid_device *mainboard_dev,
 			free(d);
 			return NULL;
 		}
+	}
+
+	d->imu.fusion = imu_fusion_create();
+	// Default variance
+	if (true) {
+		//! @todo measure!
+		d->imu.variance.accel.x = 0.0001f;
+		d->imu.variance.accel.y = 0.0001f;
+		d->imu.variance.accel.z = 0.0001f;
+		d->imu.variance.gyro.x = 0.0001f;
+		d->imu.variance.gyro.y = 0.0001f;
+		d->imu.variance.gyro.z = 0.0001f;
 	}
 
 	d->base.hmd->distortion.models = XRT_DISTORTION_MODEL_VIVE;

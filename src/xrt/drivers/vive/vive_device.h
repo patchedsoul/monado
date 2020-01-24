@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 
+struct imu_fusion;
+
 /*!
  * A lighthouse consisting of sensors.
  *
@@ -72,6 +74,15 @@ struct vive_device
 
 		//! IMU position in tracking space.
 		struct xrt_pose trackref;
+
+		//! Simple non-tracked fusion.
+		struct imu_fusion *fusion;
+
+		struct
+		{
+			struct xrt_vec3 accel;
+			struct xrt_vec3 gyro;
+		} variance;
 	} imu;
 
 	struct
