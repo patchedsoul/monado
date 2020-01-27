@@ -499,7 +499,7 @@ oxr_session_frame_end(struct oxr_logger *log,
 		                 "unknown environment blend mode");
 	}
 
-	if ((blend_mode & sess->sys->head->hmd->blend_mode) == 0) {
+	if ((blend_mode & sess->sys->head->hmd->blend_mode) != blend_mode) {
 		return oxr_error(log,
 		                 XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED,
 		                 "(frameEndInfo->environmentBlendMode) "
