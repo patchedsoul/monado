@@ -66,7 +66,9 @@ enum daydream_input_index
 	DAYDREAM_CIRCLE_CLICK,
 	DAYDREAM_VOLUP_CLICK,
 	DAYDREAM_VOLDN_CLICK,
-	DAYDREAM_TOUCHPAD_POSE,
+	DAYDREAM_TOUCHPAD_POSX,
+	DAYDREAM_TOUCHPAD_POSY,
+
 };
 
 /*!
@@ -101,13 +103,23 @@ daydream_device_create(bool print_spew, bool print_debug)
 	enum u_device_alloc_flags flags =
 	    (enum u_device_alloc_flags)(U_DEVICE_ALLOC_TRACKING_NONE);
 	struct daydream_device *dd =
-	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 1, 0);
+	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 8, 0);
 	dd->print_spew = debug_get_bool_option_daydream_spew();
 	dd->print_debug = debug_get_bool_option_daydream_debug();
 	dd->base.destroy = daydream_device_destroy;
 	dd->base.update_inputs = daydream_device_update_inputs;
 	dd->base.get_tracked_pose = daydream_device_get_tracked_pose;
 	dd->base.inputs[0].name = XRT_INPUT_DAYDREAM_POSE;
+	dd->base.inputs[1].name = XRT_INPUT_DAYDREAM_TOUCHPAD_CLICK;
+	dd->base.inputs[2].name = XRT_INPUT_DAYDREAM_BAR_CLICK;
+	dd->base.inputs[3].name = XRT_INPUT_DAYDREAM_CIRCLE_CLICK;
+	dd->base.inputs[4].name = XRT_INPUT_DAYDREAM_VOLDN_CLICK;
+	dd->base.inputs[5].name = XRT_INPUT_DAYDREAM_VOLUP_CLICK;
+	dd->base.inputs[6].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_X;
+	dd->base.inputs[7].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_Y;
+
+
+
 	dd->base.name = XRT_DEVICE_DAYDREAM;
 	dd->fusion.rot.w = 1.0f;
 	dd->fusion.fusion = imu_fusion_create();
@@ -185,7 +197,12 @@ daydream_update_input_click(struct daydream_device *daydream,
                             int index,
                             int64_t now,
                             uint32_t bit)
-{}
+{
+
+	daydream->base.inputs[index].timestamp = now;
+	daydream->base.inputs[index].value.boolean =
+	    (daydream->last.buttons & bit) != 0;
+}
 
 
 
@@ -399,18 +416,19 @@ daydream_device_update_inputs(struct xrt_device *xdev,
 	os_mutex_lock(&daydream->lock);
 
 	// clang-format off
-    /*
-    daydream_update_input_click(daydream, DAYDREAM_INDEX_TOUCHPAD_CLICK, now, PSMV_BUTTON_BIT_PS);
-    daydream_update_input_click(daydream, PSMV_INDEX_MOVE_CLICK, now, PSMV_BUTTON_BIT_MOVE_ANY);
-    daydream_update_input_click(daydream, PSMV_INDEX_START_CLICK, now, PSMV_BUTTON_BIT_START);
-    daydream_update_input_click(daydream, PSMV_INDEX_SELECT_CLICK, now, PSMV_BUTTON_BIT_SELECT);
-    daydream_update_input_click(daydream, PSMV_INDEX_SQUARE_CLICK, now, PSMV_BUTTON_BIT_SQUARE);
-    daydream_update_input_click(daydream, PSMV_INDEX_CROSS_CLICK, now, PSMV_BUTTON_BIT_CROSS);
-    daydream_update_input_click(daydream, PSMV_INDEX_CIRCLE_CLICK, now, PSMV_BUTTON_BIT_CIRCLE);
-    daydream_update_input_click(daydream, PSMV_INDEX_TRIANGLE_CLICK, now, PSMV_BUTTON_BIT_TRIANGLE);
-    \
-	// Done now.
-*/
+    daydream_update_input_click(daydream, 1, now, DAYDREAM_TOUCHPAD_BUTTON_MASK);
+    daydream_update_input_click(daydream, 2, now, DAYDREAM_BAR_BUTTON_MASK);
+    daydream_update_input_click(daydream, 3, now, DAYDREAM_CIRCLE_BUTTON_MASK);
+    daydream_update_input_click(daydream, 4, now, DAYDREAM_VOLDN_BUTTON_MASK);
+    daydream_update_input_click(daydream, 5, now, DAYDREAM_VOLUP_BUTTON_MASK);
+
+    daydream->base.inputs[6].timestamp = now;
+    daydream->base.inputs[6].value.vec1.x = daydream->last.touchpad.x;
+    daydream->base.inputs[7].timestamp = now;
+    daydream->base.inputs[7].value.vec1.x = daydream->last.touchpad.y;
+
+    // Done now.
+
 os_mutex_unlock(&daydream->lock);
 }
 
@@ -473,12 +491,15 @@ daydream_parse_input(struct daydream_device *daydream,
     input->sample.gyro.z = sign_extend_13(get_bits(b,118,13));
     input->touchpad.x = get_bits(b,131,8);
     input->touchpad.y = get_bits(b,139,8);
-    input->buttons.volup = get_bit(b,147);
-    input->buttons.voldn = get_bit(b,148);
-    input->buttons.app = get_bit(b,149);
-    input->buttons.home = get_bit(b,150);
-    input->buttons.touchpad = get_bit(b,151);
+    input->buttons |= get_bit(b,147) << DAYDREAM_VOLUP_BUTTON_BIT;
+    input->buttons |= get_bit(b,148) << DAYDREAM_VOLDN_BUTTON_BIT;
+    input->buttons |= get_bit(b,149) << DAYDREAM_CIRCLE_BUTTON_BIT;
+    input->buttons |= get_bit(b,150) << DAYDREAM_BAR_BUTTON_BIT;
+    input->buttons |= get_bit(b,151) << DAYDREAM_TOUCHPAD_BUTTON_BIT;
+    printf("button bits: %02x\n",input->buttons);
+//DAYDREAM_DEBUG(daydream,"touchpad: %d %dx\n", input->touchpad.x,input->touchpad.y);
 
+    daydream->last = *input;
     return 1;
 }
 

@@ -32,19 +32,36 @@ struct daydream_parsed_sample
 /*!
  * A parsed input packet.
  */
-struct button_data
+/*struct button_data
 {
-	uint8_t volup : 1;
-	uint8_t voldn : 1;
-	uint8_t app : 1;
-	uint8_t home : 1;
-	uint8_t touchpad : 1;
+        uint8_t volup : 1;
+        uint8_t voldn : 1;
+        uint8_t app : 1;
+        uint8_t home : 1;
+        uint8_t touchpad : 1;
+};
+*/
+enum daydream_button_bits
+{
+	DAYDREAM_TOUCHPAD_BUTTON_BIT = 0,
+	DAYDREAM_CIRCLE_BUTTON_BIT = 1,
+	DAYDREAM_BAR_BUTTON_BIT = 2,
+	DAYDREAM_VOLUP_BUTTON_BIT = 3,
+	DAYDREAM_VOLDN_BUTTON_BIT = 4,
 };
 
+enum daydream_button_masks
+{
+	DAYDREAM_TOUCHPAD_BUTTON_MASK = 1 << DAYDREAM_TOUCHPAD_BUTTON_BIT,
+	DAYDREAM_CIRCLE_BUTTON_MASK = 1 << DAYDREAM_CIRCLE_BUTTON_BIT,
+	DAYDREAM_BAR_BUTTON_MASK = 1 << DAYDREAM_BAR_BUTTON_BIT,
+	DAYDREAM_VOLUP_BUTTON_MASK = 1 << DAYDREAM_VOLUP_BUTTON_BIT,
+	DAYDREAM_VOLDN_BUTTON_MASK = 1 << DAYDREAM_VOLDN_BUTTON_BIT,
+};
 
 struct daydream_parsed_input
 {
-	struct button_data buttons;
+	uint8_t buttons;
 	int timestamp;
 	uint16_t timestamp_last;
 	struct xrt_vec2_i32 touchpad;
