@@ -14,11 +14,14 @@
 extern "C" {
 #endif
 
-int get_bit(unsigned char *b,int num);
+int
+get_bit(unsigned char *b, int num);
 
-int get_bits (unsigned char* b,int start, int num);
+int
+get_bits(unsigned char *b, int start, int num);
 
-int sign_extend_13(unsigned int i);
+int
+sign_extend_13(unsigned int i);
 
 
 #ifdef __cplusplus

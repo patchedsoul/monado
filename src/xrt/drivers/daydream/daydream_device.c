@@ -42,13 +42,14 @@ DEBUG_GET_ONCE_BOOL_OPTION(daydream_debug, "DAYDREAM_PRINT_DEBUG", false)
 static void
 daydream_device_destroy(struct xrt_device *xdev);
 static void
-daydream_device_update_inputs(struct xrt_device *xdev, struct time_state *timekeeping);
+daydream_device_update_inputs(struct xrt_device *xdev,
+                              struct time_state *timekeeping);
 static void
 daydream_device_get_tracked_pose(struct xrt_device *xdev,
-                           enum xrt_input_name name,
-                           struct time_state *timekeeping,
-                           int64_t *out_timestamp,
-                           struct xrt_space_relation *out_relation);
+                                 enum xrt_input_name name,
+                                 struct time_state *timekeeping,
+                                 int64_t *out_timestamp,
+                                 struct xrt_space_relation *out_relation);
 
 static inline struct daydream_device *
 daydream_device(struct xrt_device *xdev);
@@ -60,22 +61,22 @@ daydream_run_thread(void *ptr);
  */
 enum daydream_input_index
 {
-    DAYDREAM_TOUCHPAD_CLICK,
-    DAYDREAM_BAR_CLICK,
-    DAYDREAM_CIRCLE_CLICK,
-    DAYDREAM_VOLUP_CLICK,
-    DAYDREAM_VOLDN_CLICK,
-    DAYDREAM_TOUCHPAD_POSE,
+	DAYDREAM_TOUCHPAD_CLICK,
+	DAYDREAM_BAR_CLICK,
+	DAYDREAM_CIRCLE_CLICK,
+	DAYDREAM_VOLUP_CLICK,
+	DAYDREAM_VOLDN_CLICK,
+	DAYDREAM_TOUCHPAD_POSE,
 };
 
 /*!
  * Mask for the button in the button uint32_t.
  */
-//enum daydream_button_bit
+// enum daydream_button_bit
 //{
-	// clang-format off
+// clang-format off
     //TODO
-    // clang-format on
+// clang-format on
 //};
 
 
@@ -84,10 +85,8 @@ enum daydream_input_index
  */
 struct daydream_input_packet
 {
-    uint8_t data[20];
+	uint8_t data[20];
 };
-
-
 
 
 
@@ -97,63 +96,60 @@ struct daydream_input_packet
  */
 
 struct daydream_device *
-daydream_device_create(
-                 bool print_spew,
-                 bool print_debug)
+daydream_device_create(bool print_spew, bool print_debug)
 {
-    enum u_device_alloc_flags flags = (enum u_device_alloc_flags)(
-        U_DEVICE_ALLOC_TRACKING_NONE);
-    struct daydream_device *dd =
-        U_DEVICE_ALLOCATE(struct daydream_device, flags, 1, 0);
-    dd->print_spew = debug_get_bool_option_daydream_spew();
-    dd->print_debug = debug_get_bool_option_daydream_debug();
-    dd->base.destroy = daydream_device_destroy;
-    dd->base.update_inputs = daydream_device_update_inputs;
-    dd->base.get_tracked_pose = daydream_device_get_tracked_pose;
-    dd->base.inputs[0].name = XRT_INPUT_DAYDREAM_POSE;
-    dd->base.name = XRT_DEVICE_DAYDREAM;
-    dd->fusion.rot.w = 1.0f;
-    dd->fusion.fusion = imu_fusion_create();
-    dd->fusion.variance.accel.x =1.0f;
-    dd->fusion.variance.accel.y =1.0f;
-    dd->fusion.variance.accel.z =1.0f;
-    dd->fusion.variance.gyro.x =1.0f;
-    dd->fusion.variance.gyro.y =1.0f;
-    dd->fusion.variance.gyro.z =1.0f;
+	enum u_device_alloc_flags flags =
+	    (enum u_device_alloc_flags)(U_DEVICE_ALLOC_TRACKING_NONE);
+	struct daydream_device *dd =
+	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 1, 0);
+	dd->print_spew = debug_get_bool_option_daydream_spew();
+	dd->print_debug = debug_get_bool_option_daydream_debug();
+	dd->base.destroy = daydream_device_destroy;
+	dd->base.update_inputs = daydream_device_update_inputs;
+	dd->base.get_tracked_pose = daydream_device_get_tracked_pose;
+	dd->base.inputs[0].name = XRT_INPUT_DAYDREAM_POSE;
+	dd->base.name = XRT_DEVICE_DAYDREAM;
+	dd->fusion.rot.w = 1.0f;
+	dd->fusion.fusion = imu_fusion_create();
+	dd->fusion.variance.accel.x = 1.0f;
+	dd->fusion.variance.accel.y = 1.0f;
+	dd->fusion.variance.accel.z = 1.0f;
+	dd->fusion.variance.gyro.x = 1.0f;
+	dd->fusion.variance.gyro.y = 1.0f;
+	dd->fusion.variance.gyro.z = 1.0f;
 
-    dd->calibration.accel.factor.x = 200.0;
-    dd->calibration.accel.factor.y = 200.0;
-    dd->calibration.accel.factor.z = 200.0;
+	dd->calibration.accel.factor.x = 120000000000.0;
+	dd->calibration.accel.factor.y = 120000000000.0;
+	dd->calibration.accel.factor.z = 120000000000.0;
 
-    dd->calibration.accel.bias.x = 0.0;
-    dd->calibration.accel.bias.y = 0.0;
-    dd->calibration.accel.bias.z = 0.0;
+	dd->calibration.accel.bias.x = 0.0;
+	dd->calibration.accel.bias.y = 0.0;
+	dd->calibration.accel.bias.z = 0.0;
 
-    dd->calibration.gyro.factor.x = 120000000000.0;
-    dd->calibration.gyro.factor.y = 120000000000.0;
-    dd->calibration.gyro.factor.z = 120000000000.0;
+	dd->calibration.gyro.factor.x = 120000000000.0;
+	dd->calibration.gyro.factor.y = 120000000000.0;
+	dd->calibration.gyro.factor.z = 120000000000.0;
 
-    dd->calibration.gyro.bias.x = 0.0;
-    dd->calibration.gyro.bias.y = 0.0;
-    dd->calibration.gyro.bias.z = 0.0;
-
-
-    os_ble_notify_open("A8_1E_84_5C_6C_28","service002a/char002b",&dd->ble);
+	dd->calibration.gyro.bias.x = 0.0;
+	dd->calibration.gyro.bias.y = 0.0;
+	dd->calibration.gyro.bias.z = 0.0;
 
 
-    printf("creating daydream device!\n");
+	os_ble_notify_open("A8_1E_84_5C_6C_28", "service002a/char002b",
+	                   &dd->ble);
 
-    int ret = os_thread_helper_start(&dd->oth, daydream_run_thread, dd);
-    if (ret != 0) {
-        DAYDREAM_ERROR(dd, "Failed to start thread!");
-        daydream_device_destroy(&dd->base);
-        //return ret;
-    }
 
-    return dd;
+	printf("creating daydream device!\n");
+
+	int ret = os_thread_helper_start(&dd->oth, daydream_run_thread, dd);
+	if (ret != 0) {
+		DAYDREAM_ERROR(dd, "Failed to start thread!");
+		daydream_device_destroy(&dd->base);
+		// return ret;
+	}
+
+	return dd;
 }
-
-
 
 
 
@@ -165,8 +161,8 @@ daydream_device_create(
 
 static int
 daydream_parse_input(struct daydream_device *daydream,
-                 void *data,
-                 struct daydream_parsed_input *input);
+                     void *data,
+                     struct daydream_parsed_input *input);
 
 static int
 daydream_get_calibration(struct daydream_device *daydream);
@@ -180,17 +176,16 @@ daydream_get_calibration(struct daydream_device *daydream);
 inline struct daydream_device *
 daydream_device(struct xrt_device *xdev)
 {
-    return (struct daydream_device *)xdev;
+	return (struct daydream_device *)xdev;
 }
 
 
 static void
 daydream_update_input_click(struct daydream_device *daydream,
-                        int index,
-                        int64_t now,
-                        uint32_t bit)
-{
-}
+                            int index,
+                            int64_t now,
+                            uint32_t bit)
+{}
 
 
 
@@ -206,40 +201,56 @@ update_fusion(struct daydream_device *daydream,
               timepoint_ns timestamp_ns,
               time_duration_ns delta_ns)
 {
-    DAYDREAM_DEBUG(daydream,"fusion sample mx %d my %d mz %d ax %d ay %d az %d gx %d gy %d gz %d\n",sample->mag.x,sample->mag.y,sample->mag.z,sample->accel.x,sample->accel.y,sample->accel.z,sample->gyro.x,sample->gyro.y,sample->gyro.z);
+	DAYDREAM_DEBUG(daydream,
+	               "fusion sample mx %d my %d mz %d ax %d ay %d az %d gx "
+	               "%d gy %d gz %d\n",
+	               sample->mag.x, sample->mag.y, sample->mag.z,
+	               sample->accel.x, sample->accel.y, sample->accel.z,
+	               sample->gyro.x, sample->gyro.y, sample->gyro.z);
 
 
-    daydream->read.accel.x = (sample->accel.x - daydream->calibration.accel.bias.x) /
-                         daydream->calibration.accel.factor.x *
-                         MATH_GRAVITY_M_S2;
-    daydream->read.accel.y = (sample->accel.y - daydream->calibration.accel.bias.y) /
-                         daydream->calibration.accel.factor.y *
-                         MATH_GRAVITY_M_S2;
-    daydream->read.accel.z = (sample->accel.z - daydream->calibration.accel.bias.z) /
-                         daydream->calibration.accel.factor.z *
-                         MATH_GRAVITY_M_S2;
+	daydream->read.accel.x =
+	    (sample->accel.x - daydream->calibration.accel.bias.x) /
+	    daydream->calibration.accel.factor.x * MATH_GRAVITY_M_S2;
+	daydream->read.accel.y =
+	    (sample->accel.y - daydream->calibration.accel.bias.y) /
+	    daydream->calibration.accel.factor.y * MATH_GRAVITY_M_S2;
+	daydream->read.accel.z =
+	    (sample->accel.z - daydream->calibration.accel.bias.z) /
+	    daydream->calibration.accel.factor.z * MATH_GRAVITY_M_S2;
 
-    daydream->read.gyro.x = (sample->gyro.x - daydream->calibration.gyro.bias.x) /
-                        daydream->calibration.gyro.factor.x;
-    daydream->read.gyro.y = (sample->gyro.y - daydream->calibration.gyro.bias.y) /
-                        daydream->calibration.gyro.factor.y;
-    daydream->read.gyro.z = (sample->gyro.z  - daydream->calibration.gyro.bias.z) /
-                        daydream->calibration.gyro.factor.z;
-    DAYDREAM_DEBUG(daydream,"fusion calibrated sample ax %f ay %f az %f gx %f gy %f gz %f\n",daydream->read.accel.x,daydream->read.accel.y,daydream->read.accel.z,daydream->read.gyro.x,daydream->read.gyro.y,daydream->read.gyro.z);
+	daydream->read.gyro.x =
+	    (sample->gyro.x - daydream->calibration.gyro.bias.x) /
+	    daydream->calibration.gyro.factor.x;
+	daydream->read.gyro.y =
+	    (sample->gyro.y - daydream->calibration.gyro.bias.y) /
+	    daydream->calibration.gyro.factor.y;
+	daydream->read.gyro.z =
+	    (sample->gyro.z - daydream->calibration.gyro.bias.z) /
+	    daydream->calibration.gyro.factor.z;
+	DAYDREAM_DEBUG(
+	    daydream,
+	    "fusion calibrated sample ax %f ay %f az %f gx %f gy %f gz %f\n",
+	    daydream->read.accel.x, daydream->read.accel.y,
+	    daydream->read.accel.z, daydream->read.gyro.x,
+	    daydream->read.gyro.y, daydream->read.gyro.z);
 
-    math_quat_integrate_velocity(
-        &daydream->fusion.rot, &daydream->read.gyro, delta_ns, &daydream->fusion.rot);
-    return;
+	math_quat_integrate_velocity(&daydream->fusion.rot,
+	                             &daydream->read.gyro, delta_ns,
+	                             &daydream->fusion.rot);
 
-    imu_fusion_incorporate_gyros_and_accelerometer(
-            daydream->fusion.fusion, timestamp_ns, &daydream->read.gyro,
-            &daydream->fusion.variance.gyro, &daydream->read.accel,
-            &daydream->fusion.variance.accel, NULL);
-        struct xrt_vec3 angvel_dummy;
-        imu_fusion_get_prediction(daydream->fusion.fusion, timestamp_ns,
-                                  &daydream->fusion.rot, &angvel_dummy);
-        imu_fusion_get_prediction_rotation_vec(
-            daydream->fusion.fusion, timestamp_ns, &daydream->fusion.rotvec);
+	/*
+	imu_fusion_incorporate_gyros_and_accelerometer(
+	        daydream->fusion.fusion, timestamp_ns, &daydream->read.gyro,
+	        &daydream->fusion.variance.gyro, &daydream->read.accel,
+	        &daydream->fusion.variance.accel, NULL);
+	    struct xrt_vec3 angvel_dummy;
+	    imu_fusion_get_prediction(daydream->fusion.fusion, timestamp_ns,
+	                              &daydream->fusion.rot, &angvel_dummy);
+	    imu_fusion_get_prediction_rotation_vec(
+	        daydream->fusion.fusion, timestamp_ns,
+	&daydream->fusion.rotvec);
+	*/
 }
 
 /*!
@@ -247,34 +258,37 @@ update_fusion(struct daydream_device *daydream,
  * the thread has been told to shut down.
  */
 static bool
-daydream_read_one_packet(struct daydream_device *daydream, uint8_t *buffer, size_t size)
+daydream_read_one_packet(struct daydream_device *daydream,
+                         uint8_t *buffer,
+                         size_t size)
 {
-    os_thread_helper_lock(&daydream->oth);
+	os_thread_helper_lock(&daydream->oth);
 
-    while (os_thread_helper_is_running_locked(&daydream->oth)) {
-        int retries = 5;
-        int ret = -1;
-        os_thread_helper_unlock(&daydream->oth);
+	while (os_thread_helper_is_running_locked(&daydream->oth)) {
+		int retries = 5;
+		int ret = -1;
+		os_thread_helper_unlock(&daydream->oth);
 
-        while (retries > 0) {
-            ret = daydream->ble->read(daydream->ble, buffer, size);
-            if (ret == size){
-                break;
-            }
-            usleep(60000);
-            retries--;
-        }
-        if (ret == 0) {
+		while (retries > 0) {
+			ret = daydream->ble->read(daydream->ble, buffer, size);
+			if (ret == size) {
+				break;
+			}
+			usleep(60000);
+			retries--;
+		}
+		if (ret == 0) {
 			fprintf(stderr, "%s\n", __func__);
 			// Must lock thread before check in while.
-            os_thread_helper_lock(&daydream->oth);
+			os_thread_helper_lock(&daydream->oth);
 			continue;
 		}
 		if (ret < 0) {
-            DAYDREAM_ERROR(daydream, "Failed to read device '%i'!", ret);
-            return false;
+			DAYDREAM_ERROR(daydream, "Failed to read device '%i'!",
+			               ret);
+			return false;
 		}
-        return true;
+		return true;
 	}
 
 	return false;
@@ -283,57 +297,56 @@ daydream_read_one_packet(struct daydream_device *daydream, uint8_t *buffer, size
 void *
 daydream_run_thread(void *ptr)
 {
-    struct daydream_device *daydream = (struct daydream_device *)ptr;
+	struct daydream_device *daydream = (struct daydream_device *)ptr;
 	//! @todo this should be injected at construction time
 	struct time_state *time = time_state_create();
 
-    uint8_t buffer[20];
-    struct daydream_parsed_input input;// = {0};
+	uint8_t buffer[20];
+	struct daydream_parsed_input input; // = {0};
 
-    // wait for a package to sync up, it's discarded but that's okay.
-    if (!daydream_read_one_packet(daydream, buffer, 20)) {
+	// wait for a package to sync up, it's discarded but that's okay.
+	if (!daydream_read_one_packet(daydream, buffer, 20)) {
 		// Does null checking and sets to null.
 		time_state_destroy(&time);
 		return NULL;
 	}
 
 	timepoint_ns then_ns = time_state_get_now(time);
-    while (daydream_read_one_packet(daydream, buffer, 20)) {
+	while (daydream_read_one_packet(daydream, buffer, 20)) {
 
 		timepoint_ns now_ns = time_state_get_now(time);
 
-       int num = daydream_parse_input(daydream, buffer, &input);
+		int num = daydream_parse_input(daydream, buffer, &input);
 
 		time_duration_ns delta_ns = now_ns - then_ns;
 		then_ns = now_ns;
 
 		// Lock last and the fusion.
-        os_mutex_lock(&daydream->lock);
+		os_mutex_lock(&daydream->lock);
 
 
 		// Process the parsed data.
-        update_fusion(daydream, &input.sample, now_ns, delta_ns);
+		update_fusion(daydream, &input.sample, now_ns, delta_ns);
 
 		// Now done.
-        os_mutex_unlock(&daydream->lock);
+		os_mutex_unlock(&daydream->lock);
 	}
 
 	// Does null checking and sets to null.
-    time_state_destroy(&time);
+	time_state_destroy(&time);
 
 	return NULL;
 }
 
 
 
-
 static void
 daydream_get_fusion_pose(struct daydream_device *daydream,
-                     enum xrt_input_name name,
-                     timepoint_ns when,
-                     struct xrt_space_relation *out_relation)
+                         enum xrt_input_name name,
+                         timepoint_ns when,
+                         struct xrt_space_relation *out_relation)
 {
-    out_relation->pose.orientation = daydream->fusion.rot;
+	out_relation->pose.orientation = daydream->fusion.rot;
 
 	//! @todo assuming that orientation is actually currently tracked.
 	out_relation->relation_flags = (enum xrt_space_relation_flags)(
@@ -348,42 +361,42 @@ daydream_get_fusion_pose(struct daydream_device *daydream,
  *
  */
 
- void
+void
 daydream_device_destroy(struct xrt_device *xdev)
 {
-    struct daydream_device *daydream = daydream_device(xdev);
+	struct daydream_device *daydream = daydream_device(xdev);
 
 	// Destroy the thread object.
-    os_thread_helper_destroy(&daydream->oth);
+	os_thread_helper_destroy(&daydream->oth);
 
 	// Now that the thread is not running we can destroy the lock.
-    os_mutex_destroy(&daydream->lock);
+	os_mutex_destroy(&daydream->lock);
 
 	// Destroy the IMU fusion.
-    imu_fusion_destroy(daydream->fusion.fusion);
+	imu_fusion_destroy(daydream->fusion.fusion);
 
 	// Remove the variable tracking.
-    u_var_remove_root(daydream);
+	u_var_remove_root(daydream);
 
-    if (daydream->ble != NULL) {
+	if (daydream->ble != NULL) {
 
-        os_ble_destroy(daydream->ble);
-        daydream->ble = NULL;
+		os_ble_destroy(daydream->ble);
+		daydream->ble = NULL;
 	}
 
-    free(daydream);
+	free(daydream);
 }
 
 void
 daydream_device_update_inputs(struct xrt_device *xdev,
-                          struct time_state *timekeeping)
+                              struct time_state *timekeeping)
 {
-    struct daydream_device *daydream = daydream_device(xdev);
+	struct daydream_device *daydream = daydream_device(xdev);
 
 	int64_t now = time_state_get_now(timekeeping);
 
 	// Lock the data.
-    os_mutex_lock(&daydream->lock);
+	os_mutex_lock(&daydream->lock);
 
 	// clang-format off
     /*

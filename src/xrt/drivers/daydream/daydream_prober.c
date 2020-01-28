@@ -56,26 +56,26 @@ struct daydream_prober
 static inline struct daydream_prober *
 daydream_prober(struct xrt_auto_prober *p)
 {
-    return (struct daydream_prober *)p;
+	return (struct daydream_prober *)p;
 }
 
 static void
 daydream_prober_destroy(struct xrt_auto_prober *p)
 {
-    struct daydream_prober *pdaydream = daydream_prober(p);
+	struct daydream_prober *pdaydream = daydream_prober(p);
 
-    free(pdaydream);
+	free(pdaydream);
 }
 
 static struct xrt_device *
 daydream_prober_autoprobe(struct xrt_auto_prober *xap,
-                      bool no_hmds,
-                      struct xrt_prober *xp)
+                          bool no_hmds,
+                          struct xrt_prober *xp)
 {
-    struct daydream_prober *pdaydream = daydream_prober(xap);
+	struct daydream_prober *pdaydream = daydream_prober(xap);
 
-    struct daydream_device *dd = daydream_device_create(false,false);
-    return &dd->base;
+	struct daydream_device *dd = daydream_device_create(false, false);
+	return &dd->base;
 }
 
 
@@ -88,12 +88,13 @@ daydream_prober_autoprobe(struct xrt_auto_prober *xap,
 struct xrt_auto_prober *
 daydream_create_auto_prober()
 {
-    struct daydream_prober *pdaydream = U_TYPED_CALLOC(struct daydream_prober);
-    pdaydream->base.destroy = daydream_prober_destroy;
-    pdaydream->base.lelo_dallas_autoprobe = daydream_prober_autoprobe;
-    pdaydream->enabled = true;//debug_get_bool_option_daydream_enable();
-    pdaydream->print_spew = debug_get_bool_option_daydream_spew();
-    pdaydream->print_debug = debug_get_bool_option_daydream_debug();
+	struct daydream_prober *pdaydream =
+	    U_TYPED_CALLOC(struct daydream_prober);
+	pdaydream->base.destroy = daydream_prober_destroy;
+	pdaydream->base.lelo_dallas_autoprobe = daydream_prober_autoprobe;
+	pdaydream->enabled = true; // debug_get_bool_option_daydream_enable();
+	pdaydream->print_spew = debug_get_bool_option_daydream_spew();
+	pdaydream->print_debug = debug_get_bool_option_daydream_debug();
 
-    return &pdaydream->base;
+	return &pdaydream->base;
 }

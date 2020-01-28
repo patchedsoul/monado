@@ -153,8 +153,8 @@ struct xrt_vec3_i32
  */
 struct xrt_vec2_i32
 {
-    int32_t x;
-    int32_t y;
+	int32_t x;
+	int32_t y;
 };
 
 
@@ -358,7 +358,7 @@ enum xrt_device_name
 
 	XRT_DEVICE_PSMV = 2,
 	XRT_DEVICE_HYDRA = 3,
-        XRT_DEVICE_DAYDREAM = 4,
+	XRT_DEVICE_DAYDREAM = 4,
 };
 
 /*!

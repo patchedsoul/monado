@@ -23,11 +23,9 @@ extern "C" {
  */
 struct os_ble_device
 {
-    int (*read)(struct os_ble_device *ble_dev,
-	            uint8_t *data,
-                size_t size);
+	int (*read)(struct os_ble_device *ble_dev, uint8_t *data, size_t size);
 
-    void (*destroy)(struct os_ble_device *ble_dev);
+	void (*destroy)(struct os_ble_device *ble_dev);
 };
 
 /*!
@@ -37,11 +35,9 @@ struct os_ble_device
  */
 
 XRT_MAYBE_UNUSED static inline int
-os_ble_read(struct os_ble_device *ble_dev,
-            uint8_t *data,
-            size_t size)
+os_ble_read(struct os_ble_device *ble_dev, uint8_t *data, size_t size)
 {
-    return ble_dev->read(ble_dev, data, size);
+	return ble_dev->read(ble_dev, data, size);
 }
 
 
@@ -51,15 +47,18 @@ os_ble_read(struct os_ble_device *ble_dev,
 XRT_MAYBE_UNUSED static inline void
 os_ble_destroy(struct os_ble_device *ble_dev)
 {
-    ble_dev->destroy(ble_dev);
+	ble_dev->destroy(ble_dev);
 }
 
 #ifdef XRT_OS_LINUX
 /*!
- * Open the given mac and path to device endpoint (Currently Linux/BlueZ specific).
+ * Open the given mac and path to device endpoint (Currently Linux/BlueZ
+ * specific).
  */
 int
-os_ble_notify_open(const char *mac, const char* endpoint,struct os_ble_device **out_ble);
+os_ble_notify_open(const char *mac,
+                   const char *endpoint,
+                   struct os_ble_device **out_ble);
 #endif
 
 #ifdef __cplusplus

@@ -10,21 +10,26 @@
 #include <stdio.h>
 #include "util/u_bitwise.h"
 
-int get_bit(unsigned char *b,int num){
-    int index = num/8;
-    return (b[index] >> (7 - (num % 8))) & 1;
+int
+get_bit(unsigned char *b, int num)
+{
+	int index = num / 8;
+	return (b[index] >> (7 - (num % 8))) & 1;
 }
 
-int get_bits (unsigned char* b,int start, int num){
-    int ret = 0;
-    for (int i=0;i<num;i++) {
-        ret <<= 1;
-        ret |= get_bit(b, start+i);
-    }
-    return ret;
+int
+get_bits(unsigned char *b, int start, int num)
+{
+	int ret = 0;
+	for (int i = 0; i < num; i++) {
+		ret <<= 1;
+		ret |= get_bit(b, start + i);
+	}
+	return ret;
 }
 
-int sign_extend_13(unsigned int i) {
-    return ((int)(i << 19)) >> 19;
+int
+sign_extend_13(unsigned int i)
+{
+	return ((int)(i << 19)) >> 19;
 }
-

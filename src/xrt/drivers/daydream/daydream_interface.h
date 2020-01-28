@@ -21,7 +21,7 @@ extern "C" {
  */
 
 
-#define DAYDREAM_BLUEZ_PATH service002a/char002b
+#define DAYDREAM_BLUEZ_PATH service002a / char002b
 
 /*!
  * Probing function for the Daydream controller.
