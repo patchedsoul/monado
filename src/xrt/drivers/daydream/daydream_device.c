@@ -114,22 +114,28 @@ daydream_device_create(
     dd->base.name = XRT_DEVICE_DAYDREAM;
     dd->fusion.rot.w = 1.0f;
     dd->fusion.fusion = imu_fusion_create();
+    dd->fusion.variance.accel.x =1.0f;
+    dd->fusion.variance.accel.y =1.0f;
+    dd->fusion.variance.accel.z =1.0f;
+    dd->fusion.variance.gyro.x =1.0f;
+    dd->fusion.variance.gyro.y =1.0f;
+    dd->fusion.variance.gyro.z =1.0f;
 
     dd->calibration.accel.factor.x = 200.0;
     dd->calibration.accel.factor.y = 200.0;
     dd->calibration.accel.factor.z = 200.0;
 
-    dd->calibration.accel.bias.x = 0.1;
-    dd->calibration.accel.bias.y = 0.1;
-    dd->calibration.accel.bias.z = 0.1;
+    dd->calibration.accel.bias.x = 0.0;
+    dd->calibration.accel.bias.y = 0.0;
+    dd->calibration.accel.bias.z = 0.0;
 
-    dd->calibration.gyro.factor.x = 2.0;
-    dd->calibration.gyro.factor.y = 2.0;
-    dd->calibration.gyro.factor.z = 2.0;
+    dd->calibration.gyro.factor.x = 120000000000.0;
+    dd->calibration.gyro.factor.y = 120000000000.0;
+    dd->calibration.gyro.factor.z = 120000000000.0;
 
-    dd->calibration.gyro.bias.x = 0.9;
-    dd->calibration.gyro.bias.y = 0.9;
-    dd->calibration.gyro.bias.z = 0.9;
+    dd->calibration.gyro.bias.x = 0.0;
+    dd->calibration.gyro.bias.y = 0.0;
+    dd->calibration.gyro.bias.z = 0.0;
 
 
     os_ble_notify_open("A8_1E_84_5C_6C_28","service002a/char002b",&dd->ble);
@@ -217,11 +223,13 @@ update_fusion(struct daydream_device *daydream,
                         daydream->calibration.gyro.factor.x;
     daydream->read.gyro.y = (sample->gyro.y - daydream->calibration.gyro.bias.y) /
                         daydream->calibration.gyro.factor.y;
-    daydream->read.gyro.z = (sample->gyro.z - daydream->calibration.gyro.bias.z) /
+    daydream->read.gyro.z = (sample->gyro.z  - daydream->calibration.gyro.bias.z) /
                         daydream->calibration.gyro.factor.z;
-
     DAYDREAM_DEBUG(daydream,"fusion calibrated sample ax %f ay %f az %f gx %f gy %f gz %f\n",daydream->read.accel.x,daydream->read.accel.y,daydream->read.accel.z,daydream->read.gyro.x,daydream->read.gyro.y,daydream->read.gyro.z);
 
+    math_quat_integrate_velocity(
+        &daydream->fusion.rot, &daydream->read.gyro, delta_ns, &daydream->fusion.rot);
+    return;
 
     imu_fusion_incorporate_gyros_and_accelerometer(
             daydream->fusion.fusion, timestamp_ns, &daydream->read.gyro,
