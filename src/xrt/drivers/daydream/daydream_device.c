@@ -496,8 +496,7 @@ daydream_parse_input(struct daydream_device *daydream,
     input->buttons |= get_bit(b,149) << DAYDREAM_CIRCLE_BUTTON_BIT;
     input->buttons |= get_bit(b,150) << DAYDREAM_BAR_BUTTON_BIT;
     input->buttons |= get_bit(b,151) << DAYDREAM_TOUCHPAD_BUTTON_BIT;
-    printf("button bits: %02x\n",input->buttons);
-//DAYDREAM_DEBUG(daydream,"touchpad: %d %dx\n", input->touchpad.x,input->touchpad.y);
+	//DAYDREAM_DEBUG(daydream,"touchpad: %d %dx\n", input->touchpad.x,input->touchpad.y);
 
     daydream->last = *input;
     return 1;

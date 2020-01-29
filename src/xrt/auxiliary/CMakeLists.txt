@@ -22,8 +22,8 @@ set(OS_SOURCE_FILES
 	os/os_hid.h
 	os/os_hid_hidraw.c
 	os/os_threading.h
-        os/os_ble.h
-        os/os_ble_dbus.c
+	os/os_ble.h
+	os/os_ble_dbus.c
 	)
 
 set(TRACKING_SOURCE_FILES
@@ -54,8 +54,8 @@ if(BUILD_TRACKING)
 endif()
 
 set(UTIL_SOURCE_FILES
-        util/u_bitwise.c
-        util/u_bitwise.h
+	util/u_bitwise.c
+	util/u_bitwise.h
 	util/u_misc.c
 	util/u_misc.h
 	util/u_debug.c
