@@ -88,6 +88,8 @@ typedef enum {
 	SURVIVE_HMD = 2,
 } SurviveDeviceType;
 
+static bool survive_already_initialized = false;
+
 #define MAX_PENDING_EVENTS 30
 struct survive_device
 {
@@ -114,6 +116,7 @@ struct survive_system
 static void
 survive_device_destroy(struct xrt_device *xdev)
 {
+	printf("destroying survive device\n");
 	struct survive_device *survive = (struct survive_device *)xdev;
 
 	if (survive == survive->sys->hmd)
@@ -153,11 +156,11 @@ _get_survive_pose(const SurviveSimpleObject *survive_object,
 	it != 0; it = survive_simple_get_next_object(ctx, it)) {
 		//const char *codename = survive_simple_object_name(it);
 
-		if (survive_simple_object_get_type(it) != SurviveSimpleObject_OBJECT) {
+		if (survive_simple_object_get_type(it) != SurviveSimpleObject_OBJECT && 
+			survive_simple_object_get_type(it) != SurviveSimpleObject_HMD) {
 			continue;
 		}
 
-		//SURVIVE_SPEW(survive, "codename %s\n", codename);
 		if (it != survive_object)
 			continue;
 
@@ -167,43 +170,45 @@ _get_survive_pose(const SurviveSimpleObject *survive_object,
 		survive_simple_object_get_latest_pose(it, &pose);
 		(void)timecode;
 
-		struct xrt_quat out_rot = {.x = pose.Rot[1],
+		struct xrt_quat out_rot = {
+			.x = pose.Rot[1],
 			.y = pose.Rot[2],
 			.z = pose.Rot[3],
-			.w = pose.Rot[0]};
+			.w = pose.Rot[0]
+			
+		};
+		//printf ("quat %f %f %f %f\n", out_rot.x, out_rot.y, out_rot.z, out_rot.w);
 
-			//printf ("quat %f %f %f %f\n", out_rot.x, out_rot.y, out_rot.z, out_rot.w);
+		/* libsurvive looks down when it should be looking forward, so
+		 * rotate the quat.
+		 * because the HMD quat is the opposite of the in world
+		 * rotation, we rotate down. */
 
-			/* libsurvive looks down when it should be looking forward, so
-			 * rotate the quat.
-			 * because the HMD quat is the opposite of the in world
-			 * rotation, we rotate down. */
+		struct xrt_quat down_rot;
+		down_rot.x = sqrtf(2) / 2.;
+		down_rot.y = 0;
+		down_rot.z = 0;
+		down_rot.w = -sqrtf(2) / 2.;
 
-			struct xrt_quat down_rot;
-			down_rot.x = sqrtf(2) / 2.;
-			down_rot.y = 0;
-			down_rot.z = 0;
-			down_rot.w = -sqrtf(2) / 2.;
-
-			math_quat_rotate(&down_rot, &out_rot, &out_rot);
-
-
-			math_quat_normalize(&out_rot);
-
-			out_relation->pose.orientation = out_rot;
-
-			/* because the quat is rotated, y and z axes are switched. */
-			out_relation->pose.position.x = pose.Pos[0];
-			out_relation->pose.position.y = pose.Pos[2];
-			out_relation->pose.position.z = -pose.Pos[1];
+		math_quat_rotate(&down_rot, &out_rot, &out_rot);
 
 
-			out_relation->relation_flags =
-			(enum xrt_space_relation_flags)(
-				XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
-				XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT) |
-				XRT_SPACE_RELATION_POSITION_VALID_BIT |
-				XRT_SPACE_RELATION_POSITION_TRACKED_BIT;
+		math_quat_normalize(&out_rot);
+
+		out_relation->pose.orientation = out_rot;
+
+		/* because the quat is rotated, y and z axes are switched. */
+		out_relation->pose.position.x = pose.Pos[0];
+		out_relation->pose.position.y = pose.Pos[2];
+		out_relation->pose.position.z = -pose.Pos[1];
+
+
+		out_relation->relation_flags =
+		(enum xrt_space_relation_flags)(
+			XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
+			XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT) |
+			XRT_SPACE_RELATION_POSITION_VALID_BIT |
+			XRT_SPACE_RELATION_POSITION_TRACKED_BIT;
 
 	}
 }
@@ -218,59 +223,30 @@ _try_update_codenames(struct survive_system *sys)
 
 	SurviveSimpleContext *ctx = sys->ctx;
 
-	bool wired_controllers = false;
-
 	for (const SurviveSimpleObject *it =
 		survive_simple_get_first_object(ctx);
 	it != 0; it = survive_simple_get_next_object(ctx, it)) {
-		if (survive_simple_object_get_type(it) != SurviveSimpleObject_OBJECT) {
-			continue;
-		}
-
 		const char *codename = survive_simple_object_name(it);
 
-		if (strcmp(codename, "HMD") == 0 && !sys->hmd->survive_obj)
+		enum SurviveSimpleObject_type type = survive_simple_object_get_type(it);
+		if (type == SurviveSimpleObject_HMD && sys->hmd->survive_obj == NULL) {
+			printf("Found HMD: %s\n", codename);
 			sys->hmd->survive_obj = it;
-
-		if (strcmp(codename, "KN0") == 0 && !sys->controllers[SURVIVE_RIGHT_CONTROLLER]->survive_obj)
-			sys->controllers[SURVIVE_RIGHT_CONTROLLER]->survive_obj = it;
-
-		if (strcmp(codename, "KN1") == 0 && !sys->controllers[SURVIVE_LEFT_CONTROLLER]->survive_obj)
-			sys->controllers[SURVIVE_LEFT_CONTROLLER]->survive_obj = it;
-
-		if (strcmp(codename, "T21") == 0)
-			wired_controllers = true;
-
-	}
-
-	for (const SurviveSimpleObject *it =
-		survive_simple_get_first_object(ctx);
-	it != 0; it = survive_simple_get_next_object(ctx, it)) {
-		const char *codename = survive_simple_object_name(it);
-
-		if (survive_simple_object_get_type(it) != SurviveSimpleObject_OBJECT) {
-			continue;
 		}
-
-		//printf("Assigning codename %s (wired controllers %d)\n", codename, wired_controllers);
-
-		if (wired_controllers) {
-			if (strcmp(codename, "T20") == 0)
-				sys->controllers[SURVIVE_RIGHT_CONTROLLER]->survive_obj = it;
-			if (strcmp(codename, "T21") == 0)
-				sys->controllers[SURVIVE_LEFT_CONTROLLER]->survive_obj = it;
-			if (strcmp(codename, "T22") == 0)
-				sys->hmd->survive_obj = it;
-		} else {
-			if (strcmp(codename, "T20") == 0)
-				sys->hmd->survive_obj = it;
+		if (type == SurviveSimpleObject_OBJECT) {			
+			for (int i = 0; i < 2 /* TODO */; i++) {
+				if (sys->controllers[i]->survive_obj == it) {
+					break;
+				}
+				
+				if (sys->controllers[i]->survive_obj == NULL) {
+					printf("Found Controller %d: %s\n", i, codename);
+					sys->controllers[i]->survive_obj = it;
+					break;
+				}
+			}
 		}
 	}
-
-	printf("Survive codenames assigned:\nHMD: %s\nLC : %s\nRC : %s\n",
-	       survive_simple_object_name(sys->hmd->survive_obj),
-	       survive_simple_object_name(sys->controllers[SURVIVE_LEFT_CONTROLLER]->survive_obj),
-	       survive_simple_object_name(sys->controllers[SURVIVE_RIGHT_CONTROLLER]->survive_obj));
 
 	return true;
 }
@@ -523,7 +499,6 @@ _process_event (struct survive_device *survive,
 			}
 			printf("\n");
 			*/
-
 
 
 			if (e->button_id == survive_0_btn) {
@@ -865,6 +840,11 @@ survive_found(struct xrt_prober *xp,
               size_t index,
               struct xrt_device **out_xdevs)
 {
+	if (survive_already_initialized) {
+		printf("Skipping libsurvive initialization, already initialized\n");
+		return 0;
+	}
+
 	SurviveSimpleContext *actx = NULL;
 #if 1
 	char *survive_args[] = {
@@ -898,6 +878,8 @@ survive_found(struct xrt_prober *xp,
 	_create_hmd_device(ss);
 	_create_controller_device(ss, 0);
 	_create_controller_device(ss, 1);
+	
+	//printf("Survive HMD %p, controller %p %p\n", ss->hmd, ss->controllers[0], ss->controllers[1]);
 
 	if (ss->print_debug) {
 		u_device_dump_config(&ss->hmd->base, __func__, "libsurvive");
@@ -907,5 +889,6 @@ survive_found(struct xrt_prober *xp,
 	out_xdevs[1] = &ss->controllers[0]->base;
 	out_xdevs[2] = &ss->controllers[1]->base;
 
+	survive_already_initialized = true;
 	return 3;
 }
