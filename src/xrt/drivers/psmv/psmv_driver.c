@@ -14,6 +14,7 @@
 #include "os/os_threading.h"
 
 #include "math/m_api.h"
+#include "math/m_imu.h"
 #include "tracking/t_imu.h"
 
 #include "util/u_var.h"
@@ -464,18 +465,6 @@ struct psmv_device
 			struct psmv_parsed_calibration_zcm1 zcm1;
 			struct psmv_parsed_calibration_zcm2 zcm2;
 		};
-
-		struct
-		{
-			struct xrt_vec3 factor;
-			struct xrt_vec3 bias;
-		} accel;
-
-		struct
-		{
-			struct xrt_vec3 factor;
-			struct xrt_vec3 bias;
-		} gyro;
 	} calibration;
 
 	struct
@@ -499,6 +488,11 @@ struct psmv_device
 		} fusion;
 	};
 
+	struct
+	{
+		//! Applies calibration data.
+		struct m_imu_pre_filter filter;
+	} imu;
 
 	struct
 	{
@@ -611,29 +605,13 @@ update_fusion(struct psmv_device *psmv,
               time_duration_ns delta_ns)
 {
 	struct xrt_vec3 mag = {0.0f, 0.0f, 0.0f};
-
 	(void)mag;
-
 
 	struct xrt_vec3_i32 *ra = &sample->accel;
 	struct xrt_vec3_i32 *rg = &sample->gyro;
 
-	psmv->read.accel.x = (ra->x - psmv->calibration.accel.bias.x) /
-	                     psmv->calibration.accel.factor.x *
-	                     MATH_GRAVITY_M_S2;
-	psmv->read.accel.y = (ra->y - psmv->calibration.accel.bias.y) /
-	                     psmv->calibration.accel.factor.y *
-	                     MATH_GRAVITY_M_S2;
-	psmv->read.accel.z = (ra->z - psmv->calibration.accel.bias.z) /
-	                     psmv->calibration.accel.factor.z *
-	                     MATH_GRAVITY_M_S2;
-
-	psmv->read.gyro.x = (rg->x - psmv->calibration.gyro.bias.x) /
-	                    psmv->calibration.gyro.factor.x;
-	psmv->read.gyro.y = (rg->y - psmv->calibration.gyro.bias.y) /
-	                    psmv->calibration.gyro.factor.y;
-	psmv->read.gyro.z = (rg->z - psmv->calibration.gyro.bias.z) /
-	                    psmv->calibration.gyro.factor.z;
+	m_imu_pre_filter_data(&psmv->imu.filter, ra, rg, &psmv->read.accel,
+	                      &psmv->read.gyro);
 
 	if (psmv->ball != NULL) {
 		struct xrt_tracking_sample sample;
@@ -1130,10 +1108,12 @@ psmv_found(struct xrt_prober *xp,
 		break;
 	default: assert(false);
 	}
-	u_var_add_vec3_f32(psmv, &psmv->calibration.accel.factor, "accel.factor");
-	u_var_add_vec3_f32(psmv, &psmv->calibration.accel.bias, "accel.bias");
-	u_var_add_vec3_f32(psmv, &psmv->calibration.gyro.factor, "gyro.factor");
-	u_var_add_vec3_f32(psmv, &psmv->calibration.gyro.bias, "gyro.bias");
+	u_var_add_vec3_f32(psmv, &psmv->imu.filter.accel.gain, "imu.accel.gain");
+	u_var_add_vec3_f32(psmv, &psmv->imu.filter.accel.bias, "imu.accel.bias");
+	u_var_add_f32(psmv, &psmv->imu.filter.accel.ticks_to_float, "imu.accel.ticks_to_float");
+	u_var_add_vec3_f32(psmv, &psmv->imu.filter.gyro.gain, "imu.gyro.gain");
+	u_var_add_vec3_f32(psmv, &psmv->imu.filter.gyro.bias, "imu.gyro.bias");
+	u_var_add_f32(psmv, &psmv->imu.filter.gyro.ticks_to_float, "imu.gyro.ticks_to_float");
 	u_var_add_gui_header(psmv, &psmv->gui.last_frame, "Last data");
 	u_var_add_ro_vec3_i32(psmv, &psmv->last.samples[0].accel, "last.samples[0].accel");
 	u_var_add_ro_vec3_i32(psmv, &psmv->last.samples[1].accel, "last.samples[1].accel");
@@ -1296,44 +1276,67 @@ psmv_get_calibration_zcm1(struct psmv_device *psmv)
 	 * Acceleration
 	 */
 
-	psmv->calibration.accel.factor.x =
-	    (zcm1->accel_max_x.x - zcm1->accel_min_x.x) / 2.0;
-	psmv->calibration.accel.factor.y =
-	    (zcm1->accel_max_y.y - zcm1->accel_min_y.y) / 2.0;
-	psmv->calibration.accel.factor.z =
-	    (zcm1->accel_max_z.z - zcm1->accel_min_z.z) / 2.0;
+	struct xrt_vec3 ag, ab;
+	ag.x = (zcm1->accel_max_x.x - zcm1->accel_min_x.x) / 2.0;
+	ag.y = (zcm1->accel_max_y.y - zcm1->accel_min_y.y) / 2.0;
+	ag.z = (zcm1->accel_max_z.z - zcm1->accel_min_z.z) / 2.0;
 
-	psmv->calibration.accel.bias.x =
-	    (zcm1->accel_min_y.x + zcm1->accel_max_y.x + zcm1->accel_min_z.x +
-	     zcm1->accel_max_z.x) /
-	    4.0;
-	psmv->calibration.accel.bias.y =
-	    (zcm1->accel_min_x.y + zcm1->accel_max_x.y + zcm1->accel_min_z.y +
-	     zcm1->accel_max_z.y) /
-	    4.0;
-	psmv->calibration.accel.bias.z =
-	    (zcm1->accel_min_x.z + zcm1->accel_max_x.z + zcm1->accel_min_y.z +
-	     zcm1->accel_max_y.z) /
-	    4.0;
+	ab.x = (zcm1->accel_min_y.x + zcm1->accel_max_y.x +
+	        zcm1->accel_min_z.x + zcm1->accel_max_z.x) /
+	       4.0;
+	ab.y = (zcm1->accel_min_x.y + zcm1->accel_max_x.y +
+	        zcm1->accel_min_z.y + zcm1->accel_max_z.y) /
+	       4.0;
+	ab.z = (zcm1->accel_min_x.z + zcm1->accel_max_x.z +
+	        zcm1->accel_min_y.z + zcm1->accel_max_y.z) /
+	       4.0;
 
 
 	/*
 	 * Gyro
 	 */
 
-	double gx =
-	    (zcm1->gyro_rot_x.x - (zcm1->gyro_bias_0.x * zcm1->gyro_fact.x));
-	double gy =
-	    (zcm1->gyro_rot_y.y - (zcm1->gyro_bias_0.y * zcm1->gyro_fact.y));
-	double gz =
-	    (zcm1->gyro_rot_z.z - (zcm1->gyro_bias_0.z * zcm1->gyro_fact.z));
+	struct xrt_vec3 gg, gb;
+	gg.x = (zcm1->gyro_rot_x.x - (zcm1->gyro_bias_0.x * zcm1->gyro_fact.x));
+	gg.y = (zcm1->gyro_rot_y.y - (zcm1->gyro_bias_0.y * zcm1->gyro_fact.y));
+	gg.z = (zcm1->gyro_rot_z.z - (zcm1->gyro_bias_0.z * zcm1->gyro_fact.z));
+	gb.x = 0.0f;
+	gb.y = 0.0f;
+	gb.z = 0.0f;
 
-	psmv->calibration.gyro.factor.x = (60.0 * gx) / (2.0 * M_PI * 80.0);
-	psmv->calibration.gyro.factor.y = (60.0 * gy) / (2.0 * M_PI * 80.0);
-	psmv->calibration.gyro.factor.z = (60.0 * gz) / (2.0 * M_PI * 80.0);
-	psmv->calibration.gyro.bias.x = 0.0;
-	psmv->calibration.gyro.bias.y = 0.0;
-	psmv->calibration.gyro.bias.z = 0.0;
+
+	/*
+	 * Into the pre-filter.
+	 */
+
+	// The tweak value makes the gains be close to 1.0, so a idealized IMU
+	// would have the identity gain. That is just setting gain to 1.0 and
+	// bias to 0.0 should give you something workable.
+
+	// clang-format off
+	double tweak_a = 4096.0 * 1.067;
+	double factor_a = MATH_GRAVITY_M_S2 / tweak_a;
+	psmv->imu.filter.accel.bias.x = ab.x * factor_a;
+	psmv->imu.filter.accel.bias.y = ab.y * factor_a;
+	psmv->imu.filter.accel.bias.z = ab.z * factor_a;
+	psmv->imu.filter.accel.gain.x = tweak_a / ag.x;
+	psmv->imu.filter.accel.gain.y = tweak_a / ag.y;
+	psmv->imu.filter.accel.gain.z = tweak_a / ag.z;
+	psmv->imu.filter.accel.ticks_to_float = factor_a;
+
+	double tweak_g = 4096.0 * 1.2;
+	double factor_g = ((2.0 * M_PI * 80.0) / 60.0) / tweak_g;
+	psmv->imu.filter.gyro.bias.x = gb.x * factor_g;
+	psmv->imu.filter.gyro.bias.y = gb.y * factor_g;
+	psmv->imu.filter.gyro.bias.z = gb.z * factor_g;
+	psmv->imu.filter.gyro.gain.x = tweak_g / gg.x;
+	psmv->imu.filter.gyro.gain.y = tweak_g / gg.y;
+	psmv->imu.filter.gyro.gain.z = tweak_g / gg.z;
+	psmv->imu.filter.gyro.ticks_to_float = factor_g;
+
+	// Identity rotation.
+	psmv->imu.filter.imu_to_head.orientation.w = 1.0f;
+	// clang-format on
 
 
 	/*
@@ -1378,12 +1381,12 @@ psmv_get_calibration_zcm1(struct psmv_device *psmv)
 	    zcm1->gyro_fact.x, zcm1->gyro_fact.y, zcm1->gyro_fact.z,
 	    zcm1->unknown_vec3.x, zcm1->unknown_vec3.y, zcm1->unknown_vec3.z,
 	    zcm1->unknown_float_0, zcm1->unknown_float_1,
-	    psmv->calibration.accel.factor.x, psmv->calibration.accel.factor.y,
-	    psmv->calibration.accel.factor.z, psmv->calibration.accel.bias.x,
-	    psmv->calibration.accel.bias.y, psmv->calibration.accel.bias.z,
-	    psmv->calibration.gyro.factor.x, psmv->calibration.gyro.factor.y,
-	    psmv->calibration.gyro.factor.z, psmv->calibration.gyro.bias.x,
-	    psmv->calibration.gyro.bias.y, psmv->calibration.gyro.bias.z);
+	    psmv->imu.filter.accel.gain.x, psmv->imu.filter.accel.gain.y,
+	    psmv->imu.filter.accel.gain.z, psmv->imu.filter.accel.bias.x,
+	    psmv->imu.filter.accel.bias.y, psmv->imu.filter.accel.bias.z,
+	    psmv->imu.filter.gyro.gain.x, psmv->imu.filter.gyro.gain.y,
+	    psmv->imu.filter.gyro.gain.z, psmv->imu.filter.gyro.bias.x,
+	    psmv->imu.filter.gyro.bias.y, psmv->imu.filter.gyro.bias.z);
 
 	return 0;
 }
@@ -1522,57 +1525,67 @@ psmv_get_calibration_zcm2(struct psmv_device *psmv)
 	 * Acceleration
 	 */
 
-	psmv->calibration.accel.factor.x =
-	    (zcm2->accel_max_x.x - zcm2->accel_min_x.x) / 2.0;
-	psmv->calibration.accel.factor.y =
-	    (zcm2->accel_max_y.y - zcm2->accel_min_y.y) / 2.0;
-	psmv->calibration.accel.factor.z =
-	    (zcm2->accel_max_z.z - zcm2->accel_min_z.z) / 2.0;
+	struct xrt_vec3 ag, ab;
+	ag.x = (zcm2->accel_max_x.x - zcm2->accel_min_x.x) / 2.0;
+	ag.y = (zcm2->accel_max_y.y - zcm2->accel_min_y.y) / 2.0;
+	ag.z = (zcm2->accel_max_z.z - zcm2->accel_min_z.z) / 2.0;
 
-	psmv->calibration.accel.bias.x =
-	    (zcm2->accel_min_y.x + zcm2->accel_max_y.x + zcm2->accel_min_z.x +
-	     zcm2->accel_max_z.x) /
-	    4.0;
-	psmv->calibration.accel.bias.y =
-	    (zcm2->accel_min_x.y + zcm2->accel_max_x.y + zcm2->accel_min_z.y +
-	     zcm2->accel_max_z.y) /
-	    4.0;
-	psmv->calibration.accel.bias.z =
-	    (zcm2->accel_min_x.z + zcm2->accel_max_x.z + zcm2->accel_min_y.z +
-	     zcm2->accel_max_y.z) /
-	    4.0;
+	ab.x = (zcm2->accel_min_y.x + zcm2->accel_max_y.x +
+	        zcm2->accel_min_z.x + zcm2->accel_max_z.x) /
+	       4.0;
+	ab.y = (zcm2->accel_min_x.y + zcm2->accel_max_x.y +
+	        zcm2->accel_min_z.y + zcm2->accel_max_z.y) /
+	       4.0;
+	ab.z = (zcm2->accel_min_x.z + zcm2->accel_max_x.z +
+	        zcm2->accel_min_y.z + zcm2->accel_max_y.z) /
+	       4.0;
 
 
 	/*
 	 * Gyro
 	 */
 
-	double gx = (zcm2->gyro_pos_x.x - zcm2->gyro_neg_x.x) / 2.0;
-	double gy = (zcm2->gyro_pos_y.y - zcm2->gyro_neg_y.y) / 2.0;
-	double gz = (zcm2->gyro_pos_z.z - zcm2->gyro_neg_z.z) / 2.0;
+	struct xrt_vec3 gg, gb;
+	gg.x = (zcm2->gyro_pos_x.x - zcm2->gyro_neg_x.x) / 2.0;
+	gg.y = (zcm2->gyro_pos_y.y - zcm2->gyro_neg_y.y) / 2.0;
+	gg.z = (zcm2->gyro_pos_z.z - zcm2->gyro_neg_z.z) / 2.0;
+	gb.x = zcm2->gyro_bias.x;
+	gb.y = zcm2->gyro_bias.y;
+	gb.z = zcm2->gyro_bias.z;
 
-	psmv->calibration.gyro.factor.x = (60.0 * gx) / (2.0 * M_PI * 90.0);
-	psmv->calibration.gyro.factor.y = (60.0 * gy) / (2.0 * M_PI * 90.0);
-	psmv->calibration.gyro.factor.z = (60.0 * gz) / (2.0 * M_PI * 90.0);
 
-#if 0
-	psmv->calibration.gyro.bias.x =
-	    (zcm2->gyro_neg_y.x + zcm2->gyro_pos_y.x + zcm2->gyro_neg_z.x +
-	     zcm2->gyro_pos_z.x) /
-	    4.0;
-	psmv->calibration.gyro.bias.y =
-	    (zcm2->gyro_neg_x.y + zcm2->gyro_pos_x.y + zcm2->gyro_neg_z.y +
-	     zcm2->gyro_pos_z.y) /
-	    4.0;
-	psmv->calibration.gyro.bias.z =
-	    (zcm2->gyro_neg_x.z + zcm2->gyro_pos_x.z + zcm2->gyro_neg_y.z +
-	     zcm2->gyro_pos_y.z) /
-	    4.0;
-#else
-	psmv->calibration.gyro.bias.x = zcm2->gyro_bias.x;
-	psmv->calibration.gyro.bias.y = zcm2->gyro_bias.y;
-	psmv->calibration.gyro.bias.z = zcm2->gyro_bias.z;
-#endif
+	/*
+	 * Into the pre-filter.
+	 */
+
+	// The tweak value makes the gains be close to 1.0, so a idealized IMU
+	// would have the identity gain. That is just setting gain to 1.0 and
+	// bias to 0.0 should give you something workable.
+
+	// clang-format off
+	double tweak_a = 4096.0;
+	double factor_a = MATH_GRAVITY_M_S2 / tweak_a;
+	psmv->imu.filter.accel.bias.x = ab.x * factor_a;
+	psmv->imu.filter.accel.bias.y = ab.y * factor_a;
+	psmv->imu.filter.accel.bias.z = ab.z * factor_a;
+	psmv->imu.filter.accel.gain.x = tweak_a / ag.x;
+	psmv->imu.filter.accel.gain.y = tweak_a / ag.y;
+	psmv->imu.filter.accel.gain.z = tweak_a / ag.z;
+	psmv->imu.filter.accel.ticks_to_float = factor_a;
+
+	double tweak_g = 4096.0 * (M_PI / 2.0);
+	double factor_g = ((2.0 * M_PI * 90.0) / 60.0) / tweak_g;
+	psmv->imu.filter.gyro.bias.x = gb.x * factor_g;
+	psmv->imu.filter.gyro.bias.y = gb.y * factor_g;
+	psmv->imu.filter.gyro.bias.z = gb.z * factor_g;
+	psmv->imu.filter.gyro.gain.x = tweak_g / gg.x;
+	psmv->imu.filter.gyro.gain.y = tweak_g / gg.y;
+	psmv->imu.filter.gyro.gain.z = tweak_g / gg.z;
+	psmv->imu.filter.gyro.ticks_to_float = factor_g;
+
+	// Identity rotation.
+	psmv->imu.filter.imu_to_head.orientation.w = 1.0f;
+	// clang-format on
 
 
 	/*
@@ -1614,12 +1627,12 @@ psmv_get_calibration_zcm2(struct psmv_device *psmv)
 	    zcm2->gyro_neg_z.x, zcm2->gyro_neg_z.y, zcm2->gyro_neg_z.z,
 	    zcm2->gyro_pos_z.x, zcm2->gyro_pos_z.y, zcm2->gyro_pos_z.z,
 	    zcm2->gyro_bias.x, zcm2->gyro_bias.y, zcm2->gyro_bias.z,
-	    psmv->calibration.accel.factor.x, psmv->calibration.accel.factor.y,
-	    psmv->calibration.accel.factor.z, psmv->calibration.accel.bias.x,
-	    psmv->calibration.accel.bias.y, psmv->calibration.accel.bias.z,
-	    psmv->calibration.gyro.factor.x, psmv->calibration.gyro.factor.y,
-	    psmv->calibration.gyro.factor.z, psmv->calibration.gyro.bias.x,
-	    psmv->calibration.gyro.bias.y, psmv->calibration.gyro.bias.z);
+	    psmv->imu.filter.accel.gain.x, psmv->imu.filter.accel.gain.y,
+	    psmv->imu.filter.accel.gain.z, psmv->imu.filter.accel.bias.x,
+	    psmv->imu.filter.accel.bias.y, psmv->imu.filter.accel.bias.z,
+	    psmv->imu.filter.gyro.gain.x, psmv->imu.filter.gyro.gain.y,
+	    psmv->imu.filter.gyro.gain.z, psmv->imu.filter.gyro.bias.x,
+	    psmv->imu.filter.gyro.bias.y, psmv->imu.filter.gyro.bias.z);
 
 	return 0;
 }
