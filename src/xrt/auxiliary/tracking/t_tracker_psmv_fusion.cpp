@@ -25,12 +25,12 @@
 #include "flexkalman/FlexibleKalmanFilter.h"
 #include "flexkalman/FlexibleUnscentedCorrect.h"
 #include "flexkalman/PoseSeparatelyDampedConstantVelocity.h"
-#include "flexkalman/PoseState.h"
+#include "flexkalman/PoseStateExponentialMap.h"
 
 
-using State = flexkalman::pose_externalized_rotation::State;
+using State = flexkalman::pose_exp_map::State;
 using ProcessModel =
-    flexkalman::PoseSeparatelyDampedConstantVelocityProcessModel;
+    flexkalman::PoseSeparatelyDampedConstantVelocityProcessModel<State>;
 
 namespace xrt_fusion {
 

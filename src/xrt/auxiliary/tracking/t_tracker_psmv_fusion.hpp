@@ -43,6 +43,21 @@ public:
 	    timepoint_ns timestamp_ns,
 	    const struct xrt_tracking_sample *sample,
 	    const struct xrt_vec3 *orientation_variance_optional) = 0;
+
+	/*!
+	 * @brief Incorporate vision-based tracking info.
+	 *
+	 * @param timestamp_ns Time the image was acquired.
+	 * @param position The measured 3D position of the light-up sphere.
+	 * @param variance_optional Measurement variance, if you want to
+	 * override the default.
+	 * @param lever_arm_optional Distance from the "origin" to the tracked
+	 * location, if you wish to override the default.
+	 * @param residual_limit The limit for residual (distance between
+	 * expected and measured) that will trigger a tracker resete for
+	 * inconsistency.
+	 *
+	 */
 	virtual void
 	process_3d_vision_data(timepoint_ns timestamp_ns,
 	                       const struct xrt_vec3 *position,

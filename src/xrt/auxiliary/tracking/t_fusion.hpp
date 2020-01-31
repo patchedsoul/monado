@@ -19,7 +19,7 @@
 #include "flexkalman/AugmentedProcessModel.h"
 #include "flexkalman/AugmentedState.h"
 #include "flexkalman/BaseTypes.h"
-#include "flexkalman/PoseState.h"
+#include "flexkalman/PoseStateExponentialMap.h"
 
 
 namespace xrt_fusion {
@@ -188,7 +188,7 @@ class AbsolutePositionLeverArmMeasurement
 {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-	using State = flexkalman::pose_externalized_rotation::State;
+	using State = flexkalman::pose_exp_map::State;
 	static constexpr size_t Dimension = 3;
 	using MeasurementVector = types::Vector<Dimension>;
 	using MeasurementSquareMatrix = types::SquareMatrix<Dimension>;
