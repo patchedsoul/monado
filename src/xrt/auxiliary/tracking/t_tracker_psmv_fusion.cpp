@@ -166,7 +166,12 @@ namespace {
 	    const struct xrt_vec3 *lever_arm_optional,
 	    float residual_limit)
 	{
-		Eigen::Vector3f pos = map_vec3(*position);
+		// While the filter will eventually "learn" the alignment of the
+		// two frames, we can speed it up by pre-transforming by this
+		// ballpark estimate.
+		Eigen::Vector3f pos =
+		    // Eigen::AngleAxisf(EIGEN_PI, Eigen::Vector3f::UnitY()) *
+		    map_vec3(*position);
 		Eigen::Vector3d variance{1.e-4, 1.e-4, 4.e-4};
 		if (variance_optional) {
 			variance = map_vec3(*variance_optional).cast<double>();

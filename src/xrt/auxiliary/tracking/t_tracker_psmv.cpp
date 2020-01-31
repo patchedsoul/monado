@@ -15,6 +15,7 @@
 #include "tracking/t_calibration_opencv.hpp"
 #include "tracking/t_tracker_psmv_fusion.hpp"
 #include "tracking/t_helper_debug_sink.hpp"
+#include "tracking/t_conefitting.hpp"
 
 #include "util/u_var.h"
 #include "util/u_misc.h"
@@ -29,7 +30,14 @@
 #include <stdio.h>
 #include <assert.h>
 #include <pthread.h>
+#include <numeric>
 
+static const xrt_vec3 sphere_lever_arm = {0, 0.9, 0};
+
+using Contour = std::vector<cv::Point>;
+
+constexpr float SphereRadius = 0.045f / 2.f;
+constexpr size_t MinPoints = 6;
 
 /*!
  * Single camera.
@@ -43,6 +51,13 @@ struct View
 	cv::Mat distortion; // size may vary
 	cv::Vec4d distortion_fisheye;
 	bool use_fisheye;
+	std::unique_ptr<NormalizedCoordsCache> norm_coords;
+	ConeFitter cone_fitter;
+	cv::Vec3f position;
+	bool position_valid;
+
+	xrt_pose calibration_transform;
+	bool transform_valid;
 
 	std::vector<cv::KeyPoint> keypoints;
 
@@ -57,6 +72,11 @@ struct View
 		distortion = wrap.distortion_mat.clone();
 		distortion_fisheye = wrap.distortion_fisheye_mat;
 		use_fisheye = wrap.use_fisheye;
+
+		assert(!use_fisheye);
+		norm_coords.reset(new NormalizedCoordsCache(
+		    wrap.image_size_pixels_cv, wrap.intrinsics_mat,
+		    wrap.distortion_mat));
 
 		undistort_rectify_map_x = rectification.remap_x;
 		undistort_rectify_map_y = rectification.remap_y;
@@ -146,6 +166,138 @@ do_view(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
 		    cv::Scalar(255, 0, 0),                      // color
 		    cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS); // flags
 	}
+}
+
+static Contour
+combineContours(std::vector<Contour> &contours)
+{
+	Contour allPixels;
+	if (contours.size() == 1) {
+		allPixels = std::move(contours[0]);
+		// avoid undef behavior in case we accidentally access it
+		// outside this function.
+		contours[0].clear();
+	} else if (contours.size() > 1) {
+		auto totalPixels =
+		    std::accumulate(contours.begin(), contours.end(), size_t(0),
+		                    [](size_t prevSize, Contour const &c) {
+			                    return prevSize + c.size();
+		                    });
+		allPixels.reserve(totalPixels);
+		for (const auto &contour : contours) {
+			allPixels.insert(allPixels.end(), contour.begin(),
+			                 contour.end());
+		}
+		std::cout << "We found " << contours.size()
+		          << " contours with a total of " << totalPixels
+		          << " pixels.\n";
+	}
+	return allPixels;
+}
+static inline std::vector<Contour>
+getContours(cv::Mat frame)
+{
+	std::vector<Contour> output;
+	// Not actually used, but can't pass a temporary.
+	cv::Mat hierarchy;
+	//! @todo we can probably do better than this generic algorithm.
+	//! @todo we also need to return the associated "outside" pixel so we
+	//! can get the "between" vector
+	cv::findContours(frame, output, hierarchy, cv::RETR_EXTERNAL,
+	                 cv::CHAIN_APPROX_NONE);
+	return output;
+}
+
+static std::vector<cv::Vec2f>
+makeContourFloat(Contour const &allPixels)
+{
+
+	std::vector<cv::Vec2f> points;
+	points.reserve(allPixels.size());
+	for (const auto &pt : allPixels) {
+		points.emplace_back(pt.x, pt.y);
+	}
+	return points;
+}
+
+
+static void
+plot_points_by_index(cv::Mat &frame,
+                     Contour const &allPixels,
+                     std::vector<size_t> const &indices,
+                     cv::Vec3b color)
+{
+	for (auto index : indices) {
+		auto px = allPixels[index];
+		frame.at<cv::Vec3b>(px.y, px.x) = color;
+	}
+}
+
+/*!
+ * @brief Perform per-view (two in a stereo camera image) processing on an
+ * image, before tracking math is performed.
+ *
+ * This runs the bulk of the tracking because of cone-fitting.
+ */
+static bool
+do_view_cone(TrackerPSMV &t, View &view, cv::Mat &grey, cv::Mat &rgb)
+{
+
+	std::vector<Contour> output;
+
+	auto contours = getContours(grey);
+
+	auto allPixels = combineContours(contours);
+	if (allPixels.empty()) {
+		return false;
+	}
+	auto points = makeContourFloat(allPixels);
+
+	std::vector<cv::Vec3f> directions;
+	for (const auto &point : points) {
+		cv::Vec3d normalizedVec =
+		    view.norm_coords->getNormalizedVector(point);
+		directions.emplace_back(normalizedVec);
+	}
+
+	cv::Vec3f position;
+	std::vector<size_t> indices;
+	if (view.cone_fitter.fit_cone_and_get_inlier_indices(
+	        directions, MinPoints, SphereRadius, position, indices)) {
+		// Debug is wanted, draw the keypoints.
+		if (rgb.cols > 0) {
+			plot_points_by_index(rgb, allPixels, indices,
+			                     cv::Vec3b(0, 255, 0));
+		}
+		// y axis in world is inverted from camera-land
+		position[1] = -position[1];
+		view.position = position;
+		return true;
+	}
+	return false;
+}
+
+
+static void
+incorporate_cone_fit_tracking(TrackerPSMV &t,
+                              const View &view,
+                              timepoint_ns timestamp)
+{
+	xrt_vec3 pos = {view.position[0], view.position[1], view.position[2]};
+	if (view.transform_valid) {
+		math_pose_transform_point(&view.calibration_transform, &pos,
+		                          &pos);
+	}
+	t.tracked_object_position = pos;
+	// std::cout << "Transformed position is [" << pos.x << ", " << pos.y
+	//           << ", " << pos.z << "]\n";
+	//! @todo these are crude guesses.
+	const xrt_vec3 variance = {0.001, 0.001, 0.001};
+	t.filter->process_3d_vision_data(timestamp, &pos, &variance,
+	                                 &sphere_lever_arm,
+	                                 //! @todo tune cutoff for residual
+	                                 //! arbitrarily "too large"
+	                                 15);
 }
 
 /*!
@@ -324,18 +476,26 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	t.view[0].keypoints.clear();
 	t.view[1].keypoints.clear();
-
 	int cols = xf->width / 2;
 	int rows = xf->height;
 	int stride = xf->stride;
 
+
+	if (t.debug.frame != NULL) {
+		t.debug.rgb[0] = cv::Mat::zeros(t.debug.rgb[0].size(), CV_8UC3);
+		t.debug.rgb[1] = cv::Mat::zeros(t.debug.rgb[1].size(), CV_8UC3);
+		// .copyTo()
+		// .copyTo(t.debug.rgb[1]);
+	}
 	cv::Mat l_grey(rows, cols, CV_8UC1, xf->data, stride);
 	cv::Mat r_grey(rows, cols, CV_8UC1, xf->data + cols, stride);
 
-	do_view(t, t.view[0], l_grey, t.debug.rgb[0]);
-	do_view(t, t.view[1], r_grey, t.debug.rgb[1]);
+	t.view[0].position_valid =
+	    do_view_cone(t, t.view[0], l_grey, t.debug.rgb[0]);
+	t.view[1].position_valid =
+	    do_view_cone(t, t.view[1], r_grey, t.debug.rgb[1]);
 
-	bool gotTracking = stereo_blob_tracking(t, l_grey, r_grey);
+	timepoint_ns timestamp = xf->timestamp;
 
 	// Update debug view
 	if (t.debug.frame != NULL) {
@@ -350,7 +510,13 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 	// We are done with the frame.
 	xrt_frame_reference(&xf, NULL);
 
-	incorporate_stereo_blob_tracking(t, gotTracking);
+	// incorporate_stereo_blob_tracking(t, gotTracking);
+	if (t.view[0].position_valid) {
+		incorporate_cone_fit_tracking(t, t.view[0], timestamp);
+	}
+	if (t.view[1].position_valid) {
+		incorporate_cone_fit_tracking(t, t.view[1], timestamp);
+	}
 }
 
 /*!
@@ -609,8 +775,24 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	t.view[0].populate_from_calib(data->view[0], rectify.view[0].rectify);
 	t.view[1].populate_from_calib(data->view[1], rectify.view[1].rectify);
 	t.disparity_to_depth = rectify.disparity_to_depth_mat;
+	std::cout << t.disparity_to_depth << std::endl;
 	t.r_cam_rotation = wrapped.camera_rotation_mat;
 	t.r_cam_translation = wrapped.camera_translation_mat;
+	{
+		xrt_pose &transform = t.view[0].calibration_transform;
+		t.view[0].transform_valid = true;
+		transform.orientation.w = 1;
+		transform.position.x = t.r_cam_translation[0];
+		transform.position.y = t.r_cam_translation[1];
+		transform.position.z = t.r_cam_translation[2];
+		xrt_matrix_3x3 rot_mat;
+		for (size_t i = 0; i < 3; ++i) {
+			for (size_t j = 0; j < 3; ++j) {
+				rot_mat.v[i * 3 + j] = t.r_cam_rotation(i, j);
+			}
+		}
+		math_quat_from_matrix_3x3(&rot_mat, &transform.orientation);
+	}
 	t.calibrated = true;
 
 	// clang-format off
