@@ -55,78 +55,9 @@ namespace pose_exp_map {
     using ConstStateVectorBlock6 =
         StateVector::ConstFixedSegmentReturnType<6>::Type;
     using StateSquareMatrix = types::SquareMatrix<Dimension>;
-#if 0
-    //! @name Accessors to blocks in the state vector.
-    /// @{
-    inline StateVectorBlock3 position(StateVector &vec) {
-        return vec.head<3>();
-    }
-    inline ConstStateVectorBlock3 position(StateVector const &vec) {
-        return vec.head<3>();
-    }
-
-    inline StateVectorBlock3 orientation(StateVector &vec) {
-        return vec.segment<3>(3);
-    }
-    inline ConstStateVectorBlock3 orientation(StateVector const &vec) {
-        return vec.segment<3>(3);
-    }
-
-    inline StateVectorBlock3 velocity(StateVector &vec) {
-        return vec.segment<3>(6);
-    }
-    inline ConstStateVectorBlock3 velocity(StateVector const &vec) {
-        return vec.segment<3>(6);
-    }
-
-    inline StateVectorBlock3 angularVelocity(StateVector &vec) {
-        return vec.segment<3>(9);
-    }
-    inline ConstStateVectorBlock3 angularVelocity(StateVector const &vec) {
-        return vec.segment<3>(9);
-    }
-
-    //! both translational and angular velocities
-    inline StateVectorBlock6 velocities(StateVector &vec) {
-        return vec.segment<6>(6);
-    }
-    //! @}
-#endif
     inline double computeAttenuation(double damping, double dt) {
         return std::pow(damping, dt);
     }
-#if 0
-    inline StateSquareMatrix
-    stateTransitionMatrixWithVelocityDamping(double dt, double damping) {
-
-        // eq. 4.5 in Welch 1996
-
-        auto A = stateTransitionMatrix(dt);
-        auto attenuation = computeAttenuation(damping, dt);
-        A.bottomRightCorner<6, 6>() *= attenuation;
-        return A;
-    }
-    //! Computes A(deltaT)xhat(t-deltaT)
-    inline StateVector applyVelocity(StateVector const &state, double dt) {
-        // eq. 4.5 in Welch 1996
-
-        /*!
-         * @todo benchmark - assuming for now that the manual small
-         * calcuations are faster than the matrix ones.
-         */
-
-        StateVector ret = state;
-        position(ret) += velocity(state) * dt;
-        orientation(ret) += angularVelocity(state) * dt;
-        return ret;
-    }
-
-    inline void dampenVelocities(StateVector &state, double damping,
-                                 double dt) {
-        auto attenuation = computeAttenuation(damping, dt);
-        velocities(state) *= attenuation;
-    }
-#endif
     class State : public StateBase<State> {
       public:
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -194,6 +125,17 @@ namespace pose_exp_map {
             return m_state.segment<3>(3);
         }
 
+        /*!
+         * Get the position and quaternion combined into a single isometry
+         * (transformation)
+         */
+        Eigen::Isometry3d getIsometry() const {
+            Eigen::Isometry3d ret;
+            ret.fromPositionOrientationScale(position(), getQuaternion(),
+                                             Eigen::Vector3d::Constant(1));
+            return ret;
+        }
+
       private:
         /*!
          * In order: x, y, z, exponential rotation coordinates w1, w2, w3,
@@ -228,6 +170,40 @@ namespace pose_exp_map {
         A.topRightCorner<6, 6>() = types::SquareMatrix<6>::Identity() * dt;
 
         return A;
+    }
+
+    inline StateSquareMatrix
+    stateTransitionMatrixWithVelocityDamping(State const &s, double dt,
+                                             double damping) {
+
+        // eq. 4.5 in Welch 1996
+
+        auto A = stateTransitionMatrix(s, dt);
+        auto attenuation = computeAttenuation(damping, dt);
+        A.bottomRightCorner<6, 6>() *= attenuation;
+        return A;
+    }
+
+    /*!
+     * Returns the state transition matrix for a constant velocity with
+     * separate damping paramters for linear and angular velocity (not for
+     * direct use in computing state transition, because it is very sparse,
+     * but in computing other values)
+     */
+    inline StateSquareMatrix stateTransitionMatrixWithSeparateVelocityDamping(
+        State const &state, double dt, double posDamping, double oriDamping) {
+        // eq. 4.5 in Welch 1996
+        auto A = stateTransitionMatrix(state, dt);
+        A.block<3, 3>(6, 6) *= computeAttenuation(posDamping, dt);
+        A.bottomRightCorner<3, 3>() *= computeAttenuation(oriDamping, dt);
+        return A;
+    }
+
+    //! Separately dampen the linear and angular velocities
+    inline void separatelyDampenVelocities(State &state, double posDamping,
+                                           double oriDamping, double dt) {
+        state.velocity() *= computeAttenuation(posDamping, dt);
+        state.angularVelocity() *= computeAttenuation(oriDamping, dt);
     }
 
     /// Computes A(deltaT)xhat(t-deltaT) (or, the more precise, non-linear thing
