@@ -175,7 +175,6 @@ _get_survive_pose(const SurviveSimpleObject *survive_object,
 			.y = pose.Rot[2],
 			.z = pose.Rot[3],
 			.w = pose.Rot[0]
-			
 		};
 		//printf ("quat %f %f %f %f\n", out_rot.x, out_rot.y, out_rot.z, out_rot.w);
 
@@ -233,12 +232,12 @@ _try_update_codenames(struct survive_system *sys)
 			printf("Found HMD: %s\n", codename);
 			sys->hmd->survive_obj = it;
 		}
-		if (type == SurviveSimpleObject_OBJECT) {			
+		if (type == SurviveSimpleObject_OBJECT) {
 			for (int i = 0; i < 2 /* TODO */; i++) {
 				if (sys->controllers[i]->survive_obj == it) {
 					break;
 				}
-				
+
 				if (sys->controllers[i]->survive_obj == NULL) {
 					printf("Found Controller %d: %s\n", i, codename);
 					sys->controllers[i]->survive_obj = it;
@@ -878,7 +877,7 @@ survive_found(struct xrt_prober *xp,
 	_create_hmd_device(ss);
 	_create_controller_device(ss, 0);
 	_create_controller_device(ss, 1);
-	
+
 	//printf("Survive HMD %p, controller %p %p\n", ss->hmd, ss->controllers[0], ss->controllers[1]);
 
 	if (ss->print_debug) {
