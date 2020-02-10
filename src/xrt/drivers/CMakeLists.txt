@@ -147,6 +147,8 @@ if (BUILD_WITH_LIBSURVIVE)
 	set(SURVIVE_SOURCE_FILES
 		survive/survive_driver.c
 		survive/survive_interface.h
+		survive/survive_wrap.c
+		survive/survive_wrap.h
 		)
 
 	# Use OBJECT to not create a archive, since it just gets in the way.
@@ -158,5 +160,6 @@ if (BUILD_WITH_LIBSURVIVE)
 		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include
 		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include/libsurvive
 		${PROJECT_SOURCE_DIR}/src/external/libsurvive/redist
+		SYSTEM PRIVATE ../../external
 		)
 endif()

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <string.h>
 
 #include "math/m_api.h"
 #include "xrt/xrt_device.h"
@@ -21,10 +22,16 @@
 #include "util/u_time.h"
 #include "util/u_device.h"
 
+#include "../auxiliary/os/os_time.h"
+
 #include "xrt/xrt_prober.h"
 #include "survive_interface.h"
 
 #include "survive_api.h"
+
+#include "survive_wrap.h"
+
+#include "util/u_json.h"
 
 #define SURVIVE_SPEW(p, ...)                                                   \
 	do {                                                                   \
@@ -101,6 +108,16 @@ struct survive_device
 	 * type != SurviveSimpleEventType_None */
 	struct SurviveSimpleEvent pending_events[30];
 	int num;
+
+	struct xrt_quat rot[2];
+};
+
+enum VIVE_VARIANT
+{
+	VIVE_UNKNOWN = 0,
+	VIVE_VARIANT_VIVE,
+	VIVE_VARIANT_PRO,
+	VIVE_VARIANT_INDEX
 };
 
 struct survive_system
@@ -111,6 +128,7 @@ struct survive_system
 	struct survive_device *controllers[2];
 	bool print_spew;
 	bool print_debug;
+	enum VIVE_VARIANT variant;
 };
 
 static void
@@ -298,6 +316,8 @@ survive_device_get_view_pose(struct xrt_device *xdev,
 	struct xrt_pose pose = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 	bool adjust = view_index == 0;
 
+	struct survive_device *survive = (struct survive_device*) xdev;
+	pose.orientation = survive->rot[view_index];
 	pose.position.x = eye_relation->x / 2.0f;
 	pose.position.y = eye_relation->y / 2.0f;
 	pose.position.z = eye_relation->z / 2.0f;
@@ -345,85 +365,6 @@ struct device_info
 		float lens_center_y_meters;
 	} views[2];
 };
-
-static struct device_info
-get_info()
-{
-	struct device_info info = {0};
-
-	//! @todo: hardcoded values for Vive 1 from openhmd vive driver
-	info.display.w_meters = 0.122822f;
-	info.display.h_meters = 0.068234f;
-	info.lens_horizontal_separation = 0.056;
-	info.lens_vertical_position = 0.032;
-	info.views[0].fov =
-	    2 * atan2f(0.122822f / 2. - 0.056 / 2., 0.023226876441867737);
-	info.views[1].fov = info.views[0].fov;
-	info.display.w_pixels = 2160;
-	info.display.h_pixels = 1200;
-	info.pano_distortion_k[0] = 1.318397;
-	info.pano_distortion_k[1] = -1.490242;
-	info.pano_distortion_k[2] = 0.663824;
-	info.pano_distortion_k[3] = 0.508021;
-	info.pano_aberration_k[0] = 1.00010147892f;
-	info.pano_aberration_k[1] = 1.000f;
-	info.pano_aberration_k[2] = 1.00019614479f;
-
-	/*
-	 * Assumptions made here:
-	 *
-	 * - There is a single, continuous, flat display serving both eyes, with
-	 *   no dead space/gap between eyes.
-	 * - This single panel is (effectively) perpendicular to the forward
-	 *   (-Z) direction, with edges aligned with the X and Y axes.
-	 * - Lens position is symmetrical about the center ("bridge of  nose").
-	 * - Pixels are square and uniform across the entirety of the panel.
-	 *
-	 * If any of these are not true, then either the rendering will
-	 * be inaccurate, or the properties will have to be "fudged" to
-	 * make the math work.
-	 */
-
-	info.views[0].display.w_meters = info.display.w_meters / 2.0;
-	info.views[0].display.h_meters = info.display.h_meters;
-	info.views[1].display.w_meters = info.display.w_meters / 2.0;
-	info.views[1].display.h_meters = info.display.h_meters;
-
-	info.views[0].display.w_pixels = info.display.w_pixels / 2;
-	info.views[0].display.h_pixels = info.display.h_pixels;
-	info.views[1].display.w_pixels = info.display.w_pixels / 2;
-	info.views[1].display.h_pixels = info.display.h_pixels;
-
-	/*
-	 * Assuming the lenses are centered vertically on the
-	 * display. It's not universal, but 0.5 COP on Y is more
-	 * common than on X, and it looked like many of the
-	 * driver lens_vpos values were copy/pasted or marked
-	 * with FIXME. Safer to fix it to 0.5 than risk an
-	 * extreme geometry mismatch.
-	 */
-
-	const double cop_y = 0.5;
-	const double h_1 = cop_y * info.display.h_meters;
-
-	//! @todo This are probably all wrong!
-	info.views[0].lens_center_x_meters =
-	    info.views[0].display.w_meters -
-	    info.lens_horizontal_separation / 2.0;
-	info.views[0].lens_center_y_meters = h_1;
-
-	info.views[1].lens_center_x_meters =
-	    info.lens_horizontal_separation / 2.0;
-	info.views[1].lens_center_y_meters = h_1;
-
-	//! @todo This is most definitely wrong!
-	//!       3Glasses likes the oposite better.
-	info.pano_warp_scale = (info.views[0].lens_center_x_meters >
-	                        info.views[0].lens_center_x_meters)
-	                           ? info.views[0].lens_center_x_meters
-	                           : info.views[0].lens_center_x_meters;
-	return info;
-}
 
 static void
 survive_hmd_update_inputs(struct xrt_device *xdev, struct time_state *timekeeping)
@@ -607,6 +548,235 @@ survive_device_update_inputs(struct xrt_device *xdev, struct time_state *timekee
 }
 
 static bool
+wait_for_hmd_config(SurviveSimpleContext* ctx)
+{
+	for (const SurviveSimpleObject *it =
+		survive_simple_get_first_object(ctx);
+		it != 0; it = survive_simple_get_next_object(ctx, it)) {
+
+		enum SurviveSimpleObject_type  type = survive_simple_object_get_type(it);
+		if (type == SurviveSimpleObject_HMD &&
+			 survive_config_ready (it))
+			return true;
+	}
+	return false;
+}
+
+void
+print_vec3(const char *title, struct xrt_vec3 *vec)
+{
+	printf("%s = %f %f %f\n", title, (double)vec->x, (double)vec->y,
+	       (double)vec->z);
+}
+
+
+static void
+_array_to_vec3(const float array[3], struct xrt_vec3 *result)
+{
+	result->x = array[0];
+	result->y = array[1];
+	result->z = array[2];
+}
+
+static void
+_json_to_vec3(const cJSON *json, struct xrt_vec3 *result)
+{
+	float result_array[3];
+
+	assert(cJSON_GetArraySize(json) == 3);
+	const cJSON *item = NULL;
+	size_t i = 0;
+	cJSON_ArrayForEach(item, json)
+	{
+		assert(cJSON_IsNumber(item));
+		result_array[i] = (float)item->valuedouble;
+		++i;
+		if (i == 3) {
+			break;
+		}
+	}
+
+	_array_to_vec3(result_array, result);
+}
+
+static long long
+_json_to_int(const cJSON *item)
+{
+	if (item != NULL) {
+		return item->valueint;
+	} else {
+		return 0;
+	}
+}
+
+static void
+_json_get_vec3(const cJSON *json, const char *name, struct xrt_vec3 *result)
+{
+	const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
+
+	_json_to_vec3(item, result);
+}
+
+static bool
+_json_get_matrix_3x3(const cJSON *json,
+                     const char *name,
+                     struct xrt_matrix_3x3 *result)
+{
+	const cJSON *vec3_arr = cJSON_GetObjectItemCaseSensitive(json, name);
+
+	// Some sanity checking.
+	if (vec3_arr == NULL || cJSON_GetArraySize(vec3_arr) != 3) {
+		return false;
+	}
+
+	size_t total = 0;
+	const cJSON *vec = NULL;
+	cJSON_ArrayForEach(vec, vec3_arr)
+	{
+		assert(cJSON_GetArraySize(vec) == 3);
+		const cJSON *elem = NULL;
+		cJSON_ArrayForEach(elem, vec)
+		{
+			// Just in case.
+			if (total >= 9) {
+				break;
+			}
+
+			assert(cJSON_IsNumber(elem));
+			result->v[total++] = (float)elem->valuedouble;
+		}
+	}
+
+	return true;
+}
+
+static char *
+_json_get_string(const cJSON *json, const char *name)
+{
+	const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
+	return strdup(item->string);
+}
+
+static double
+_json_get_double(const cJSON *json, const char *name)
+{
+	const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
+	return item->valuedouble;
+}
+
+static float
+_json_get_float(const cJSON *json, const char *name)
+{
+	const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
+	return (float)item->valuedouble;
+}
+
+static long long
+_json_get_int(const cJSON *json, const char *name)
+{
+	const cJSON *item = cJSON_GetObjectItemCaseSensitive(json, name);
+	return _json_to_int(item);
+}
+
+static void
+_get_color_coeffs(struct xrt_hmd_parts *hmd,
+                  const cJSON *coeffs,
+                  uint8_t eye,
+                  uint8_t channel)
+{
+	// this is 4 on index, all values populated
+	// assert(coeffs->length == 8);
+	// only 3 coeffs contain values
+	const cJSON *item = NULL;
+	size_t i = 0;
+	cJSON_ArrayForEach(item, coeffs)
+	{
+		hmd->distortion.vive.coefficients[eye][i][channel] =
+		    (float)item->valuedouble;
+		++i;
+		if (i == 3) {
+			break;
+		}
+	}
+}
+
+static void
+_get_color_coeffs_lookup(struct xrt_hmd_parts *hmd,
+                         const cJSON *eye_json,
+                         const char *name,
+                         uint8_t eye,
+                         uint8_t channel)
+{
+	const cJSON *distortion =
+	    cJSON_GetObjectItemCaseSensitive(eye_json, name);
+	if (distortion == NULL) {
+		return;
+	}
+
+	const cJSON *coeffs =
+	    cJSON_GetObjectItemCaseSensitive(distortion, "coeffs");
+	if (coeffs == NULL) {
+		return;
+	}
+
+	_get_color_coeffs(hmd, coeffs, eye, channel);
+}
+
+static void
+_get_pose_from_pos_x_z(const cJSON *obj, struct xrt_pose *pose)
+{
+	struct xrt_vec3 plus_x, plus_z;
+	_json_get_vec3(obj, "plus_x", &plus_x);
+	_json_get_vec3(obj, "plus_z", &plus_z);
+	_json_get_vec3(obj, "position", &pose->position);
+
+	math_quat_from_plus_x_z(&plus_x, &plus_z, &pose->orientation);
+}
+
+static void
+get_distortion_properties(struct survive_device *d,
+                          const cJSON *eye_transform_json,
+                          uint8_t eye)
+{
+	struct xrt_hmd_parts *hmd = d->base.hmd;
+
+	const cJSON *eye_json = cJSON_GetArrayItem(eye_transform_json, eye);
+	if (eye_json == NULL) {
+		return;
+	}
+
+	struct xrt_matrix_3x3 rot = {0};
+	if (_json_get_matrix_3x3(eye_json, "eye_to_head", &rot)) {
+		math_quat_from_matrix_3x3(&rot, &d->rot[eye]);
+	}
+
+	// TODO: store grow_for_undistort per eye
+	// clang-format off
+	hmd->distortion.vive.grow_for_undistort = _json_get_float(eye_json, "grow_for_undistort");
+	hmd->distortion.vive.undistort_r2_cutoff[eye] = _json_get_float(eye_json, "undistort_r2_cutoff");
+	// clang-format on
+
+	const cJSON *distortion =
+	    cJSON_GetObjectItemCaseSensitive(eye_json, "distortion");
+	if (distortion != NULL) {
+		// TODO: store center per color
+		// clang-format off
+		hmd->distortion.vive.center[eye][0] = _json_get_float(distortion, "center_x");
+		hmd->distortion.vive.center[eye][1] = _json_get_float(distortion, "center_y");
+		// clang-format on
+
+		// green
+		const cJSON *coeffs =
+		    cJSON_GetObjectItemCaseSensitive(distortion, "coeffs");
+		if (coeffs != NULL) {
+			_get_color_coeffs(hmd, coeffs, eye, 1);
+		}
+	}
+
+	_get_color_coeffs_lookup(hmd, eye_json, "distortion_red", eye, 0);
+	_get_color_coeffs_lookup(hmd, eye_json, "distortion_blue", eye, 2);
+}
+static bool
 _create_hmd_device(struct survive_system *sys)
 {
 	enum u_device_alloc_flags flags = (enum u_device_alloc_flags)(
@@ -630,136 +800,132 @@ _create_hmd_device(struct survive_system *sys)
 
 	survive_simple_start_thread(sys->ctx);
 
-	const struct device_info info = get_info();
-	{
-		/* right eye */
-		if (!math_compute_fovs(info.views[1].display.w_meters,
-		     info.views[1].lens_center_x_meters,
-		     info.views[1].fov,
-		     info.views[1].display.h_meters,
-		     info.views[1].lens_center_y_meters, 0,
-		     &survive->base.hmd->views[1].fov)) {
-			SURVIVE_ERROR(survive,
-				"Failed to compute the partial fields of view.");
-			free(survive);
-			return NULL;
+	while (!wait_for_hmd_config(sys->ctx)) {
+		printf("Waiting for survive HMD config parsing\n");
+		os_nanosleep(1000 * 1000 * 100);
+	}
+	printf("survive got HMD config\n");
+
+	while (!survive->survive_obj) {
+		printf("Waiting for survive HMD to be found...\n");
+		for (const SurviveSimpleObject *it =
+			survive_simple_get_first_object(sys->ctx);
+			it != 0; it = survive_simple_get_next_object(sys->ctx, it)) {
+			const char *codename = survive_simple_object_name(it);
+
+			enum SurviveSimpleObject_type type = survive_simple_object_get_type(it);
+			if (type == SurviveSimpleObject_HMD && sys->hmd->survive_obj == NULL) {
+				printf("Found HMD: %s\n", codename);
+				survive->survive_obj = it;
+			}
 		}
 	}
-	{
-		/* left eye - just mirroring right eye now */
-		survive->base.hmd->views[0].fov.angle_up =
-		survive->base.hmd->views[1].fov.angle_up;
-		survive->base.hmd->views[0].fov.angle_down =
-		survive->base.hmd->views[1].fov.angle_down;
+	printf("survive HMD present\n");
 
-		survive->base.hmd->views[0].fov.angle_left =
-		-survive->base.hmd->views[1].fov.angle_right;
-		survive->base.hmd->views[0].fov.angle_right =
-		-survive->base.hmd->views[1].fov.angle_left;
+	survive->base.hmd->blend_mode = XRT_BLEND_MODE_OPAQUE;
+
+	char *json_string = survive_get_json_config(survive->survive_obj);
+	cJSON *json = cJSON_Parse(json_string);
+	if (!cJSON_IsObject(json)) {
+		printf("Could not parse JSON data.");
+		return false;
 	}
 
-	// clang-format off
+
+	// TODO: Replace hard coded values from OpenHMD with config
+	double w_meters = 0.122822 / 2.0;
+	double h_meters = 0.068234;
+	double lens_horizontal_separation = 0.057863;
+	double eye_to_screen_distance = 0.023226876441867737;
+	double fov = 2 * atan2(w_meters - lens_horizontal_separation / 2.0,
+			       eye_to_screen_distance);
+
+	survive->base.hmd->distortion.vive.aspect_x_over_y = 0.89999997615814209f;
+	survive->base.hmd->distortion.vive.grow_for_undistort = 0.5f;
+	survive->base.hmd->distortion.vive.undistort_r2_cutoff[0] = 1.0f;
+	survive->base.hmd->distortion.vive.undistort_r2_cutoff[1] = 1.0f;
+
+	survive->rot[0].w = 1.0f;
+	survive->rot[1].w = 1.0f;
+
+	uint16_t w_pixels = 1080;
+	uint16_t h_pixels = 1200;
+	const cJSON *device_json =
+	cJSON_GetObjectItemCaseSensitive(json, "device");
+	if (device_json) {
+		if (sys->variant != VIVE_VARIANT_INDEX) {
+			survive->base.hmd->distortion.vive.aspect_x_over_y =
+			_json_get_float(device_json,
+					"physical_aspect_x_over_y");
+			lens_horizontal_separation = _json_get_double(json, "lens_separation");
+		}
+		h_pixels =
+		(uint16_t)_json_get_int(device_json,
+					"eye_target_height_in_pixels");
+		w_pixels = (uint16_t)_json_get_int(
+			device_json, "eye_target_width_in_pixels");
+	}
+
+	const cJSON *eye_transform_json =
+	cJSON_GetObjectItemCaseSensitive(json, "tracking_to_eye_transform");
+	if (eye_transform_json) {
+		for (uint8_t eye = 0; eye < 2; eye++) {
+			get_distortion_properties(survive, eye_transform_json, eye);
+		}
+	}
+
+	printf("Survive eye resolution %dx%d\n", w_pixels, h_pixels);
+
+	cJSON_Delete(json);
+
 	// Main display.
-	survive->base.hmd->distortion.models = XRT_DISTORTION_MODEL_PANOTOOLS;
-	survive->base.hmd->distortion.preferred = XRT_DISTORTION_MODEL_PANOTOOLS;
-	survive->base.hmd->screens[0].w_pixels = info.display.w_pixels;
-	survive->base.hmd->screens[0].h_pixels = info.display.h_pixels;
-	survive->base.hmd->distortion.pano.distortion_k[0] = info.pano_distortion_k[0];
-	survive->base.hmd->distortion.pano.distortion_k[1] = info.pano_distortion_k[1];
-	survive->base.hmd->distortion.pano.distortion_k[2] = info.pano_distortion_k[2];
-	survive->base.hmd->distortion.pano.distortion_k[3] = info.pano_distortion_k[3];
-	survive->base.hmd->distortion.pano.aberration_k[0] = info.pano_aberration_k[0];
-	survive->base.hmd->distortion.pano.aberration_k[1] = info.pano_aberration_k[1];
-	survive->base.hmd->distortion.pano.aberration_k[2] = info.pano_aberration_k[2];
+	survive->base.hmd->screens[0].w_pixels = (int)w_pixels * 2;
+	survive->base.hmd->screens[0].h_pixels = (int)h_pixels;
+
+	if (sys->variant == VIVE_VARIANT_INDEX)
+		survive->base.hmd->screens[0].nominal_frame_interval_ns =
+		(uint64_t)time_s_to_ns(1.0f / 144.0f);
+	else
+		survive->base.hmd->screens[0].nominal_frame_interval_ns =
+		(uint64_t)time_s_to_ns(1.0f / 90.0f);
+
+	for (uint8_t eye = 0; eye < 2; eye++) {
+		struct xrt_view *v = &survive->base.hmd->views[eye];
+		v->display.w_meters = (float)w_meters;
+		v->display.h_meters = (float)h_meters;
+		v->display.w_pixels = w_pixels;
+		v->display.h_pixels = h_pixels;
+		v->viewport.w_pixels = w_pixels;
+		v->viewport.h_pixels = h_pixels;
+		v->viewport.y_pixels = 0;
+		v->lens_center.y_meters = (float)h_meters / 2.0f;
+		v->rot = u_device_rotation_ident;
+	}
 
 	// Left
-	survive->base.hmd->views[0].display.w_meters = info.views[0].display.w_meters;
-	survive->base.hmd->views[0].display.h_meters = info.views[0].display.h_meters;
-	survive->base.hmd->views[0].lens_center.x_meters = info.views[0].lens_center_x_meters;
-	survive->base.hmd->views[0].lens_center.y_meters = info.views[0].lens_center_y_meters;
-	survive->base.hmd->views[0].display.w_pixels = info.views[0].display.w_pixels;
-	survive->base.hmd->views[0].display.h_pixels = info.views[0].display.h_pixels;
+	survive->base.hmd->views[0].lens_center.x_meters =
+	(float)(w_meters - lens_horizontal_separation / 2.0);
 	survive->base.hmd->views[0].viewport.x_pixels = 0;
-	survive->base.hmd->views[0].viewport.y_pixels = 0;
-	survive->base.hmd->views[0].viewport.w_pixels = info.views[0].display.w_pixels;
-	survive->base.hmd->views[0].viewport.h_pixels = info.views[0].display.h_pixels;
-	survive->base.hmd->views[0].rot = u_device_rotation_ident;
 
 	// Right
-	survive->base.hmd->views[1].display.w_meters = info.views[1].display.w_meters;
-	survive->base.hmd->views[1].display.h_meters = info.views[1].display.h_meters;
-	survive->base.hmd->views[1].lens_center.x_meters = info.views[1].lens_center_x_meters;
-	survive->base.hmd->views[1].lens_center.y_meters = info.views[1].lens_center_y_meters;
-	survive->base.hmd->views[1].display.w_pixels = info.views[1].display.w_pixels;
-	survive->base.hmd->views[1].display.h_pixels = info.views[1].display.h_pixels;
-	survive->base.hmd->views[1].viewport.x_pixels = info.views[0].display.w_pixels;
-	survive->base.hmd->views[1].viewport.y_pixels = 0;
-	survive->base.hmd->views[1].viewport.w_pixels = info.views[1].display.w_pixels;
-	survive->base.hmd->views[1].viewport.h_pixels = info.views[1].display.h_pixels;
-	survive->base.hmd->views[1].rot = u_device_rotation_ident;
-	// clang-format on
+	survive->base.hmd->views[1].lens_center.x_meters =
+	(float)lens_horizontal_separation / 2.0f;
+	survive->base.hmd->views[1].viewport.x_pixels = w_pixels;
 
-	// Find any needed quirks.
-	bool quirk_video_see_through = false;
-	bool quirk_video_distortion_vive = false;
-
-	quirk_video_distortion_vive = true;
-	quirk_video_see_through = false;
-
-	// Which blend modes does the device support.
-	survive->base.hmd->blend_mode |= XRT_BLEND_MODE_OPAQUE;
-	if (quirk_video_see_through) {
-		survive->base.hmd->blend_mode |= XRT_BLEND_MODE_ALPHA_BLEND;
+	for (uint8_t eye = 0; eye < 2; eye++) {
+		if (!math_compute_fovs(w_meters,
+			 (double)survive->base.hmd->views[eye].lens_center.x_meters,
+				       fov, h_meters,
+			 (double)survive->base.hmd->views[eye].lens_center.y_meters, 0,
+				       &survive->base.hmd->views[eye].fov)) {
+				printf("Failed to compute the partial fields of view.");
+				free(survive);
+				return NULL;
+			}
 	}
 
-	if (quirk_video_distortion_vive) {
-		survive->base.hmd->distortion.models |= XRT_DISTORTION_MODEL_VIVE;
-		survive->base.hmd->distortion.preferred = XRT_DISTORTION_MODEL_VIVE;
-
-		// clang-format off
-		// These need to be aquired from the vive config
-		survive->base.hmd->distortion.vive.aspect_x_over_y = 0.8999999761581421f;
-		survive->base.hmd->distortion.vive.grow_for_undistort = 0.6000000238418579f;
-		survive->base.hmd->distortion.vive.undistort_r2_cutoff[0] = 1.11622154712677f;
-		survive->base.hmd->distortion.vive.undistort_r2_cutoff[1] = 1.101870775222778f;
-		survive->base.hmd->distortion.vive.center[0][0] = 0.08946027017045266f;
-		survive->base.hmd->distortion.vive.center[0][1] = -0.009002181016260827f;
-		survive->base.hmd->distortion.vive.center[1][0] = -0.08933516629552526f;
-		survive->base.hmd->distortion.vive.center[1][1] = -0.006014565287238661f;
-
-		// left
-		// green
-		survive->base.hmd->distortion.vive.coefficients[0][0][0] = -0.188236068524731f;
-		survive->base.hmd->distortion.vive.coefficients[0][0][1] = -0.221086205321053f;
-		survive->base.hmd->distortion.vive.coefficients[0][0][2] = -0.2537849057915209f;
-
-		// blue
-		survive->base.hmd->distortion.vive.coefficients[0][1][0] = -0.07316590815739493f;
-		survive->base.hmd->distortion.vive.coefficients[0][1][1] = -0.02332400789561968f;
-		survive->base.hmd->distortion.vive.coefficients[0][1][2] = 0.02469959434698275f;
-
-		// red
-		survive->base.hmd->distortion.vive.coefficients[0][2][0] = -0.02223805567703767f;
-		survive->base.hmd->distortion.vive.coefficients[0][2][1] = -0.04931309279533211f;
-		survive->base.hmd->distortion.vive.coefficients[0][2][2] = -0.07862881939243466f;
-
-		// right
-		// green
-		survive->base.hmd->distortion.vive.coefficients[1][0][0] = -0.1906209981894497f;
-		survive->base.hmd->distortion.vive.coefficients[1][0][1] = -0.2248896677207884f;
-		survive->base.hmd->distortion.vive.coefficients[1][0][2] = -0.2721364516782803f;
-
-		// blue
-		survive->base.hmd->distortion.vive.coefficients[1][1][0] = -0.07346071902951497f;
-		survive->base.hmd->distortion.vive.coefficients[1][1][1] = -0.02189527566250131f;
-		survive->base.hmd->distortion.vive.coefficients[1][1][2] = 0.0581378652359256f;
-
-		// red
-		survive->base.hmd->distortion.vive.coefficients[1][2][0] = -0.01755850332081247f;
-		survive->base.hmd->distortion.vive.coefficients[1][2][1] = -0.04517245633373419f;
-		survive->base.hmd->distortion.vive.coefficients[1][2][2] = -0.0928909347763f;
-		// clang-format on
-	}
+	survive->base.hmd->distortion.models = XRT_DISTORTION_MODEL_VIVE;
+	survive->base.hmd->distortion.preferred = XRT_DISTORTION_MODEL_VIVE;
 	return true;
 }
 
@@ -832,6 +998,22 @@ _create_controller_device(struct survive_system *sys,
 DEBUG_GET_ONCE_BOOL_OPTION(survive_spew, "SURVIVE_PRINT_SPEW", false)
 DEBUG_GET_ONCE_BOOL_OPTION(survive_debug, "SURVIVE_PRINT_DEBUG", false)
 
+static enum VIVE_VARIANT
+_product_to_variant(uint16_t product_id)
+{
+	switch (product_id) {
+	case VIVE_PID:
+		return VIVE_VARIANT_VIVE;
+	case VIVE_PRO_MAINBOARD_PID:
+		return VIVE_VARIANT_PRO;
+	case VIVE_PRO_LHR_PID:
+		return VIVE_VARIANT_INDEX;
+	default:
+		printf("No product ids matched %.4x\n", product_id);
+		return VIVE_UNKNOWN;
+	}
+}
+
 int
 survive_found(struct xrt_prober *xp,
               struct xrt_prober_device **devices,
@@ -864,6 +1046,11 @@ survive_found(struct xrt_prober *xp,
 	}
 
 	struct survive_system *ss = U_TYPED_CALLOC(struct survive_system);
+
+	struct xrt_prober_device *dev = devices[index];
+	ss->variant = _product_to_variant(dev->product_id);
+	printf("survive: Assuming variant %d\n", ss->variant);
+
 	ss->ctx = actx;
 	ss->base.type = XRT_TRACKING_TYPE_NONE; // ??
 	snprintf(ss->base.name, XRT_TRACKING_NAME_LEN, "%s", "Libsurvive Tracking");
