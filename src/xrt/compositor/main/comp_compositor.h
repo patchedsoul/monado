@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#define FPS_NUM_TIMINGS 50
 
 /*
  *
@@ -103,6 +104,12 @@ struct comp_compositor
 
 	//! The time our compositor needs to do rendering
 	int64_t frame_overhead_ns;
+
+	int64_t compositor_timings_ns[FPS_NUM_TIMINGS];
+	float compositor_frame_times_ms[FPS_NUM_TIMINGS];
+	int compositor_times_ns_index;
+	float compositor_fps;
+
 	/*!
 	 * @brief Estimated rendering time per frame of the application.
 	 *

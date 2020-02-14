@@ -15,6 +15,18 @@
 extern "C" {
 #endif
 
+struct u_var_f32_arr
+{
+	void *data;
+	int *index_ptr;
+	int length;
+};
+
+struct u_var_frametime
+{
+	struct u_var_f32_arr arr;
+	float target_frame_time;
+};
 
 struct xrt_frame_sink;
 
@@ -34,6 +46,8 @@ enum u_var_kind
 	U_VAR_KIND_U8,
 	U_VAR_KIND_I32,
 	U_VAR_KIND_F32,
+	U_VAR_KIND_F32_ARR,
+	U_VAR_KIND_FRAMETIME,
 	U_VAR_KIND_VEC3_I32,
 	U_VAR_KIND_VEC3_F32,
 	U_VAR_KIND_POSE,
@@ -113,6 +127,8 @@ u_var_force_on(void);
 	ADD_FUNC(u8, uint8_t, U8)                                              \
 	ADD_FUNC(i32, int32_t, I32)                                            \
 	ADD_FUNC(f32, float, F32)                                              \
+	ADD_FUNC(f32_arr, struct u_var_f32_arr, F32_ARR)                       \
+	ADD_FUNC(f32_frametime, struct u_var_frametime, FRAMETIME)             \
 	ADD_FUNC(vec3_i32, struct xrt_vec3_i32, VEC3_I32)                      \
 	ADD_FUNC(vec3_f32, struct xrt_vec3, VEC3_F32)                          \
 	ADD_FUNC(pose, struct xrt_pose, POSE)                                  \
