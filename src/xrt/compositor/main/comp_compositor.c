@@ -60,6 +60,8 @@
 #include <unistd.h>
 #include <math.h>
 
+#include "util/u_var.h"
+
 /*!
  */
 static void
@@ -168,6 +170,8 @@ compositor_wait_frame(struct xrt_compositor *xc,
 	struct comp_compositor *c = comp_compositor(xc);
 	COMP_SPEW(c, "WAIT_FRAME");
 
+	// usleep(500000);
+
 	// A little bit easier to read.
 	int64_t interval_ns = (int64_t)c->settings.nominal_frame_interval_ns;
 
@@ -230,6 +234,46 @@ compositor_discard_frame(struct xrt_compositor *xc)
 }
 
 static void
+compositor_add_frame_timing(struct comp_compositor *c)
+{
+	int last_index = c->compositor_times_ns_index;
+
+	c->compositor_times_ns_index++;
+	c->compositor_times_ns_index %= FPS_NUM_TIMINGS;
+
+	/* update fps only once every FPS_NUM_TIMINGS */
+	if (c->compositor_times_ns_index == 0) {
+		float total_s = 0;
+
+		/* frame times are durations between timings */
+		int NUM_FRAME_TIMES = FPS_NUM_TIMINGS - 1;
+
+		for (int i = 0; i < NUM_FRAME_TIMES; i++) {
+			uint64_t frametime_ns =
+			    c->compositor_timings_ns[i + 1] -
+			    c->compositor_timings_ns[i];
+			float frametime_s =
+			    frametime_ns * 1. / 1000. * 1. / 1000. * 1. / 1000.;
+			// printf("ft %d-%d %f\n", index, next, frametime_ms);
+			total_s += frametime_s;
+		}
+		float avg_frametime_s = total_s / ((float)NUM_FRAME_TIMES);
+		c->compositor_fps = 1. / avg_frametime_s;
+		// printf("fps %d %lu %f %f\n", c->last_frame_time_ns_index,
+		// c->last_frame_times_ns[c->last_frame_time_ns_index], total_ms,
+		// c->compositor_fps);
+	}
+
+	c->compositor_timings_ns[c->compositor_times_ns_index] =
+	    time_state_get_now(c->timekeeping);
+
+	uint64_t diff = c->compositor_timings_ns[c->compositor_times_ns_index] -
+	                c->compositor_timings_ns[last_index];
+	c->compositor_frame_times_ms[c->compositor_times_ns_index] =
+	    (float)diff * 1. / 1000. * 1. / 1000.;
+}
+
+static void
 compositor_end_frame(struct xrt_compositor *xc,
                      enum xrt_blend_mode blend_mode,
                      struct xrt_swapchain **xscs,
@@ -251,6 +295,8 @@ compositor_end_frame(struct xrt_compositor *xc,
 	} else {
 		COMP_ERROR(c, "non-stereo rendering not supported");
 	}
+
+	compositor_add_frame_timing(c);
 
 	// Record the time of this frame.
 	c->last_frame_time_ns = os_monotonic_get_ns();
@@ -802,6 +848,32 @@ xrt_gfx_provider_create_fd(struct xrt_device *xdev, bool flip_y)
 	// clang-format on
 
 	COMP_DEBUG(c, "Done %p", (void *)c);
+
+
+	u_var_add_root(c, "Compositor", true);
+	u_var_add_ro_f32(c, &c->compositor_fps, "compositor avg fps");
+
+	/*
+	struct u_var_f32_arr *arr = U_CALLOC_WITH_CAST(
+	    struct u_var_f32_arr, sizeof(struct u_var_f32_arr));
+	arr->data = c->compositor_times_ms;
+	arr->length = FPS_NUM_TIMINGS;
+	arr->index_ptr = &c->compositor_times_ns_index;
+	u_var_add_f32_arr(c, arr, "compositor frame times simple");
+	*/
+
+	//! @todo: don't leak this'
+	struct u_var_frametime *ft = U_CALLOC_WITH_CAST(
+	    struct u_var_frametime, sizeof(struct u_var_frametime));
+
+	ft->arr.data = c->compositor_frame_times_ms;
+	ft->arr.length = FPS_NUM_TIMINGS;
+	ft->arr.index_ptr = &c->compositor_times_ns_index;
+	float target_frame_time_ms =
+	    c->settings.nominal_frame_interval_ns * 1. / 1000. * 1. / 1000.;
+	ft->target_frame_time = target_frame_time_ms;
+
+	u_var_add_f32_frametime(c, ft, "compositor frame times");
 
 	return &c->base;
 }
