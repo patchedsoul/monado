@@ -150,9 +150,6 @@ struct daydream_device *
 daydream_device_create(bool print_spew, bool print_debug);
 
 
-static void
-daydream_device_destroy(struct xrt_device *xdev);
-
 #define DAYDREAM_SPEW(c, ...)                                                  \
 	do {                                                                   \
 		if (c->print_spew) {                                           \

@@ -382,33 +382,34 @@ daydream_device_update_inputs(struct xrt_device *xdev,
 	os_mutex_lock(&daydream->lock);
 
 	// clang-format off
-    /*
-    daydream_update_input_click(daydream, DAYDREAM_INDEX_TOUCHPAD_CLICK, now, PSMV_BUTTON_BIT_PS);
-    daydream_update_input_click(daydream, PSMV_INDEX_MOVE_CLICK, now, PSMV_BUTTON_BIT_MOVE_ANY);
-    daydream_update_input_click(daydream, PSMV_INDEX_START_CLICK, now, PSMV_BUTTON_BIT_START);
-    daydream_update_input_click(daydream, PSMV_INDEX_SELECT_CLICK, now, PSMV_BUTTON_BIT_SELECT);
-    daydream_update_input_click(daydream, PSMV_INDEX_SQUARE_CLICK, now, PSMV_BUTTON_BIT_SQUARE);
-    daydream_update_input_click(daydream, PSMV_INDEX_CROSS_CLICK, now, PSMV_BUTTON_BIT_CROSS);
-    daydream_update_input_click(daydream, PSMV_INDEX_CIRCLE_CLICK, now, PSMV_BUTTON_BIT_CIRCLE);
-    daydream_update_input_click(daydream, PSMV_INDEX_TRIANGLE_CLICK, now, PSMV_BUTTON_BIT_TRIANGLE);
-    \
+#if 0
+	daydream_update_input_click(daydream, DAYDREAM_INDEX_TOUCHPAD_CLICK, now, PSMV_BUTTON_BIT_PS);
+	daydream_update_input_click(daydream, PSMV_INDEX_MOVE_CLICK, now, PSMV_BUTTON_BIT_MOVE_ANY);
+	daydream_update_input_click(daydream, PSMV_INDEX_START_CLICK, now, PSMV_BUTTON_BIT_START);
+	daydream_update_input_click(daydream, PSMV_INDEX_SELECT_CLICK, now, PSMV_BUTTON_BIT_SELECT);
+	daydream_update_input_click(daydream, PSMV_INDEX_SQUARE_CLICK, now, PSMV_BUTTON_BIT_SQUARE);
+	daydream_update_input_click(daydream, PSMV_INDEX_CROSS_CLICK, now, PSMV_BUTTON_BIT_CROSS);
+	daydream_update_input_click(daydream, PSMV_INDEX_CIRCLE_CLICK, now, PSMV_BUTTON_BIT_CIRCLE);
+	daydream_update_input_click(daydream, PSMV_INDEX_TRIANGLE_CLICK, now, PSMV_BUTTON_BIT_TRIANGLE);
+#endif
+	// clang-format on
 	// Done now.
-*/
-os_mutex_unlock(&daydream->lock);
+
+	os_mutex_unlock(&daydream->lock);
 }
 
 static void
 daydream_device_get_tracked_pose(struct xrt_device *xdev,
-                             enum xrt_input_name name,
-                             struct time_state *timekeeping,
-                             int64_t *out_timestamp,
-                             struct xrt_space_relation *out_relation)
+                                 enum xrt_input_name name,
+                                 struct time_state *timekeeping,
+                                 int64_t *out_timestamp,
+                                 struct xrt_space_relation *out_relation)
 {
-    struct daydream_device *daydream = daydream_device(xdev);
+	struct daydream_device *daydream = daydream_device(xdev);
 
 	timepoint_ns now = time_state_get_now(timekeeping);
 
-        daydream_get_fusion_pose(daydream, name, now, out_relation);
+	daydream_get_fusion_pose(daydream, name, now, out_relation);
 }
 
 
@@ -419,75 +420,77 @@ daydream_device_get_tracked_pose(struct xrt_device *xdev,
  */
 
 #define SET_INPUT(NAME)                                                        \
-    (daydream->base.inputs[DAYDREAM_INDEX_##NAME].name = XRT_INPUT_DAYDREAM_##NAME)
+	(daydream->base.inputs[DAYDREAM_INDEX_##NAME].name =                   \
+	     XRT_INPUT_DAYDREAM_##NAME)
 
 int
 daydream_found(struct xrt_prober *xp,
-           struct xrt_prober_device **devices,
-           size_t num_devices,
-           size_t index,
-           struct xrt_device **out_xdevs)
+               struct xrt_prober_device **devices,
+               size_t num_devices,
+               size_t index,
+               struct xrt_device **out_xdevs)
 {
-    struct os_ble_device *ble = NULL;
+	struct os_ble_device *ble = NULL;
 	int ret;
 
 
-    ret = xrt_prober_open_ble_interface(xp, devices[index], 0, &ble);
+	ret = xrt_prober_open_ble_interface(xp, devices[index], 0, &ble);
 	if (ret != 0) {
 		return -1;
 	}
 
 	enum u_device_alloc_flags flags = U_DEVICE_ALLOC_TRACKING_NONE;
-    struct daydream_device *daydream =
-        U_DEVICE_ALLOCATE(struct daydream_device, flags, 12, 1);
-    daydream->print_spew = debug_get_bool_option_daydream_spew();
-    daydream->print_debug = debug_get_bool_option_daydream_debug();
-    daydream->base.destroy = daydream_device_destroy;
-    daydream->base.update_inputs = daydream_device_update_inputs;
-    daydream->base.get_tracked_pose = daydream_device_get_tracked_pose;
-    daydream->base.set_output = NULL;
-    daydream->base.name = XRT_DEVICE_DAYDREAM;
-    daydream->fusion.rot.w = 1.0f;
-    daydream->fusion.fusion = imu_fusion_create();
-    daydream->ble = ble;
-    snprintf(daydream->base.str, XRT_DEVICE_NAME_LEN, "%s",
-             "Daydream Controller");
+	struct daydream_device *daydream =
+	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 12, 1);
+	daydream->print_spew = debug_get_bool_option_daydream_spew();
+	daydream->print_debug = debug_get_bool_option_daydream_debug();
+	daydream->base.destroy = daydream_device_destroy;
+	daydream->base.update_inputs = daydream_device_update_inputs;
+	daydream->base.get_tracked_pose = daydream_device_get_tracked_pose;
+	daydream->base.set_output = NULL;
+	daydream->base.name = XRT_DEVICE_DAYDREAM;
+	daydream->fusion.rot.w = 1.0f;
+	daydream->fusion.fusion = imu_fusion_create();
+	daydream->ble = ble;
+	snprintf(daydream->base.str, XRT_DEVICE_NAME_LEN, "%s",
+	         "Daydream Controller");
 
 
 	// Mutex before thread.
-    ret = os_mutex_init(&daydream->lock);
+	ret = os_mutex_init(&daydream->lock);
 	if (ret != 0) {
-        DAYDREAM_ERROR(daydream, "Failed to init mutex!");
-        daydream_device_destroy(&daydream->base);
+		DAYDREAM_ERROR(daydream, "Failed to init mutex!");
+		daydream_device_destroy(&daydream->base);
 		return ret;
 	}
 
 	// Thread and other state.
-    ret = os_thread_helper_init(&daydream->oth);
+	ret = os_thread_helper_init(&daydream->oth);
 	if (ret != 0) {
-        DAYDREAM_ERROR(daydream, "Failed to init threading!");
-        daydream_device_destroy(&daydream->base);
+		DAYDREAM_ERROR(daydream, "Failed to init threading!");
+		daydream_device_destroy(&daydream->base);
 		return ret;
 	}
 	// Get calibration data.
-    ret = daydream_get_calibration(daydream);
+	ret = daydream_get_calibration(daydream);
 	if (ret != 0) {
-        DAYDREAM_ERROR(daydream, "Failed to get calibration data!");
-        daydream_device_destroy(&daydream->base);
+		DAYDREAM_ERROR(daydream, "Failed to get calibration data!");
+		daydream_device_destroy(&daydream->base);
 		return ret;
 	}
 
-    ret = os_thread_helper_start(&daydream->oth, daydream_run_thread, daydream);
+	ret = os_thread_helper_start(&daydream->oth, daydream_run_thread,
+	                             daydream);
 	if (ret != 0) {
-        DAYDREAM_ERROR(daydream, "Failed to start thread!");
-        daydream_device_destroy(&daydream->base);
+		DAYDREAM_ERROR(daydream, "Failed to start thread!");
+		daydream_device_destroy(&daydream->base);
 		return ret;
 	}
 
 	// Start the variable tracking now that everything is in place.
 	// clang-format off
-    u_var_add_root(daydream, "Daydream Controller", true);
-    u_var_add_gui_header(daydream, &daydream->gui.calibration, "Calibration");
+	u_var_add_root(daydream, "Daydream Controller", true);
+	u_var_add_gui_header(daydream, &daydream->gui.calibration, "Calibration");
 	// clang-format on
 
 	// And finally done
