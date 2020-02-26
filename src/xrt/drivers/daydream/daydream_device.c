@@ -118,7 +118,8 @@ daydream_device_create(bool print_spew, bool print_debug)
 	dd->base.inputs[6].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_X;
 	dd->base.inputs[7].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_Y;
 
-
+	strcpy(dd->mac, "D0_63_D3_D2_34_61");
+	strcpy(dd->path, "service000a/char000b");
 
 	dd->base.name = XRT_DEVICE_DAYDREAM;
 	dd->fusion.rot.w = 1.0f;
@@ -147,9 +148,12 @@ daydream_device_create(bool print_spew, bool print_debug)
 	dd->calibration.gyro.bias.z = 0.0;
 
 
-	os_ble_notify_open("A8_1E_84_5C_6C_28", "service002a/char002b",
-	                   &dd->ble);
+	os_ble_notify_open(dd->mac, dd->path, &dd->ble);
 
+	if (dd->ble == NULL) {
+		free(dd);
+		return NULL;
+	}
 
 	printf("creating daydream device!\n");
 

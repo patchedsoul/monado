@@ -42,8 +42,16 @@ os_ble_notify_destroy(struct os_ble_device *bdev)
 {
 	struct ble_notify *dev = (struct ble_notify *)bdev;
 
-	close(dev->fd);
-	dbus_connection_unref(dev->conn);
+	if (dev->fd != -1) {
+		close(dev->fd);
+		dev->fd = -1;
+	}
+
+	if (dev->conn != NULL) {
+		dbus_connection_unref(dev->conn);
+		dev->conn = NULL;
+	}
+
 	free(dev);
 }
 
@@ -59,8 +67,7 @@ os_ble_notify_open(const char *mac,
 	struct ble_notify *bledev = U_TYPED_CALLOC(struct ble_notify);
 	bledev->base.read = os_ble_notify_read;
 	bledev->base.destroy = os_ble_notify_destroy;
-
-	*out_ble = &bledev->base;
+	bledev->fd = -1;
 
 	dbus_error_init(&bledev->err);
 	bledev->conn = dbus_bus_get(DBUS_BUS_SYSTEM, &bledev->err);
@@ -71,8 +78,10 @@ os_ble_notify_open(const char *mac,
 	}
 
 	if (bledev->conn == NULL) {
+		os_ble_notify_destroy(&bledev->base);
 		return -1;
 	}
+
 	char dbus_address[256]; // should be long enough
 
 	// This is our GATT characteristic - the service and char endpoint
@@ -87,6 +96,7 @@ os_ble_notify_open(const char *mac,
 
 	if (msg == NULL) {
 		fprintf(stderr, "Message Null after construction\n");
+		os_ble_notify_destroy(&bledev->base);
 		return -1;
 	}
 
@@ -106,11 +116,13 @@ os_ble_notify_open(const char *mac,
 	if (!dbus_connection_send_with_reply(bledev->conn, msg, &pending,
 	                                     -1)) { // -1 is default timeout
 		fprintf(stderr, "Out Of Memory!\n");
+		os_ble_notify_destroy(&bledev->base);
 		return -1;
 	}
 
 	if (pending == NULL) {
 		fprintf(stderr, "Pending Call Null\n");
+		os_ble_notify_destroy(&bledev->base);
 		return -1;
 	}
 	dbus_connection_flush(bledev->conn);
@@ -123,7 +135,8 @@ os_ble_notify_open(const char *mac,
 	msg = dbus_pending_call_steal_reply(pending);
 	if (msg == NULL) {
 		fprintf(stderr, "Reply Null\n");
-		exit(1);
+		os_ble_notify_destroy(&bledev->base);
+		return -1;
 	}
 	// free the pending message handle
 	dbus_pending_call_unref(pending);
@@ -144,6 +157,14 @@ os_ble_notify_open(const char *mac,
 	}
 	// free reply
 	dbus_message_unref(msg);
+
+	// We didn't get a fd.
+	if (bledev->fd == -1) {
+		os_ble_notify_destroy(&bledev->base);
+		return -1;
+	}
+
+	*out_ble = &bledev->base;
 
 	return 0;
 }

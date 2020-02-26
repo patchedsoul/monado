@@ -74,6 +74,7 @@ struct daydream_device
 	struct os_ble_device *ble;
 	struct os_thread_helper oth;
 	char mac[128];
+	char path[128];
 
 	struct
 	{

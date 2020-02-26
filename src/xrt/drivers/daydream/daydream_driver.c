@@ -449,8 +449,6 @@ daydream_found(struct xrt_prober *xp,
     daydream->base.name = XRT_DEVICE_DAYDREAM;
     daydream->fusion.rot.w = 1.0f;
     daydream->fusion.fusion = imu_fusion_create();
-    char* hardcoded_mac = "A8_1E_84_5C_6C_28";
-    strcpy(daydream->mac,hardcoded_mac);
     daydream->ble = ble;
     snprintf(daydream->base.str, XRT_DEVICE_NAME_LEN, "%s",
              "Daydream Controller");

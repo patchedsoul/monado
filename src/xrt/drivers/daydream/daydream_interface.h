@@ -20,18 +20,14 @@ extern "C" {
  * @brief Driver for the Google Daydream Controller.
  */
 
-
-#define DAYDREAM_BLUEZ_PATH service002a / char002b
-
 /*!
  * Probing function for the Daydream controller.
  *
  * @ingroup drv_daydream
  */
-
-
 struct xrt_auto_prober *
 daydream_create_auto_prober();
+
 
 /*!
  * @dir drivers/daydream
