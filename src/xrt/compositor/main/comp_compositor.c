@@ -539,14 +539,17 @@ compositor_check_vulkan_caps(struct comp_compositor *c)
 		return false;
 	}
 
+	bool is_nvidia_driver = false;
 	bool nvidia_tests_passed = false;
 
 #ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
 	VkPhysicalDeviceProperties physical_device_properties;
+
 	temp_vk.vkGetPhysicalDeviceProperties(temp_vk.physical_device,
 	                                      &physical_device_properties);
 
-	if (physical_device_properties.vendorID == 0x10DE) {
+	is_nvidia_driver = physical_device_properties.vendorID == 0x10DE;
+	if (is_nvidia_driver) {
 		// our physical device is an nvidia card, we can
 		// potentially select nvidia-specific direct mode.
 
@@ -605,6 +608,11 @@ compositor_check_vulkan_caps(struct comp_compositor *c)
 	if (nvidia_tests_passed) {
 		c->settings.window_type = WINDOW_DIRECT_NVIDIA;
 		COMP_DEBUG(c, "Selecting direct NVIDIA window type!");
+	} else if (is_nvidia_driver && !nvidia_tests_passed) {
+		c->settings.window_type = WINDOW_XCB;
+		COMP_DEBUG(c,
+		           "NVIDIA driver, but no whitelisted display found. "
+		           "Selecting XCB window type!");
 	} else {
 		COMP_DEBUG(c, "Keeping auto window type!");
 	}
