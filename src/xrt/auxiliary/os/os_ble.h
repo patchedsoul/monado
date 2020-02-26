@@ -31,7 +31,7 @@ struct os_ble_device
 /*!
  * Read data from the ble file descriptor
  * immediately returns bytes read,
- *  -1 if no data avaialable
+ *  -1 if no data available
  */
 
 XRT_MAYBE_UNUSED static inline int

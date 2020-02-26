@@ -128,7 +128,7 @@ os_ble_notify_open(const char *mac,
 	dbus_connection_flush(bledev->conn);
 	dbus_message_unref(msg);
 
-	// block until we recieve a reply
+	// block until we receive a reply
 	dbus_pending_call_block(pending);
 
 	// get the reply message
