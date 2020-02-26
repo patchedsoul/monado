@@ -17,6 +17,12 @@
 
 #include "common/comp_vk.h"
 
+DEBUG_GET_ONCE_BOOL_OPTION(vulkan_spew,
+                           "XRT_COMPOSITOR_VULKAN_PRINT_SPEW",
+                           false)
+DEBUG_GET_ONCE_BOOL_OPTION(vulkan_debug,
+                           "XRT_COMPOSITOR_VULKAN_PRINT_DEBUG",
+                           false)
 
 /*
  *
@@ -634,8 +640,6 @@ _validation_cb(VkDebugReportFlagsEXT flags,
 	return VK_FALSE;
 }
 
-DEBUG_GET_ONCE_BOOL_OPTION(vulkan_spew, "XRT_COMPOSITOR_VULKAN_SPEW", false)
-
 void
 vk_init_validation_callback(struct vk_bundle *vk)
 {
@@ -688,6 +692,9 @@ vk_destroy_validation_callback(struct vk_bundle *vk)
 VkResult
 vk_get_loader_functions(struct vk_bundle *vk, PFN_vkGetInstanceProcAddr g)
 {
+	// every new vk_bundle will have to get functions first
+	vk->print = debug_get_bool_option_vulkan_debug();
+
 	vk->vkGetInstanceProcAddr = g;
 
 	// Fill in all loader functions.
