@@ -133,6 +133,7 @@ t_hsv_build_optimized_table(struct t_hsv_filter_params *params,
  */
 
 #define NUM_CHANNELS 4
+#define NUM_TIME_SAMPLES 256
 
 struct t_hsv_filter
 {
@@ -153,7 +154,13 @@ struct t_hsv_filter
 	struct t_hsv_filter_optimized_table table;
 
 	float latency_get;
+	float latency_alloc;
+	float latency_process;
 	float latency_post_push;
+
+	int time_index;
+	float time_samples[NUM_TIME_SAMPLES];
+	struct u_var_frametime ft;
 };
 
 static void
@@ -301,11 +308,15 @@ push_frame(struct xrt_frame_sink *xsink, struct xrt_frame *xf)
 	switch (xf->format) {
 	case XRT_FORMAT_YUV888:
 		ensure_buf_allocated(f, xf);
+		f->latency_alloc = os_calc_latency_ms(xf->timestamp);
 		process_frame_yuv(f, xf);
+		f->latency_process = os_calc_latency_ms(xf->timestamp);
 		break;
 	case XRT_FORMAT_YUV422:
 		ensure_buf_allocated(f, xf);
+		f->latency_alloc = os_calc_latency_ms(xf->timestamp);
 		process_frame_yuyv(f, xf);
+		f->latency_process = os_calc_latency_ms(xf->timestamp);
 		break;
 	default:
 		fprintf(stderr, "ERROR: Bad format '%s'",
@@ -329,6 +340,8 @@ push_frame(struct xrt_frame_sink *xsink, struct xrt_frame *xf)
 	assert(f->frame3 == NULL);
 
 	f->latency_post_push = os_calc_latency_ms(xf->timestamp);
+	f->time_samples[f->time_index] = f->latency_process - f->latency_alloc;
+	f->time_index = (f->time_index + 1) % NUM_TIME_SAMPLES;
 }
 
 static void
@@ -363,9 +376,16 @@ t_hsv_filter_create(struct xrt_frame_context *xfctx,
 
 	xrt_frame_context_add(xfctx, &f->node);
 
+	f->ft.arr.data = f->time_samples;
+	f->ft.arr.index_ptr = &f->time_index;
+	f->ft.arr.length = NUM_TIME_SAMPLES;
+	f->ft.target_frame_time = 0;
 	u_var_add_root(f, "HSV Filter", true);
 	u_var_add_ro_f32(f, &f->latency_get, "latency(ms): Get");
+	u_var_add_ro_f32(f, &f->latency_alloc, "latency(ms): Alloc");
+	u_var_add_ro_f32(f, &f->latency_process, "latency(ms): Process");
 	u_var_add_ro_f32(f, &f->latency_post_push, "latency(ms): Post Push");
+	u_var_add_f32_frametime(f, &f->ft, "latency");
 	u_var_add_sink(f, &f->debug, "Input");
 	u_var_add_sink(f, &f->sinks[0], "Red");
 	u_var_add_sink(f, &f->sinks[1], "Purple");

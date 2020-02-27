@@ -23,6 +23,7 @@
 #include "util/u_format.h"
 
 #include "math/m_api.h"
+#include "math/m_fusion.h"
 
 #include "os/os_time.h"
 #include "os/os_threading.h"
@@ -93,6 +94,10 @@ struct TrackerPSMV
 	float latency_get;
 	float latency_views;
 	float latency_complete;
+
+	struct m_imu_on_arm *n_imu;
+
+	FilterFifo3F fifo = {128};
 };
 
 
@@ -502,6 +507,9 @@ t_psmv_node_destroy(struct xrt_frame_node *node)
 	// Tidy variable setup.
 	u_var_remove_root(t_ptr);
 
+	// Does NULL checking and sets to NULL.
+	m_imu_on_arm_free(&t_ptr->n_imu);
+
 	delete t_ptr;
 }
 
@@ -604,6 +612,9 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	t.sbd = cv::SimpleBlobDetector::create(blob_params);
 	xrt_frame_context_add(xfctx, &t.node);
 
+	// Add the new filter
+	m_imu_on_arm_alloc(&t.n_imu);
+
 	// Everything is safe, now setup the variable tracking.
 	u_var_add_root(&t, "PSMV Tracker", true);
 	u_var_add_vec3_f32(&t, &t.tracked_object_position, "last.ball.pos");
@@ -614,6 +625,34 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 
 	*out_sink = &t.sink;
 	*out_xtmv = &t.base;
+
+
+	FilterFifo3F ff(128);
+
+	xrt_vec3 one = {1, 1, 1};
+	xrt_vec3 two = {2, 2, 2};
+	xrt_vec3 res = {0, 0, 0};
+	ff.push({128, 128, 128}, 0);
+	ff.push(one, 1);
+	ff.push(one, 2);
+	ff.push(one, 3);
+	ff.push(two, 4);
+	ff.push(two, 5);
+
+	ret = (int)ff.filter(1, 1, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(1, 5, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(5, 5, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(3, 4, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(4, 4, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(5, 4, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
+	ret = (int)ff.filter(0, 6, &res);
+	fprintf(stderr, "%i (%f %f %f)\n", ret, res.x, res.y, res.z);
 
 	return 0;
 }
