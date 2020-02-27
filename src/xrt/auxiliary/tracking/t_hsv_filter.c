@@ -13,6 +13,8 @@
 #include "util/u_frame.h"
 #include "util/u_format.h"
 
+#include "os/os_time.h"
+
 #include "tracking/t_tracking.h"
 
 #include <stdio.h>
@@ -149,6 +151,9 @@ struct t_hsv_filter
 	struct xrt_frame *frame3;
 
 	struct t_hsv_filter_optimized_table table;
+
+	float latency_get;
+	float latency_post_push;
 };
 
 static void
@@ -291,6 +296,7 @@ push_frame(struct xrt_frame_sink *xsink, struct xrt_frame *xf)
 {
 	struct t_hsv_filter *f = (struct t_hsv_filter *)xsink;
 
+	f->latency_get = os_calc_latency_ms(xf->timestamp);
 
 	switch (xf->format) {
 	case XRT_FORMAT_YUV888:
@@ -321,6 +327,8 @@ push_frame(struct xrt_frame_sink *xsink, struct xrt_frame *xf)
 	assert(f->frame1 == NULL);
 	assert(f->frame2 == NULL);
 	assert(f->frame3 == NULL);
+
+	f->latency_post_push = os_calc_latency_ms(xf->timestamp);
 }
 
 static void
@@ -356,6 +364,8 @@ t_hsv_filter_create(struct xrt_frame_context *xfctx,
 	xrt_frame_context_add(xfctx, &f->node);
 
 	u_var_add_root(f, "HSV Filter", true);
+	u_var_add_ro_f32(f, &f->latency_get, "latency(ms): Get");
+	u_var_add_ro_f32(f, &f->latency_post_push, "latency(ms): Post Push");
 	u_var_add_sink(f, &f->debug, "Input");
 	u_var_add_sink(f, &f->sinks[0], "Red");
 	u_var_add_sink(f, &f->sinks[1], "Purple");
