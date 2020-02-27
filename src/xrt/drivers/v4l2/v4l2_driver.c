@@ -153,6 +153,9 @@ struct v4l2_fs
 
 	struct xrt_fs_capture_parameters capture_params;
 
+	float latency_delivered;
+	float latency_post_push;
+
 	bool is_configured;
 	bool is_running;
 	bool print_spew;
@@ -763,6 +766,8 @@ v4l2_fs_create(struct xrt_frame_context *xfctx, const char *path)
 	// clang-format off
 	u_var_add_root(vid, "V4L2 Frameserver", true);
 	u_var_add_ro_text(vid, vid->base.name, "Card");
+	u_var_add_ro_f32(vid, &vid->latency_delivered, "latency(ms): Delivered");
+	u_var_add_ro_f32(vid, &vid->latency_post_push, "latency(ms): Post push");
 	u_var_add_bool(vid, &vid->print_debug, "Debug");
 	u_var_add_bool(vid, &vid->print_spew, "Spew");
 	for (size_t i = 0; i < vid->num_states; i++) {
@@ -907,11 +912,16 @@ v4l2_fs_stream_run(void *ptr)
 			xf->timestamp = os_timeval_to_ns(&v_buf.timestamp);
 		}
 
+		uint64_t frame_timestamp = xf->timestamp;
+		vid->latency_delivered = os_calc_latency_ms(frame_timestamp);
+
 		vid->sink->push_frame(vid->sink, xf);
 
 		// The frame is requeued as soon as the refcount reaches zero,
 		// this can be done safely from another thread.
 		xrt_frame_reference(&xf, NULL);
+
+		vid->latency_post_push = os_calc_latency_ms(frame_timestamp);
 	}
 
 	V_DEBUG(vid, "info: Thread leave!");
