@@ -24,6 +24,7 @@
 
 #include "math/m_api.h"
 
+#include "os/os_time.h"
 #include "os/os_threading.h"
 
 #include <stdio.h>
@@ -88,6 +89,10 @@ struct TrackerPSMV
 	std::unique_ptr<xrt_fusion::PSMVFusionInterface> filter;
 
 	xrt_vec3 tracked_object_position;
+
+	float latency_get;
+	float latency_views;
+	float latency_complete;
 };
 
 
@@ -221,6 +226,11 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 		return;
 	}
 
+	// Keep around.
+	uint64_t frame_timestamp = xf->timestamp;
+
+	t.latency_get = os_calc_latency_ms(frame_timestamp);
+
 	// Create the debug frame if needed.
 	t.debug.refresh(xf);
 
@@ -236,6 +246,8 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 
 	do_view(t, t.view[0], l_grey, t.debug.rgb[0]);
 	do_view(t, t.view[1], r_grey, t.debug.rgb[1]);
+
+	t.latency_views = os_calc_latency_ms(frame_timestamp);
 
 	cv::Point3f last_point(t.tracked_object_position.x,
 	                       t.tracked_object_position.y,
@@ -310,6 +322,8 @@ process(TrackerPSMV &t, struct xrt_frame *xf)
 	} else {
 		t.filter->clear_position_tracked_flag();
 	}
+
+	t.latency_complete = os_calc_latency_ms(frame_timestamp);
 }
 
 /*!
@@ -594,6 +608,9 @@ t_psmv_create(struct xrt_frame_context *xfctx,
 	u_var_add_root(&t, "PSMV Tracker", true);
 	u_var_add_vec3_f32(&t, &t.tracked_object_position, "last.ball.pos");
 	u_var_add_sink(&t, &t.debug.sink, "Debug");
+	u_var_add_ro_f32(&t, &t.latency_get, "latency(ms): Get");
+	u_var_add_ro_f32(&t, &t.latency_views, "latency(ms): Views");
+	u_var_add_ro_f32(&t, &t.latency_complete, "latency(ms): Complete");
 
 	*out_sink = &t.sink;
 	*out_xtmv = &t.base;
