@@ -73,6 +73,9 @@ daydream_prober_autoprobe(struct xrt_auto_prober *xap,
                           struct xrt_prober *xp)
 {
 	struct daydream_prober *pdaydream = daydream_prober(xap);
+	if (!pdaydream->enabled) {
+		return NULL;
+	}
 
 	struct daydream_device *dd = daydream_device_create(false, false);
 	return &dd->base;
@@ -92,7 +95,7 @@ daydream_create_auto_prober()
 	    U_TYPED_CALLOC(struct daydream_prober);
 	pdaydream->base.destroy = daydream_prober_destroy;
 	pdaydream->base.lelo_dallas_autoprobe = daydream_prober_autoprobe;
-	pdaydream->enabled = true; // debug_get_bool_option_daydream_enable();
+	pdaydream->enabled = debug_get_bool_option_daydream_enable();
 	pdaydream->print_spew = debug_get_bool_option_daydream_spew();
 	pdaydream->print_debug = debug_get_bool_option_daydream_debug();
 
