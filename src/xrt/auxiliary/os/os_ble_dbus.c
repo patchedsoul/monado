@@ -61,7 +61,6 @@ os_ble_notify_open(const char *mac,
                    struct os_ble_device **out_ble)
 {
 	DBusMessage *msg;
-	DBusMessageIter args;
 	DBusPendingCall *pending;
 
 	struct ble_notify *bledev = U_TYPED_CALLOC(struct ble_notify);
@@ -141,16 +140,17 @@ os_ble_notify_open(const char *mac,
 	// free the pending message handle
 	dbus_pending_call_unref(pending);
 
-	int current_type = 0;
-	char *response;
+	DBusMessageIter args;
+	char *response = NULL;
 	dbus_message_iter_init(msg, &args);
-	while ((current_type = dbus_message_iter_get_arg_type(&args)) !=
-	       DBUS_TYPE_INVALID) {
-		if (current_type == DBUS_TYPE_STRING) {
+	while (true) {
+		int type = dbus_message_iter_get_arg_type(&args);
+		if (type == DBUS_TYPE_INVALID) {
+			break;
+		} else if (type == DBUS_TYPE_STRING) {
 			dbus_message_iter_get_basic(&args, &response);
 			printf("DBus call returned message: %s\n", response);
-		}
-		if (current_type == DBUS_TYPE_UNIX_FD) {
+		} else if (type == DBUS_TYPE_UNIX_FD) {
 			dbus_message_iter_get_basic(&args, &bledev->fd);
 		}
 		dbus_message_iter_next(&args);
