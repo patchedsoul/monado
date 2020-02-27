@@ -121,6 +121,17 @@ os_monotonic_get_ns(void)
 #endif
 }
 
+/*!
+ * A small helper to calculate latency in milliseconds, returns a double.
+ */
+XRT_MAYBE_UNUSED static inline double
+os_calc_latency_ms(uint64_t timepoint_ns)
+{
+	uint64_t now_ns = os_monotonic_get_ns();
+
+	return (now_ns - timepoint_ns) / (1000.0 * 1000.0);
+}
+
 
 #ifdef __cplusplus
 }
