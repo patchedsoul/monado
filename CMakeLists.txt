@@ -54,8 +54,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	pkg_search_module(WAYLAND_SCANNER wayland-scanner)
 	pkg_search_module(WAYLAND_PROTOCOLS wayland-protocols)
 
-        find_package(OpenGL COMPONENTS GLX)
-        pkg_search_module(DBUS dbus-1)
+	find_package(OpenGL COMPONENTS GLX)
+	pkg_search_module(DBUS dbus-1)
 
 else()
 	find_package(OpenGL)
@@ -162,8 +162,8 @@ if(BUILD_WITH_HYDRA)
 endif()
 
 if(BUILD_WITH_DAYDREAM)
-    add_definitions(-DXRT_HAVE_DBUS)
-    set(BUILD_DRIVER_DAYDREAM TRUE)
+	add_definitions(-DXRT_HAVE_DBUS)
+	set(BUILD_DRIVER_DAYDREAM TRUE)
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra -Wno-unused-parameter")
