@@ -1,17 +1,17 @@
-// Copyright 2019, Collabora, Ltd.
+// Copyright 2019-2020, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
  * @brief  Daydream controller code.
+ * @author Pete Black <pete.black@collabora.com>
  * @author Jakob Bornecrantz <jakob@collabora.com>
- * @author Ryan Pavlik <ryan.pavlik@collabora.com>
- * @ingroup drv_psmv
+ * @ingroup drv_daydream
  */
 
 #include "xrt/xrt_prober.h"
 #include "xrt/xrt_tracking.h"
 
-
+#include "os/os_time.h"
 
 #include "math/m_api.h"
 #include "tracking/t_imu.h"
@@ -31,32 +31,6 @@
 
 
 /*!
- * @ingroup drv_daydream
- * @{
- */
-
-
-DEBUG_GET_ONCE_BOOL_OPTION(daydream_spew, "DAYDREAM_PRINT_SPEW", false)
-DEBUG_GET_ONCE_BOOL_OPTION(daydream_debug, "DAYDREAM_PRINT_DEBUG", false)
-
-static void
-daydream_device_destroy(struct xrt_device *xdev);
-static void
-daydream_device_update_inputs(struct xrt_device *xdev,
-                              struct time_state *timekeeping);
-static void
-daydream_device_get_tracked_pose(struct xrt_device *xdev,
-                                 enum xrt_input_name name,
-                                 struct time_state *timekeeping,
-                                 int64_t *out_timestamp,
-                                 struct xrt_space_relation *out_relation);
-
-static inline struct daydream_device *
-daydream_device(struct xrt_device *xdev);
-static void *
-daydream_run_thread(void *ptr);
-
-/*!
  * Indices where each input is in the input list.
  */
 enum daydream_input_index
@@ -72,17 +46,6 @@ enum daydream_input_index
 };
 
 /*!
- * Mask for the button in the button uint32_t.
- */
-// enum daydream_button_bit
-//{
-// clang-format off
-    //TODO
-// clang-format on
-//};
-
-
-/*!
  * Input package for Daydream.
  */
 struct daydream_input_packet
@@ -90,98 +53,6 @@ struct daydream_input_packet
 	uint8_t data[20];
 };
 
-
-
-/*!
- * A single Daydream Controller.
- *
- */
-
-struct daydream_device *
-daydream_device_create(bool print_spew, bool print_debug)
-{
-	enum u_device_alloc_flags flags =
-	    (enum u_device_alloc_flags)(U_DEVICE_ALLOC_TRACKING_NONE);
-	struct daydream_device *dd =
-	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 8, 0);
-	dd->print_spew = debug_get_bool_option_daydream_spew();
-	dd->print_debug = debug_get_bool_option_daydream_debug();
-	dd->base.destroy = daydream_device_destroy;
-	dd->base.update_inputs = daydream_device_update_inputs;
-	dd->base.get_tracked_pose = daydream_device_get_tracked_pose;
-	dd->base.inputs[0].name = XRT_INPUT_DAYDREAM_POSE;
-	dd->base.inputs[1].name = XRT_INPUT_DAYDREAM_TOUCHPAD_CLICK;
-	dd->base.inputs[2].name = XRT_INPUT_DAYDREAM_BAR_CLICK;
-	dd->base.inputs[3].name = XRT_INPUT_DAYDREAM_CIRCLE_CLICK;
-	dd->base.inputs[4].name = XRT_INPUT_DAYDREAM_VOLDN_CLICK;
-	dd->base.inputs[5].name = XRT_INPUT_DAYDREAM_VOLUP_CLICK;
-	dd->base.inputs[6].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_X;
-	dd->base.inputs[7].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_Y;
-
-	strcpy(dd->mac, "D0_63_D3_D2_34_61");
-	strcpy(dd->path, "service000a/char000b");
-
-	dd->base.name = XRT_DEVICE_DAYDREAM;
-	dd->fusion.rot.w = 1.0f;
-	dd->fusion.fusion = imu_fusion_create();
-	dd->fusion.variance.accel.x = 1.0f;
-	dd->fusion.variance.accel.y = 1.0f;
-	dd->fusion.variance.accel.z = 1.0f;
-	dd->fusion.variance.gyro.x = 1.0f;
-	dd->fusion.variance.gyro.y = 1.0f;
-	dd->fusion.variance.gyro.z = 1.0f;
-
-	dd->calibration.accel.factor.x = 120000000000.0;
-	dd->calibration.accel.factor.y = 120000000000.0;
-	dd->calibration.accel.factor.z = 120000000000.0;
-
-	dd->calibration.accel.bias.x = 0.0;
-	dd->calibration.accel.bias.y = 0.0;
-	dd->calibration.accel.bias.z = 0.0;
-
-	dd->calibration.gyro.factor.x = 120000000000.0;
-	dd->calibration.gyro.factor.y = 120000000000.0;
-	dd->calibration.gyro.factor.z = 120000000000.0;
-
-	dd->calibration.gyro.bias.x = 0.0;
-	dd->calibration.gyro.bias.y = 0.0;
-	dd->calibration.gyro.bias.z = 0.0;
-
-
-	os_ble_notify_open(dd->mac, dd->path, &dd->ble);
-
-	if (dd->ble == NULL) {
-		free(dd);
-		return NULL;
-	}
-
-	printf("creating daydream device!\n");
-
-	int ret = os_thread_helper_start(&dd->oth, daydream_run_thread, dd);
-	if (ret != 0) {
-		DAYDREAM_ERROR(dd, "Failed to start thread!");
-		daydream_device_destroy(&dd->base);
-		// return ret;
-	}
-
-	return dd;
-}
-
-
-
-/*
- *
- * Pre-declare some functions.
- *
- */
-
-static int
-daydream_parse_input(struct daydream_device *daydream,
-                     void *data,
-                     struct daydream_parsed_input *input);
-
-static int
-daydream_get_calibration(struct daydream_device *daydream);
 
 /*
  *
@@ -195,7 +66,6 @@ daydream_device(struct xrt_device *xdev)
 	return (struct daydream_device *)xdev;
 }
 
-
 static void
 daydream_update_input_click(struct daydream_device *daydream,
                             int index,
@@ -207,7 +77,6 @@ daydream_update_input_click(struct daydream_device *daydream,
 	daydream->base.inputs[index].value.boolean =
 	    (daydream->last.buttons & bit) != 0;
 }
-
 
 
 /*
@@ -274,6 +143,43 @@ update_fusion(struct daydream_device *daydream,
 	*/
 }
 
+static int
+daydream_parse_input(struct daydream_device *daydream,
+                     void *data,
+                     struct daydream_parsed_input *input)
+{
+	U_ZERO(input);
+	unsigned char *b = (unsigned char *)data;
+	DAYDREAM_DEBUG(
+	    daydream,
+	    "raw input: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x "
+	    "%02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+	    b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10],
+	    b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]);
+	input->timestamp = get_bits(b, 0, 14);
+	input->sample.mag.x = sign_extend_13(get_bits(b, 14, 13));
+	input->sample.mag.y = sign_extend_13(get_bits(b, 27, 13));
+	input->sample.mag.z = sign_extend_13(get_bits(b, 40, 13));
+	input->sample.accel.x = sign_extend_13(get_bits(b, 53, 13));
+	input->sample.accel.y = sign_extend_13(get_bits(b, 66, 13));
+	input->sample.accel.z = sign_extend_13(get_bits(b, 79, 13));
+	input->sample.gyro.x = sign_extend_13(get_bits(b, 92, 13));
+	input->sample.gyro.y = sign_extend_13(get_bits(b, 105, 13));
+	input->sample.gyro.z = sign_extend_13(get_bits(b, 118, 13));
+	input->touchpad.x = get_bits(b, 131, 8);
+	input->touchpad.y = get_bits(b, 139, 8);
+	input->buttons |= get_bit(b, 147) << DAYDREAM_VOLUP_BUTTON_BIT;
+	input->buttons |= get_bit(b, 148) << DAYDREAM_VOLDN_BUTTON_BIT;
+	input->buttons |= get_bit(b, 149) << DAYDREAM_CIRCLE_BUTTON_BIT;
+	input->buttons |= get_bit(b, 150) << DAYDREAM_BAR_BUTTON_BIT;
+	input->buttons |= get_bit(b, 151) << DAYDREAM_TOUCHPAD_BUTTON_BIT;
+	// DAYDREAM_DEBUG(daydream,"touchpad: %d %dx\n",
+	// input->touchpad.x,input->touchpad.y);
+
+	daydream->last = *input;
+	return 1;
+}
+
 /*!
  * Reads one packet from the device,handles locking and checking if
  * the thread has been told to shut down.
@@ -292,10 +198,10 @@ daydream_read_one_packet(struct daydream_device *daydream,
 
 		while (retries > 0) {
 			ret = daydream->ble->read(daydream->ble, buffer, size);
-			if (ret == size) {
+			if (ret == (int)size) {
 				break;
 			}
-			usleep(60000);
+			os_nanosleep(60 * 1000 * 1000);
 			retries--;
 		}
 		if (ret == 0) {
@@ -315,7 +221,7 @@ daydream_read_one_packet(struct daydream_device *daydream,
 	return false;
 }
 
-void *
+static void *
 daydream_run_thread(void *ptr)
 {
 	struct daydream_device *daydream = (struct daydream_device *)ptr;
@@ -338,6 +244,7 @@ daydream_run_thread(void *ptr)
 		timepoint_ns now_ns = time_state_get_now(time);
 
 		int num = daydream_parse_input(daydream, buffer, &input);
+		(void)num;
 
 		time_duration_ns delta_ns = now_ns - then_ns;
 		then_ns = now_ns;
@@ -359,7 +266,18 @@ daydream_run_thread(void *ptr)
 	return NULL;
 }
 
+static int
+daydream_get_calibration(struct daydream_device *daydream)
+{
+	return 0;
+}
 
+
+/*
+ *
+ * Device functions.
+ *
+ */
 
 static void
 daydream_get_fusion_pose(struct daydream_device *daydream,
@@ -375,14 +293,7 @@ daydream_get_fusion_pose(struct daydream_device *daydream,
 	    XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT);
 }
 
-
-/*
- *
- * Device functions.
- *
- */
-
-void
+static void
 daydream_device_destroy(struct xrt_device *xdev)
 {
 	struct daydream_device *daydream = daydream_device(xdev);
@@ -408,7 +319,7 @@ daydream_device_destroy(struct xrt_device *xdev)
 	free(daydream);
 }
 
-void
+static void
 daydream_device_update_inputs(struct xrt_device *xdev,
                               struct time_state *timekeeping)
 {
@@ -420,34 +331,35 @@ daydream_device_update_inputs(struct xrt_device *xdev,
 	os_mutex_lock(&daydream->lock);
 
 	// clang-format off
-    daydream_update_input_click(daydream, 1, now, DAYDREAM_TOUCHPAD_BUTTON_MASK);
-    daydream_update_input_click(daydream, 2, now, DAYDREAM_BAR_BUTTON_MASK);
-    daydream_update_input_click(daydream, 3, now, DAYDREAM_CIRCLE_BUTTON_MASK);
-    daydream_update_input_click(daydream, 4, now, DAYDREAM_VOLDN_BUTTON_MASK);
-    daydream_update_input_click(daydream, 5, now, DAYDREAM_VOLUP_BUTTON_MASK);
+	daydream_update_input_click(daydream, 1, now, DAYDREAM_TOUCHPAD_BUTTON_MASK);
+	daydream_update_input_click(daydream, 2, now, DAYDREAM_BAR_BUTTON_MASK);
+	daydream_update_input_click(daydream, 3, now, DAYDREAM_CIRCLE_BUTTON_MASK);
+	daydream_update_input_click(daydream, 4, now, DAYDREAM_VOLDN_BUTTON_MASK);
+	daydream_update_input_click(daydream, 5, now, DAYDREAM_VOLUP_BUTTON_MASK);
+	// clang-format on
 
-    daydream->base.inputs[6].timestamp = now;
-    daydream->base.inputs[6].value.vec1.x = daydream->last.touchpad.x;
-    daydream->base.inputs[7].timestamp = now;
-    daydream->base.inputs[7].value.vec1.x = daydream->last.touchpad.y;
+	daydream->base.inputs[6].timestamp = now;
+	daydream->base.inputs[6].value.vec1.x = daydream->last.touchpad.x;
+	daydream->base.inputs[7].timestamp = now;
+	daydream->base.inputs[7].value.vec1.x = daydream->last.touchpad.y;
 
-    // Done now.
+	// Done now.
 
-os_mutex_unlock(&daydream->lock);
+	os_mutex_unlock(&daydream->lock);
 }
 
-void
+static void
 daydream_device_get_tracked_pose(struct xrt_device *xdev,
-                             enum xrt_input_name name,
-                             struct time_state *timekeeping,
-                             int64_t *out_timestamp,
-                             struct xrt_space_relation *out_relation)
+                                 enum xrt_input_name name,
+                                 struct time_state *timekeeping,
+                                 int64_t *out_timestamp,
+                                 struct xrt_space_relation *out_relation)
 {
-    struct daydream_device *daydream = daydream_device(xdev);
+	struct daydream_device *daydream = daydream_device(xdev);
 
 	timepoint_ns now = time_state_get_now(timekeeping);
 
-        daydream_get_fusion_pose(daydream, name, now, out_relation);
+	daydream_get_fusion_pose(daydream, name, now, out_relation);
 }
 
 
@@ -457,56 +369,69 @@ daydream_device_get_tracked_pose(struct xrt_device *xdev,
  *
  */
 
-#define SET_INPUT(NAME)                                                        \
-    (daydream->base.inputs[DAYDREAM_INDEX_##NAME].name = XRT_INPUT_DAYDREAM_##NAME)
-
-
-/*
- *
- * Small dispatch functions.
- *
- */
-
-static int
-daydream_get_calibration(struct daydream_device *daydream)
+struct daydream_device *
+daydream_device_create(struct os_ble_device *ble,
+                       bool print_spew,
+                       bool print_debug)
 {
+	enum u_device_alloc_flags flags =
+	    (enum u_device_alloc_flags)(U_DEVICE_ALLOC_TRACKING_NONE);
+	struct daydream_device *dd =
+	    U_DEVICE_ALLOCATE(struct daydream_device, flags, 8, 0);
+
+	dd->print_spew = print_spew;
+	dd->print_debug = print_debug;
+	dd->base.name = XRT_DEVICE_DAYDREAM;
+	dd->base.destroy = daydream_device_destroy;
+	dd->base.update_inputs = daydream_device_update_inputs;
+	dd->base.get_tracked_pose = daydream_device_get_tracked_pose;
+	dd->base.inputs[0].name = XRT_INPUT_DAYDREAM_POSE;
+	dd->base.inputs[1].name = XRT_INPUT_DAYDREAM_TOUCHPAD_CLICK;
+	dd->base.inputs[2].name = XRT_INPUT_DAYDREAM_BAR_CLICK;
+	dd->base.inputs[3].name = XRT_INPUT_DAYDREAM_CIRCLE_CLICK;
+	dd->base.inputs[4].name = XRT_INPUT_DAYDREAM_VOLDN_CLICK;
+	dd->base.inputs[5].name = XRT_INPUT_DAYDREAM_VOLUP_CLICK;
+	dd->base.inputs[6].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_X;
+	dd->base.inputs[7].name = XRT_INPUT_DAYDREAM_TOUCHPAD_VALUE_Y;
+
+	dd->ble = ble;
+	dd->fusion.rot.w = 1.0f;
+	dd->fusion.fusion = imu_fusion_create();
+	dd->fusion.variance.accel.x = 1.0f;
+	dd->fusion.variance.accel.y = 1.0f;
+	dd->fusion.variance.accel.z = 1.0f;
+	dd->fusion.variance.gyro.x = 1.0f;
+	dd->fusion.variance.gyro.y = 1.0f;
+	dd->fusion.variance.gyro.z = 1.0f;
+
+	dd->calibration.accel.factor.x = 120000000000.0;
+	dd->calibration.accel.factor.y = 120000000000.0;
+	dd->calibration.accel.factor.z = 120000000000.0;
+
+	dd->calibration.accel.bias.x = 0.0;
+	dd->calibration.accel.bias.y = 0.0;
+	dd->calibration.accel.bias.z = 0.0;
+
+	dd->calibration.gyro.factor.x = 120000000000.0;
+	dd->calibration.gyro.factor.y = 120000000000.0;
+	dd->calibration.gyro.factor.z = 120000000000.0;
+
+	dd->calibration.gyro.bias.x = 0.0;
+	dd->calibration.gyro.bias.y = 0.0;
+	dd->calibration.gyro.bias.z = 0.0;
+
+	daydream_get_calibration(dd);
+
+	// Everything done, finally start the thread.
+	int ret = os_thread_helper_start(&dd->oth, daydream_run_thread, dd);
+	if (ret != 0) {
+		DAYDREAM_ERROR(dd, "Failed to start thread!");
+		daydream_device_destroy(&dd->base);
+		return NULL;
+	}
 
 
-	return 0;
+	DAYDREAM_DEBUG(dd, "Created device!");
+
+	return dd;
 }
-
-static int
-daydream_parse_input(struct daydream_device *daydream,
-                 void *data,
-                 struct daydream_parsed_input *input)
-{
-	U_ZERO(input);
-    unsigned char* b = (unsigned char*)data;
-    DAYDREAM_DEBUG(daydream,"raw input: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15],b[16],b[17],b[18],b[19]);
-    input->timestamp = get_bits(b,0,14);
-    input->sample.mag.x = sign_extend_13(get_bits(b,14,13));
-    input->sample.mag.y = sign_extend_13(get_bits(b,27,13));
-    input->sample.mag.z = sign_extend_13(get_bits(b,40,13));
-    input->sample.accel.x = sign_extend_13(get_bits(b,53,13));
-    input->sample.accel.y = sign_extend_13(get_bits(b,66,13));
-    input->sample.accel.z = sign_extend_13(get_bits(b,79,13));
-    input->sample.gyro.x = sign_extend_13(get_bits(b,92,13));
-    input->sample.gyro.y = sign_extend_13(get_bits(b,105,13));
-    input->sample.gyro.z = sign_extend_13(get_bits(b,118,13));
-    input->touchpad.x = get_bits(b,131,8);
-    input->touchpad.y = get_bits(b,139,8);
-    input->buttons |= get_bit(b,147) << DAYDREAM_VOLUP_BUTTON_BIT;
-    input->buttons |= get_bit(b,148) << DAYDREAM_VOLDN_BUTTON_BIT;
-    input->buttons |= get_bit(b,149) << DAYDREAM_CIRCLE_BUTTON_BIT;
-    input->buttons |= get_bit(b,150) << DAYDREAM_BAR_BUTTON_BIT;
-    input->buttons |= get_bit(b,151) << DAYDREAM_TOUCHPAD_BUTTON_BIT;
-	//DAYDREAM_DEBUG(daydream,"touchpad: %d %dx\n", input->touchpad.x,input->touchpad.y);
-
-    daydream->last = *input;
-    return 1;
-}
-
-
-/*!
- * @}
- */

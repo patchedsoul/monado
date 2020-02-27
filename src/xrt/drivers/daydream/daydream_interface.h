@@ -1,10 +1,10 @@
-// Copyright 2019, Collabora, Ltd.
+// Copyright 2019-2020, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
  * @brief  Interface to @ref drv_daydream.
  * @author Pete Black <pete.black@collabora.com>
- * @ingroup drv_psmv
+ * @ingroup drv_daydream
  */
 
 #pragma once

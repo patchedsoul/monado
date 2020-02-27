@@ -1,4 +1,4 @@
-// Copyright 2019, Collabora, Ltd.
+// Copyright 2019-2020, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
@@ -77,7 +77,18 @@ daydream_prober_autoprobe(struct xrt_auto_prober *xap,
 		return NULL;
 	}
 
-	struct daydream_device *dd = daydream_device_create(false, false);
+	const char *mac = "D0_63_D3_D2_34_61";
+	const char *path = "service000a/char000b";
+
+	struct os_ble_device *ble = NULL;
+	os_ble_notify_open(mac, path, &ble);
+	if (ble == NULL) {
+		return NULL;
+	}
+
+	struct daydream_device *dd = daydream_device_create(ble,
+	    pdaydream->print_spew, pdaydream->print_debug);
+
 	return &dd->base;
 }
 

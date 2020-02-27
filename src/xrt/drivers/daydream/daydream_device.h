@@ -1,4 +1,4 @@
-// Copyright 2019, Collabora, Ltd.
+// Copyright 2019-2020, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
@@ -147,7 +147,9 @@ struct daydream_device
 
 
 struct daydream_device *
-daydream_device_create(bool print_spew, bool print_debug);
+daydream_device_create(struct os_ble_device *ble,
+                       bool print_spew,
+                       bool print_debug);
 
 
 #define DAYDREAM_SPEW(c, ...)                                                  \
