@@ -857,7 +857,9 @@ _create_hmd_device(struct survive_system *sys)
 			survive->base.hmd->distortion.vive.aspect_x_over_y =
 			_json_get_float(device_json,
 					"physical_aspect_x_over_y");
-			lens_horizontal_separation = _json_get_double(json, "lens_separation");
+
+			//! @todo: fov calculation needs to be fixed, only works with hardcoded value
+			// lens_horizontal_separation = _json_get_double(json, "lens_separation");
 		}
 		h_pixels =
 		(uint16_t)_json_get_int(device_json,
@@ -904,12 +906,12 @@ _create_hmd_device(struct survive_system *sys)
 
 	// Left
 	survive->base.hmd->views[0].lens_center.x_meters =
-	(float)(w_meters - lens_horizontal_separation / 2.0);
+	    (float)(w_meters - lens_horizontal_separation / 2.0);
 	survive->base.hmd->views[0].viewport.x_pixels = 0;
 
 	// Right
 	survive->base.hmd->views[1].lens_center.x_meters =
-	(float)lens_horizontal_separation / 2.0f;
+	    (float)lens_horizontal_separation / 2.0f;
 	survive->base.hmd->views[1].viewport.x_pixels = w_pixels;
 
 	for (uint8_t eye = 0; eye < 2; eye++) {
