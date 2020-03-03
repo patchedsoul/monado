@@ -60,31 +60,40 @@
 
 struct survive_system;
 
-enum index_input_index
+enum input_index
 {
-	INDEX_SYSTEM_CLICK    ,
-	INDEX_SYSTEM_TOUCH    ,
-	INDEX_A_CLICK         ,
-	INDEX_A_TOUCH         ,
-	INDEX_B_CLICK         ,
-	INDEX_B_TOUCH         ,
-	INDEX_SQUEEZE_VALUE   ,
-	INDEX_SQUEEZE_FORCE   ,
-	INDEX_TRIGGER_CLICK   ,
-	INDEX_TRIGGER_VALUE   ,
-	INDEX_TRIGGER_TOUCH   ,
-	INDEX_THUMBSTICK_X    ,
-	INDEX_THUMBSTICK_Y    ,
-	INDEX_THUMBSTICK_XY   ,
-	INDEX_THUMBSTICK_CLICK,
-	INDEX_THUMBSTICK_TOUCH,
-	INDEX_TRACKPAD_X      ,
-	INDEX_TRACKPAD_Y      ,
-	INDEX_TRACKPAD_XY     ,
-	INDEX_TRACKPAD_FORCE  ,
-	INDEX_TRACKPAD_TOUCH  ,
-	INDEX_GRIP_POSE       ,
-	INDEX_AIM_POSE        ,
+	// Vive Wand && Index Controller
+	SYSTEM_CLICK    ,
+	TRIGGER_CLICK   ,
+	TRIGGER_VALUE   ,
+	GRIP_POSE       ,
+	AIM_POSE        ,
+	TRACKPAD_X      ,
+	TRACKPAD_Y      ,
+	TRACKPAD_XY     ,
+	TRACKPAD_TOUCH  ,
+
+	// Index Controller only
+	SYSTEM_TOUCH    ,
+	A_CLICK         ,
+	A_TOUCH         ,
+	B_CLICK         ,
+	B_TOUCH         ,
+	SQUEEZE_VALUE   ,
+	SQUEEZE_FORCE   ,
+	TRIGGER_TOUCH   ,
+	THUMBSTICK_X    ,
+	THUMBSTICK_Y    ,
+	THUMBSTICK_XY   ,
+	THUMBSTICK_CLICK,
+	THUMBSTICK_TOUCH,
+	TRACKPAD_FORCE  ,
+
+	// Vive Wand only
+	SQUEEZE_CLICK   ,
+	MENU_CLICK      ,
+	TRACKPAD_CLICK  ,
+
 	LAST_INPUT
 };
 
@@ -280,7 +289,9 @@ survive_device_get_tracked_pose(struct xrt_device *xdev,
 		((survive == survive->sys->controllers[0] ||
 		  survive == survive->sys->controllers[1]) &&
 		(name != XRT_INPUT_INDEX_AIM_POSE &&
-		 name != XRT_INPUT_INDEX_GRIP_POSE))) {
+		 name != XRT_INPUT_INDEX_GRIP_POSE) &&
+		(name != XRT_INPUT_VIVE_AIM_POSE &&
+		 name != XRT_INPUT_VIVE_GRIP_POSE))) {
 
 		SURVIVE_ERROR(survive, "unknown input name");
 		return;
@@ -405,9 +416,17 @@ _process_event (struct survive_device *survive,
 		int64_t now)
 {
 	// ??
-	const int survive_0_btn = 0;
+	const int survive_btn_id_0 = 0;
+	const int survive_trackpad_touch_btn_id_1 = 1;
 
-	const int survive_trackpad_touch_btn = 1;
+	const int survive_squeeze_click_btn_id_2 = 2;
+
+	const int survive_a_btn_id_4 = 4;
+	const int survive_b_btn_id_5 = 5;
+
+	const int survive_menu_btn_id_12 = 12;
+
+	const int survive_trigger_click_btn_id_24 = 24;
 
 	const int survive_trigger_axis_id = 1;
 
@@ -415,9 +434,8 @@ _process_event (struct survive_device *survive,
 	const int survive_xy_axis_id_x = 2;
 	const int survive_xy_axis_id_y = 3;
 
-	const int survive_a_btn = 4;
-	const int survive_b_btn = 5;
-	const int survive_trigger_click_btn = 24;
+
+	bool index = survive->sys->variant == VIVE_VARIANT_INDEX;
 
 	switch (event->event_type) {
 		case SurviveSimpleEventType_ButtonEvent: {
@@ -432,34 +450,34 @@ _process_event (struct survive_device *survive,
 				return;
 			}
 
-			/*
+
 			printf("Btn id %d type %d, axes %d  ", e->button_id, e->event_type, e->axis_count);
 			for (int i = 0; i < e->axis_count; i++) {
 				printf("axis id: %d val %hu    ", e->axis_ids[i], e->axis_val[i]);
 			}
 			printf("\n");
-			*/
 
 
-			if (e->button_id == survive_0_btn) {
+
+			if (e->button_id == survive_btn_id_0) {
 				for (int i = 0; i < e->axis_count; i++) {
 					if (e->axis_ids[i] == survive_trigger_axis_id) {
 						uint16_t raw = e->axis_val[0];
 						float scaled = (float) raw / 32768.;
 
-						survive->base.inputs[INDEX_TRIGGER_VALUE].value.vec1.x = scaled;
-						survive->base.inputs[INDEX_TRIGGER_VALUE].timestamp = now;
-						//printf("Trigger value %f %lu\n", survive->base.inputs[INDEX_TRIGGER_VALUE].value.vec1.x, now);
+						survive->base.inputs[TRIGGER_VALUE].value.vec1.x = scaled;
+						survive->base.inputs[TRIGGER_VALUE].timestamp = now;
+						//printf("Trigger value %f %lu\n", survive->base.inputs[TRIGGER_VALUE].value.vec1.x, now);
 					}
 					if (e->axis_ids[i] == survive_xy_axis_id_x) {
 						int input_x;
 						int input_xy;
-						if (survive->base.inputs[INDEX_TRACKPAD_TOUCH].value.boolean) {
-							input_x = INDEX_TRACKPAD_X;
-							input_xy = INDEX_TRACKPAD_XY;
+						if (survive->base.inputs[TRACKPAD_TOUCH].value.boolean) {
+							input_x = TRACKPAD_X;
+							input_xy = TRACKPAD_XY;
 						} else {
-							input_x = INDEX_THUMBSTICK_X;
-							input_xy = INDEX_THUMBSTICK_XY;
+							input_x = THUMBSTICK_X;
+							input_xy = THUMBSTICK_XY;
 						}
 
 						float x = (float)((int16_t) e->axis_val[i]) / 32768.;
@@ -473,12 +491,12 @@ _process_event (struct survive_device *survive,
 					if (e->axis_ids[i] == survive_xy_axis_id_y) {
 						int input_y;
 						int input_xy;
-						if (survive->base.inputs[INDEX_TRACKPAD_TOUCH].value.boolean) {
-							input_y = INDEX_TRACKPAD_Y;
-							input_xy = INDEX_TRACKPAD_XY;
+						if (survive->base.inputs[TRACKPAD_TOUCH].value.boolean) {
+							input_y = TRACKPAD_Y;
+							input_xy = TRACKPAD_XY;
 						} else {
-							input_y = INDEX_THUMBSTICK_Y;
-							input_xy = INDEX_THUMBSTICK_XY;
+							input_y = THUMBSTICK_Y;
+							input_xy = THUMBSTICK_XY;
 						}
 
 						float y = (float)((int16_t) e->axis_val[i]) / 32768.;
@@ -493,28 +511,38 @@ _process_event (struct survive_device *survive,
 				}
 			}
 
-			if (e->button_id == survive_trigger_click_btn) {
+			if (e->button_id == survive_squeeze_click_btn_id_2) {
+				survive->base.inputs[SQUEEZE_CLICK].timestamp = now;
+				survive->base.inputs[SQUEEZE_CLICK].value.boolean = e->event_type == 1;
+			}
+
+			if (e->button_id == survive_trigger_click_btn_id_24) {
 				// 1 = pressed, 2 = released
 				// printf("trigger click %d\n", e->event_type);
 
-				survive->base.inputs[INDEX_TRIGGER_CLICK].timestamp = now;
-				survive->base.inputs[INDEX_TRIGGER_CLICK].value.boolean = e->event_type == 1;
+				survive->base.inputs[TRIGGER_CLICK].timestamp = now;
+				survive->base.inputs[TRIGGER_CLICK].value.boolean = e->event_type == 1;
 				//printf("Trigger click %d\n", survive->base.inputs[INDEX_TRIGGER_CLICK].value.boolean);
 			}
 
-			if (e->button_id == survive_a_btn) {
-				survive->base.inputs[INDEX_A_CLICK].timestamp = now;
-				survive->base.inputs[INDEX_A_CLICK].value.boolean = e->event_type == 1;
+			if (e->button_id == survive_a_btn_id_4) {
+				survive->base.inputs[A_CLICK].timestamp = now;
+				survive->base.inputs[A_CLICK].value.boolean = e->event_type == 1;
 			}
 
-			if (e->button_id == survive_b_btn) {
-				survive->base.inputs[INDEX_B_CLICK].timestamp = now;
-				survive->base.inputs[INDEX_B_CLICK].value.boolean = e->event_type == 1;
+			if (e->button_id == survive_b_btn_id_5) {
+				survive->base.inputs[B_CLICK].timestamp = now;
+				survive->base.inputs[B_CLICK].value.boolean = e->event_type == 1;
 			}
 
-			if (e->button_id == survive_trackpad_touch_btn) {
-				survive->base.inputs[INDEX_TRACKPAD_TOUCH].timestamp = now;
-				survive->base.inputs[INDEX_TRACKPAD_TOUCH].value.boolean = e->event_type == 1;
+			if (e->button_id == survive_menu_btn_id_12) {
+				survive->base.inputs[MENU_CLICK].timestamp = now;
+				survive->base.inputs[MENU_CLICK].value.boolean = e->event_type == 1;
+			}
+
+			if (e->button_id == survive_trackpad_touch_btn_id_1) {
+				survive->base.inputs[TRACKPAD_TOUCH].timestamp = now;
+				survive->base.inputs[TRACKPAD_TOUCH].value.boolean = e->event_type == 1;
 			}
 
 			break;
@@ -949,54 +977,85 @@ _create_controller_device(struct survive_system *sys,
 
 	controller->num = controller_num;
 
-	//! @todo: May use Vive Wands + Index HMDs or Index Controllers + Vive HMD
-	if (sys->variant == VIVE_VARIANT_INDEX) {
-		controller->base.name = XRT_DEVICE_INDEX_CONTROLLER;
-	} else {
-		controller->base.name = XRT_DEVICE_VIVE_WAND;
-	}
-
-	snprintf(controller->base.str, XRT_DEVICE_NAME_LEN,
-	         "Survive Controller %d", controller_num);
 	controller->base.tracking_origin = &sys->base;
 
 	controller->base.destroy = survive_device_destroy;
 	controller->base.update_inputs = survive_device_update_inputs;
 	controller->base.get_tracked_pose = survive_device_get_tracked_pose;
 
-	controller->base.inputs[INDEX_AIM_POSE].name = XRT_INPUT_INDEX_AIM_POSE;
-	controller->base.inputs[INDEX_GRIP_POSE].name = XRT_INPUT_INDEX_GRIP_POSE;
+	//! @todo: May use Vive Wands + Index HMDs or Index Controllers + Vive HMD
+	if (sys->variant == VIVE_VARIANT_INDEX) {
+		controller->base.name = XRT_DEVICE_INDEX_CONTROLLER;
+		snprintf(controller->base.str, XRT_DEVICE_NAME_LEN,
+			 "Survive Valve Index Controller %d", controller_num);
 
-	controller->base.inputs[INDEX_TRIGGER_VALUE].name = XRT_INPUT_INDEX_TRIGGER_VALUE;
+		controller->base.inputs[AIM_POSE].name = XRT_INPUT_INDEX_AIM_POSE;
+		controller->base.inputs[GRIP_POSE].name = XRT_INPUT_INDEX_GRIP_POSE;
 
-	controller->base.inputs[INDEX_TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
-	controller->base.inputs[INDEX_TRIGGER_CLICK].value.boolean = false;
+		controller->base.inputs[TRIGGER_VALUE].name = XRT_INPUT_INDEX_TRIGGER_VALUE;
+		controller->base.inputs[TRIGGER_VALUE].value.vec1.x = 0;
 
-	controller->base.inputs[INDEX_A_CLICK].name = XRT_INPUT_INDEX_A_CLICK;
-	controller->base.inputs[INDEX_A_CLICK].value.boolean = false;
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
 
-	controller->base.inputs[INDEX_B_CLICK].name = XRT_INPUT_INDEX_B_CLICK;
-	controller->base.inputs[INDEX_B_CLICK].value.boolean = false;
+		controller->base.inputs[A_CLICK].name = XRT_INPUT_INDEX_A_CLICK;
+		controller->base.inputs[A_CLICK].value.boolean = false;
 
+		controller->base.inputs[B_CLICK].name = XRT_INPUT_INDEX_B_CLICK;
+		controller->base.inputs[B_CLICK].value.boolean = false;
 
-	controller->base.inputs[INDEX_TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
-	controller->base.inputs[INDEX_TRIGGER_CLICK].value.boolean = false;
-	controller->base.inputs[INDEX_TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
-	controller->base.inputs[INDEX_TRIGGER_CLICK].value.boolean = false;
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_INDEX_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
 
+		controller->base.inputs[THUMBSTICK_X].name = XRT_INPUT_INDEX_THUMBSTICK_X;
+		controller->base.inputs[THUMBSTICK_Y].name = XRT_INPUT_INDEX_THUMBSTICK_Y;
+		controller->base.inputs[THUMBSTICK_XY].name = XRT_INPUT_INDEX_THUMBSTICK_XY;
 
-	controller->base.inputs[INDEX_THUMBSTICK_X].name = XRT_INPUT_INDEX_THUMBSTICK_X;
-	controller->base.inputs[INDEX_THUMBSTICK_Y].name = XRT_INPUT_INDEX_THUMBSTICK_Y;
-	controller->base.inputs[INDEX_THUMBSTICK_XY].name = XRT_INPUT_INDEX_THUMBSTICK_XY;
+		controller->base.inputs[TRACKPAD_X].name = XRT_INPUT_INDEX_TRACKPAD_X;
+		controller->base.inputs[TRACKPAD_Y].name = XRT_INPUT_INDEX_TRACKPAD_Y;
+		controller->base.inputs[TRACKPAD_XY].name = XRT_INPUT_INDEX_TRACKPAD_XY;
 
-	controller->base.inputs[INDEX_TRACKPAD_X].name = XRT_INPUT_INDEX_TRACKPAD_X;
-	controller->base.inputs[INDEX_TRACKPAD_Y].name = XRT_INPUT_INDEX_TRACKPAD_Y;
-	controller->base.inputs[INDEX_TRACKPAD_XY].name = XRT_INPUT_INDEX_TRACKPAD_XY;
+		controller->base.inputs[TRACKPAD_TOUCH].name = XRT_INPUT_INDEX_TRACKPAD_TOUCH;
+		controller->base.inputs[TRACKPAD_TOUCH].value.boolean = false;
 
+	} else {
+		controller->base.name = XRT_DEVICE_VIVE_WAND;
+		snprintf(controller->base.str, XRT_DEVICE_NAME_LEN,
+			 "Survive Vive Wand Controller %d", controller_num);
 
-	controller->base.inputs[INDEX_TRACKPAD_TOUCH].name = XRT_INPUT_INDEX_TRACKPAD_TOUCH;
-	/* TODO: maybe trackpad is touched initially... */
-	controller->base.inputs[INDEX_TRACKPAD_TOUCH].value.boolean = false;
+		controller->base.inputs[AIM_POSE].name = XRT_INPUT_VIVE_AIM_POSE;
+		controller->base.inputs[GRIP_POSE].name = XRT_INPUT_VIVE_GRIP_POSE;
+
+		controller->base.inputs[TRIGGER_VALUE].name = XRT_INPUT_VIVE_TRIGGER_VALUE;
+		controller->base.inputs[TRIGGER_VALUE].value.vec1.x = 0;
+
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_VIVE_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
+
+		controller->base.inputs[MENU_CLICK].name = XRT_INPUT_VIVE_MENU_CLICK;
+		controller->base.inputs[MENU_CLICK].value.boolean = false;
+
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_VIVE_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
+		controller->base.inputs[TRIGGER_CLICK].name = XRT_INPUT_VIVE_TRIGGER_CLICK;
+		controller->base.inputs[TRIGGER_CLICK].value.boolean = false;
+
+		controller->base.inputs[TRACKPAD_X].name = XRT_INPUT_VIVE_TRACKPAD_X;
+		controller->base.inputs[TRACKPAD_Y].name = XRT_INPUT_VIVE_TRACKPAD_Y;
+		controller->base.inputs[TRACKPAD_XY].name = XRT_INPUT_VIVE_TRACKPAD_XY;
+
+		controller->base.inputs[TRACKPAD_TOUCH].name = XRT_INPUT_VIVE_TRACKPAD_TOUCH;
+		controller->base.inputs[TRACKPAD_TOUCH].value.boolean = false;
+
+		controller->base.inputs[TRACKPAD_CLICK].name = XRT_INPUT_VIVE_TRACKPAD_CLICK;
+		controller->base.inputs[TRACKPAD_CLICK].value.boolean = false;
+
+		controller->base.inputs[SQUEEZE_CLICK].name = XRT_INPUT_VIVE_SQUEEZE_CLICK;
+		controller->base.inputs[SQUEEZE_CLICK].value.boolean = false;
+	}
+
 
 	return true;
 }
