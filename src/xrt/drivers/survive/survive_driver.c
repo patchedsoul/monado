@@ -948,7 +948,14 @@ _create_controller_device(struct survive_system *sys,
 		controller->pending_events[i].event_type = SurviveSimpleEventType_None;
 
 	controller->num = controller_num;
-	controller->base.name = XRT_DEVICE_INDEX_CONTROLLER;
+
+	//! @todo: May use Vive Wands + Index HMDs or Index Controllers + Vive HMD
+	if (sys->variant == VIVE_VARIANT_INDEX) {
+		controller->base.name = XRT_DEVICE_INDEX_CONTROLLER;
+	} else {
+		controller->base.name = XRT_DEVICE_VIVE_WAND;
+	}
+
 	snprintf(controller->base.str, XRT_DEVICE_NAME_LEN,
 	         "Survive Controller %d", controller_num);
 	controller->base.tracking_origin = &sys->base;

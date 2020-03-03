@@ -892,8 +892,25 @@ static struct binding_template valve_index_controller_bindings[48] = {
 	MAKE_OUTPUT(haptic, , XRT_OUTPUT_NAME_INDEX_HAPTIC)
 };
 
+static struct binding_template htc_vive_controller_bindings[26] = {
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, , XRT_INPUT_INDEX_TRACKPAD_XY)
 
-static struct profile_template profiles[4] = {
+	MAKE_INPUT(system, click, XRT_INPUT_VIVE_SYSTEM_CLICK)
+	MAKE_INPUT(squeeze, click, XRT_INPUT_VIVE_SQUEEZE_CLICK)
+	MAKE_INPUT(menu, click, XRT_INPUT_VIVE_MENU_CLICK)
+	MAKE_INPUT(trigger, click, XRT_INPUT_VIVE_TRIGGER_CLICK)
+	MAKE_INPUT(trigger, value, XRT_INPUT_VIVE_TRIGGER_VALUE)
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, /x, XRT_INPUT_VIVE_TRACKPAD_X)
+	MAKE_INPUT_NO_DOWNGRADE(trackpad, /y, XRT_INPUT_VIVE_TRACKPAD_Y)
+	MAKE_INPUT(trackpad, click, XRT_INPUT_VIVE_TRACKPAD_CLICK)
+	MAKE_INPUT(trackpad, touch, XRT_INPUT_VIVE_TRACKPAD_TOUCH)
+	MAKE_INPUT(grip, pose, XRT_INPUT_VIVE_GRIP_POSE)
+	MAKE_INPUT(aim, pose, XRT_INPUT_VIVE_AIM_POSE)
+
+	MAKE_OUTPUT(haptic, , XRT_OUTPUT_NAME_VIVE_HAPTIC)
+};
+
+static struct profile_template profiles[5] = {
     {
         .path = "/interaction_profiles/khr/simple_controller",
         .bindings = khr_simple_controller_bindings,
@@ -913,5 +930,10 @@ static struct profile_template profiles[4] = {
 	.path = "/interaction_profiles/valve/index_controller",
 	.bindings = valve_index_controller_bindings,
 	.num_bindings = ARRAY_SIZE(valve_index_controller_bindings),
+    },
+    {
+	.path = "/interaction_profiles/htc/vive_controller",
+	.bindings = htc_vive_controller_bindings,
+	.num_bindings = ARRAY_SIZE(htc_vive_controller_bindings),
     },
 };
