@@ -10,8 +10,8 @@
 using namespace ImGui;
 
 static void _draw_line(ImGuiWindow *window, int values_count, float scale_min,
-                       float scale_max, float val, const ImRect inner_bb,
-                       ImVec2 frame_size, ImU32 color) {
+                       float scale_max, float val, char *unit,
+                       const ImRect inner_bb, ImVec2 frame_size, ImU32 color) {
   const float inv_scale =
       (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
   ImVec2 tp0 = ImVec2(
@@ -24,7 +24,7 @@ static void _draw_line(ImGuiWindow *window, int values_count, float scale_min,
   window->DrawList->AddLine(pos0, pos1, color);
 
   char text[100];
-  snprintf(text, 60, "%6.2f ms", val);
+  snprintf(text, 60, "%.2f %s", val, unit);
   ImVec2 text_size = ImGui::CalcTextSize(text);
   ImVec2 text_pos = {pos1.x - text_size.x, pos1.y};
   ImGui::PushStyleColor(ImGuiCol_Text, color);
@@ -32,25 +32,29 @@ static void _draw_line(ImGuiWindow *window, int values_count, float scale_min,
   ImGui::PopStyleColor(1);
 }
 static void _draw_grid(ImGuiWindow *window, int values_count, float scale_min,
-                       float scale_max, float target_frametime,
+                       float scale_max, float reference_timing, char *unit,
                        const ImRect inner_bb, ImVec2 frame_size) {
 
   ImVec4 target_color = ImVec4(1.0f, 1.0f, 0.0f, .75f);
-  _draw_line(window, values_count, scale_min, scale_max, target_frametime,
+  _draw_line(window, values_count, scale_min, scale_max, reference_timing, unit,
              inner_bb, frame_size, GetColorU32(target_color));
 
   ImVec4 passive_color = ImVec4(0.35f, 0.35f, 0.35f, 1.00f);
-  for (int i = scale_min + 5; i < scale_max; i += 5) {
-    _draw_line(window, values_count, scale_min, scale_max, i, inner_bb,
+
+  // always draw ~5 lines
+  float step = (scale_max - scale_min) / 5.;
+  for (float i = scale_min; i < scale_max + step; i += step) {
+    _draw_line(window, values_count, scale_min, scale_max, i, unit, inner_bb,
                frame_size, GetColorU32(passive_color));
   }
 }
 
-static void _PlotFrametime(const char *label,
-                           float (*values_getter)(void *data, int idx),
-                           void *data, int values_count, int values_offset,
-                           const char *overlay_text, ImVec2 frame_size,
-                           float target_frametime) {
+static void PlotTimings(const char *label,
+                        float (*values_getter)(void *data, int idx), void *data,
+                        int values_count, int values_offset,
+                        const char *overlay_text, ImVec2 frame_size,
+                        float reference_timing, bool center_reference_timing,
+                        float range, char *unit, bool dynamic_rescale) {
   ImGuiWindow *window = GetCurrentWindow();
   if (window->SkipItems)
     return;
@@ -59,22 +63,16 @@ static void _PlotFrametime(const char *label,
   const ImGuiStyle &style = g.Style;
   const ImGuiID id = window->GetID(label);
 
-  const ImVec2 label_size = CalcTextSize(label, NULL, true);
   if (frame_size.x == 0.0f)
     frame_size.x = CalcItemWidth();
   if (frame_size.y == 0.0f)
-    frame_size.y = label_size.y + (style.FramePadding.y * 2);
+    frame_size.y = (style.FramePadding.y * 2);
 
   const ImRect frame_bb(window->DC.CursorPos,
                         window->DC.CursorPos + frame_size);
   const ImRect inner_bb(frame_bb.Min + style.FramePadding,
                         frame_bb.Max - style.FramePadding);
-  const ImRect total_bb(frame_bb.Min,
-                        frame_bb.Max +
-                            ImVec2(label_size.x > 0.0f
-                                       ? style.ItemInnerSpacing.x + label_size.x
-                                       : 0.0f,
-                                   0));
+  const ImRect total_bb(frame_bb.Min, frame_bb.Max);
   ItemSize(total_bb, style.FramePadding.y);
   if (!ItemAdd(total_bb, 0, &frame_bb))
     return;
@@ -90,23 +88,35 @@ static void _PlotFrametime(const char *label,
     v_max = ImMax(v_max, v);
   }
 
-  /* default scaling is target frametime rounded to next 10 in each direction */
-  float scale_min = target_frametime - 11;
-  float scale_max = target_frametime + 11;
+  float scale_min =
+      center_reference_timing ? reference_timing - range : reference_timing;
+  float scale_max = reference_timing + range;
 
-  /*
-  if (v_min < scale_min)
-    scale_min = v_min;
-  if (v_max > scale_max)
-    scale_max = v_max;
-  scale_min = ((int)(scale_min / 10)) * 10;
-  scale_max = ((int)(scale_max / 10 + 1)) * 10;
-  */
+  if (dynamic_rescale) {
+    if (v_max > scale_max)
+      scale_max = v_max;
+    scale_max = ((int)(scale_max / 10 + 1)) * 10;
+
+    if (center_reference_timing) {
+      if (v_min < scale_min)
+        scale_min = v_min;
+      scale_min = ((int)(scale_min / 10)) * 10;
+
+      // make sure reference timing stays centered
+      float lower_range = reference_timing - scale_min;
+      float upper_range = scale_max - reference_timing;
+      if (lower_range > upper_range) {
+        scale_max = reference_timing + lower_range;
+      } else if (upper_range > lower_range) {
+        scale_min = reference_timing - upper_range;
+      }
+    }
+  }
 
   RenderFrame(frame_bb.Min, frame_bb.Max, GetColorU32(ImGuiCol_FrameBg), true,
               style.FrameRounding);
 
-  _draw_grid(window, values_count, scale_min, scale_max, target_frametime,
+  _draw_grid(window, values_count, scale_min, scale_max, reference_timing, unit,
              inner_bb, frame_size);
 
   ImGuiPlotType plot_type = ImGuiPlotType_Lines;
@@ -198,22 +208,20 @@ static void _PlotFrametime(const char *label,
         ImVec2(frame_bb.Min.x, frame_bb.Min.y + style.FramePadding.y),
         frame_bb.Max, overlay_text, NULL, NULL, ImVec2(0.5f, 0.0f));
 
-  if (label_size.x > 0.0f)
-    RenderText(
-        ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, inner_bb.Min.y),
-        label);
-
   const float v = values_getter(data, (values_offset));
-  ImGui::LabelText("Frame Time", "%6.2fms [%6.2f, %6.2f]", v, v_min, v_max);
+  ImGui::LabelText(label, "%6.2f %s [%6.2f, %6.2f]", v, unit, v_min, v_max);
 }
 
 extern "C" {
-void PlotFrametime(const char *label,
+void igPlotTimings(const char *label,
                    float (*values_getter)(void *data, int idx), void *data,
                    int values_count, int values_offset,
                    const char *overlay_text, float scale_min, float scale_max,
-                   ImVec2 frame_size, float target_frametime) {
-  _PlotFrametime(label, values_getter, data, values_count, values_offset,
-                 overlay_text, frame_size, target_frametime);
+                   ImVec2 frame_size, float reference_timing,
+                   bool center_reference_timing, float range, char *unit,
+                   bool dynamic_rescale) {
+  PlotTimings(label, values_getter, data, values_count, values_offset,
+              overlay_text, frame_size, reference_timing,
+              center_reference_timing, range, unit, dynamic_rescale);
 }
 }

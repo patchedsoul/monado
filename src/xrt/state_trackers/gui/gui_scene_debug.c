@@ -202,9 +202,9 @@ on_elem(const char *name, enum u_var_kind kind, void *ptr, void *priv)
 		                 NULL, stats_min, stats_max, graph_size);
 		break;
 	}
-	case U_VAR_KIND_FRAMETIME: {
-		struct u_var_frametime *frametime_arr = ptr;
-		struct u_var_f32_arr *f32_arr = &frametime_arr->arr;
+	case U_VAR_KIND_TIMING: {
+		struct u_var_timing *frametime_arr = ptr;
+		struct u_var_f32_arr *f32_arr = &frametime_arr->values;
 		int index = *f32_arr->index_ptr;
 		int length = f32_arr->length;
 		float *arr = (float *)f32_arr->data;
@@ -223,9 +223,12 @@ on_elem(const char *name, enum u_var_kind kind, void *ptr, void *priv)
 				stats_max = arr[f];
 		}
 
-		PlotFrametime(name, get_float_arr_val, arr, length, index, NULL,
+		igPlotTimings(name, get_float_arr_val, arr, length, index, NULL,
 		              0, stats_max, graph_size,
-		              frametime_arr->target_frame_time);
+		              frametime_arr->reference_timing,
+		              frametime_arr->center_reference_timing,
+		              frametime_arr->range, frametime_arr->unit,
+		              frametime_arr->dynamic_rescale);
 		break;
 	}
 	case U_VAR_KIND_VEC3_F32:

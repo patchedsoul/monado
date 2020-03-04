@@ -239,37 +239,33 @@ compositor_add_frame_timing(struct comp_compositor *c)
 	int last_index = c->compositor_times_ns_index;
 
 	c->compositor_times_ns_index++;
-	c->compositor_times_ns_index %= FPS_NUM_TIMINGS;
+	c->compositor_times_ns_index %= NUM_FRAME_TIMES;
 
-	/* update fps only once every FPS_NUM_TIMINGS */
+	// update fps only once every FPS_NUM_TIMINGS
 	if (c->compositor_times_ns_index == 0) {
 		float total_s = 0;
 
-		/* frame times are durations between timings */
-		int NUM_FRAME_TIMES = FPS_NUM_TIMINGS - 1;
+		// frame *timings* are durations between *times*
+		int NUM_FRAME_TIMINGS = NUM_FRAME_TIMES - 1;
 
-		for (int i = 0; i < NUM_FRAME_TIMES; i++) {
-			uint64_t frametime_ns =
-			    c->compositor_timings_ns[i + 1] -
-			    c->compositor_timings_ns[i];
+		for (int i = 0; i < NUM_FRAME_TIMINGS; i++) {
+			uint64_t frametime_ns = c->compositor_times_ns[i + 1] -
+			                        c->compositor_times_ns[i];
 			float frametime_s =
 			    frametime_ns * 1. / 1000. * 1. / 1000. * 1. / 1000.;
 			// printf("ft %d-%d %f\n", index, next, frametime_ms);
 			total_s += frametime_s;
 		}
-		float avg_frametime_s = total_s / ((float)NUM_FRAME_TIMES);
+		float avg_frametime_s = total_s / ((float)NUM_FRAME_TIMINGS);
 		c->compositor_fps = 1. / avg_frametime_s;
-		// printf("fps %d %lu %f %f\n", c->last_frame_time_ns_index,
-		// c->last_frame_times_ns[c->last_frame_time_ns_index], total_ms,
-		// c->compositor_fps);
 	}
 
-	c->compositor_timings_ns[c->compositor_times_ns_index] =
-	    time_state_get_now(c->timekeeping);
+	c->compositor_times_ns[c->compositor_times_ns_index] =
+	    os_monotonic_get_ns();
 
-	uint64_t diff = c->compositor_timings_ns[c->compositor_times_ns_index] -
-	                c->compositor_timings_ns[last_index];
-	c->compositor_frame_times_ms[c->compositor_times_ns_index] =
+	uint64_t diff = c->compositor_times_ns[c->compositor_times_ns_index] -
+	                c->compositor_times_ns[last_index];
+	c->compositor_frame_timings_ms[c->compositor_times_ns_index] =
 	    (float)diff * 1. / 1000. * 1. / 1000.;
 }
 
@@ -851,7 +847,7 @@ xrt_gfx_provider_create_fd(struct xrt_device *xdev, bool flip_y)
 
 
 	u_var_add_root(c, "Compositor", true);
-	u_var_add_ro_f32(c, &c->compositor_fps, "compositor avg fps");
+	u_var_add_ro_f32(c, &c->compositor_fps, "FPS (Compositor)");
 
 	/*
 	struct u_var_f32_arr *arr = U_CALLOC_WITH_CAST(
@@ -863,17 +859,28 @@ xrt_gfx_provider_create_fd(struct xrt_device *xdev, bool flip_y)
 	*/
 
 	//! @todo: don't leak this'
-	struct u_var_frametime *ft = U_CALLOC_WITH_CAST(
-	    struct u_var_frametime, sizeof(struct u_var_frametime));
+	struct u_var_timing *ft = U_CALLOC_WITH_CAST(
+	    struct u_var_timing, sizeof(struct u_var_timing));
 
-	ft->arr.data = c->compositor_frame_times_ms;
-	ft->arr.length = FPS_NUM_TIMINGS;
-	ft->arr.index_ptr = &c->compositor_times_ns_index;
+
 	float target_frame_time_ms =
 	    c->settings.nominal_frame_interval_ns * 1. / 1000. * 1. / 1000.;
-	ft->target_frame_time = target_frame_time_ms;
 
-	u_var_add_f32_frametime(c, ft, "compositor frame times");
+	uint64_t now = os_monotonic_get_ns();
+	for (int i = 0; i < NUM_FRAME_TIMES; i++) {
+		c->compositor_times_ns[i] = now + i;
+	}
+	ft->values.data = c->compositor_frame_timings_ms;
+	ft->values.length = NUM_FRAME_TIMES;
+	ft->values.index_ptr = &c->compositor_times_ns_index;
+
+	ft->reference_timing = target_frame_time_ms;
+	ft->range = 10.f;
+	ft->unit = "ms";
+	ft->dynamic_rescale = false;
+	ft->center_reference_timing = true;
+
+	u_var_add_f32_frametime(c, ft, "Frame Times (Compositor)");
 
 	return &c->base;
 }
