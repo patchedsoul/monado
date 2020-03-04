@@ -105,10 +105,20 @@ struct comp_compositor
 	//! The time our compositor needs to do rendering
 	int64_t frame_overhead_ns;
 
-	int64_t compositor_times_ns[NUM_FRAME_TIMES];
-	float compositor_frame_timings_ms[NUM_FRAME_TIMES];
-	int compositor_times_ns_index;
-	float compositor_fps;
+	struct
+	{
+		//! Current Index for times_ns.
+		int index;
+
+		//! Timestamps of last-rendered (immersive) frames.
+		int64_t times_ns[NUM_FRAME_TIMES];
+
+		//! Frametimes between last-rendered (immersive) frames.
+		float timings_ms[NUM_FRAME_TIMES];
+
+		//! Average FPS of last NUM_FRAME_TIMES rendered frames.
+		float fps;
+	} compositor_frame_times;
 
 	/*!
 	 * @brief Estimated rendering time per frame of the application.
