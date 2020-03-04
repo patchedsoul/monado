@@ -100,6 +100,10 @@ compositor_destroy(struct xrt_compositor *xc)
 		vk->instance = VK_NULL_HANDLE;
 	}
 
+	if (c->compositor_frame_times.debug_var) {
+		free(c->compositor_frame_times.debug_var);
+	}
+
 	free(c);
 }
 
@@ -860,10 +864,8 @@ xrt_gfx_provider_create_fd(struct xrt_device *xdev, bool flip_y)
 	u_var_add_f32_arr(c, arr, "compositor frame times simple");
 	*/
 
-	//! @todo: don't leak this'
 	struct u_var_timing *ft = U_CALLOC_WITH_CAST(
 	    struct u_var_timing, sizeof(struct u_var_timing));
-
 
 	float target_frame_time_ms =
 	    c->settings.nominal_frame_interval_ns * 1. / 1000. * 1. / 1000.;
@@ -883,6 +885,8 @@ xrt_gfx_provider_create_fd(struct xrt_device *xdev, bool flip_y)
 	ft->center_reference_timing = true;
 
 	u_var_add_f32_frametime(c, ft, "Frame Times (Compositor)");
+
+	c->compositor_frame_times.debug_var = ft;
 
 	return &c->base;
 }

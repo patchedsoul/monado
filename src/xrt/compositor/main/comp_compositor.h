@@ -118,6 +118,8 @@ struct comp_compositor
 
 		//! Average FPS of last NUM_FRAME_TIMES rendered frames.
 		float fps;
+
+		struct u_var_timing *debug_var;
 	} compositor_frame_times;
 
 	/*!
