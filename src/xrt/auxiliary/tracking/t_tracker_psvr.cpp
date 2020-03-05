@@ -12,6 +12,7 @@
 #include "tracking/t_tracking.h"
 #include "tracking/t_calibration_opencv.hpp"
 
+
 #include "util/u_misc.h"
 #include "util/u_debug.h"
 #include "util/u_frame.h"
@@ -68,17 +69,16 @@ typedef struct model_vertex
 {
     int32_t vertex_index;
     Eigen::Vector4f position;
+
 	led_tag_t tag;
 	bool active;
 
 	bool
-	operator<(const model_vertex &mv) const
-	{
+    operator<(const model_vertex &mv) const {
         return (vertex_index < mv.vertex_index);
 	}
 	bool
-	operator>(const model_vertex &mv) const
-	{
+    operator>(const model_vertex &mv) const {
         return (vertex_index > mv.vertex_index);
 	}
 
@@ -143,7 +143,6 @@ public:
     Eigen::Quaternionf optical_rotation_correction;
     Eigen::Matrix4f corrected_imu_rotation;
 
-
 	model_vertex_t model_vertices[PSVR_NUM_LEDS];
     std::vector<match_data_t> last_vertices;
 	cv::KalmanFilter track_filters[PSVR_NUM_LEDS];
@@ -157,7 +156,6 @@ public:
 	cv::Ptr<cv::SimpleBlobDetector> sbd;
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
     std::vector<match_model_t> matches;
-
 
     std::vector<cv::Point3f> world_points;
 
@@ -175,9 +173,7 @@ public:
     FILE* dump_file;
 };
 
-static float
-dist_3d(Eigen::Vector4f a, Eigen::Vector4f b)
-{
+static float dist_3d(Eigen::Vector4f a, Eigen::Vector4f b) {
     return sqrt((a[0] - b[0]) * (a[0] - b[0]) +
            (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
 }
@@ -215,8 +211,7 @@ filter_predict(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
 		current_kf->transitionMatrix.at<float>(2, 5) = dt;
 
         current_led->vertex_index = i;
-		current_led->tag =
-		    (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
+        current_led->tag = (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
 		cv::Mat prediction = current_kf->predict();
 		current_led->position[0] = prediction.at<float>(0, 0);
 		current_led->position[1] = prediction.at<float>(1, 0);
@@ -296,9 +291,10 @@ static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, std::ve
             md.distance = dist_3d(vp.position,ref_a.position)/ref_len;
 
             //z dir is inverted in camera coords
-            if (vp_pos3.dot(Eigen::Vector3f(0.0,0.0,-1.0f)) < 0 ) {
-                        md.distance *= -1;
-                    }
+
+            if (vp_pos3.dot(Eigen::Vector3f(0.0,0.0,-1.0f)) < 0.0f ) {
+                md.distance *= -1.0f;
+            }
         }
         else
         {
@@ -335,9 +331,6 @@ last_diff(TrackerPSVR &t,
     }
     return diff * 0.1f;
 }
-
-
-
 
 
 static void
@@ -634,8 +627,10 @@ static Eigen::Matrix4f disambiguate(TrackerPSVR &t,std::vector<match_data_t>* me
         //printf("last diff: model %d %f\n",i,ld);
 
         for (uint32_t j =1; j < measured_points->size() ;j++) {
+
                 squaredSum += fabs(measured_points->at(j).distance - m.measurements.at(j).distance);// * (measured_points->at(j).distance - m.data.at(j).distance);
                 squaredSum += fabs(measured_points->at(j).angle - m.measurements.at(j).angle);// * (measured_points->at(j).angle - m.data.at(j).angle);
+
                 //printf("%d squaredSum: %f\n",j,squaredSum);
         }
             float rmsError = squaredSum;// + ld;//sqrt(squaredSum);
@@ -652,6 +647,7 @@ static Eigen::Matrix4f disambiguate(TrackerPSVR &t,std::vector<match_data_t>* me
 
     for (uint32_t i=0;i < m.measurements.size();i++) {
         printf(" %d %f %f ",m.measurements[i].vertex_index,m.measurements[i].distance,m.measurements[i].angle);
+
     }
     printf("\n");
 
@@ -691,8 +687,7 @@ create_model(TrackerPSVR &t)
 
 
 
-static void
-create_match_list(TrackerPSVR &t)
+static void create_match_list(TrackerPSVR &t)
 {
 	// create our permutation list
 	for (auto &&vec : iter::permutations(t.model_vertices)) {
@@ -720,8 +715,7 @@ create_match_list(TrackerPSVR &t)
 
 				if (plane_norm.normalized().z() < 0) {
                     md.angle =
-					    -1 *
-                        acos((point_vec3).normalized().dot(ref_vec3.normalized()));
+                        -1 * acos((point_vec3).normalized().dot(ref_vec3.normalized()));
 				} else {
                     md.angle =
                         acos(point_vec3.normalized().dot(ref_vec3.normalized()));
@@ -765,6 +759,7 @@ do_view(TrackerPSVR &t, View &view, cv::Mat &grey)
 
 	// Do blob detection with our masks.
 	//! @todo Re-enable masks.
+
     t.sbd->detect(view.frame_undist_rectified, // image
 	              view.keypoints,       // keypoints
                   cv::noArray());       // mask
@@ -777,16 +772,12 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
     if (xf == NULL) {
 		return;
 	}
-
-    t.corrected_imu_rotation.setIdentity();
-    t.corrected_imu_rotation.block<3,3>(0,0) = (Eigen::Quaternionf(t.fusion.rot.w,t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z) * t.optical_rotation_correction).toRotationMatrix();
-    float dt = 1.0f;
+	float dt = 1.0f;
 	// get our predicted filtered led positions, if any
 	model_vertex_t predicted_pose[PSVR_NUM_LEDS];
 	filter_predict(predicted_pose, t.track_filters, dt);
 
 	model_vertex_t measured_pose[PSVR_NUM_LEDS];
-
 
     // get our raw measurements
 
