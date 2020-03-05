@@ -10,7 +10,7 @@
 #include "xrt/xrt_tracking.h"
 
 #include "tracking/t_tracking.h"
-#include "tracking/t_calibration_opencv.h"
+#include "tracking/t_calibration_opencv.hpp"
 
 #include "util/u_misc.h"
 #include "util/u_debug.h"
@@ -28,20 +28,28 @@
 #include <permutations.hpp>
 #include <Eigen/Eigen>
 #include <opencv2/opencv.hpp>
+#include <inttypes.h>
 
 #define PSVR_NUM_LEDS 7
+#define PSVR_OPTICAL_SOLVE_THRESH 4
+#define PSVR_MODEL_CENTER_INDEX 2 //we should use the tag enum for this
 
 struct View
 {
-	cv::Mat undistort_map_x;
-	cv::Mat undistort_map_y;
-	cv::Mat rectify_map_x;
-	cv::Mat rectify_map_y;
+    cv::Mat undistort_rectify_map_x;
+    cv::Mat undistort_rectify_map_y;
 
-	std::vector<cv::KeyPoint> keypoints;
+    std::vector<cv::KeyPoint> keypoints;
 
-	cv::Mat frame_undist;
-	cv::Mat frame_rectified;
+    cv::Mat frame_undist_rectified;
+
+    void
+    populate_from_calib(t_camera_calibration & /* calib */,
+                        const RemapPair &rectification)
+    {
+        undistort_rectify_map_x = rectification.remap_x;
+        undistort_rectify_map_y = rectification.remap_y;
+    }
 };
 
 typedef enum led_tag
@@ -58,20 +66,20 @@ typedef enum led_tag
 
 typedef struct model_vertex
 {
-	uint32_t model_index;
-	Eigen::Vector3f position;
+    int32_t vertex_index;
+    Eigen::Vector4f position;
 	led_tag_t tag;
 	bool active;
 
 	bool
 	operator<(const model_vertex &mv) const
 	{
-		return (model_index < mv.model_index);
+        return (vertex_index < mv.vertex_index);
 	}
 	bool
 	operator>(const model_vertex &mv) const
 	{
-		return (model_index > mv.model_index);
+        return (vertex_index > mv.vertex_index);
 	}
 
 } model_vertex_t;
@@ -80,13 +88,13 @@ typedef struct match_data
 {
     float angle;
     float distance;
-    uint32_t vertex_index;
-    Eigen::Vector3f position;
+    int32_t vertex_index;
+    Eigen::Vector4f position;
 } match_data_t;
 
 typedef struct match_vertex
 {
-    uint32_t vertex_index;
+    int32_t vertex_index;
     std::vector<match_data_t> vertex_data;
 } match_vertex_t;
 
@@ -98,7 +106,7 @@ typedef struct match_vertices
 
 typedef struct match_model
 {
-    std::vector<match_data_t> data;
+    std::vector<match_data_t> measurements;
 } match_model_t;
 
 
@@ -132,6 +140,10 @@ public:
         struct xrt_quat rot = {};
     } optical;
 
+    Eigen::Quaternionf optical_rotation_correction;
+    Eigen::Matrix4f corrected_imu_rotation;
+
+
 	model_vertex_t model_vertices[PSVR_NUM_LEDS];
     std::vector<match_data_t> last_vertices;
 	cv::KalmanFilter track_filters[PSVR_NUM_LEDS];
@@ -146,11 +158,25 @@ public:
 	std::vector<cv::KeyPoint> l_blobs, r_blobs;
     std::vector<match_model_t> matches;
 
+
+    std::vector<cv::Point3f> world_points;
+
+    std::vector<Eigen::Vector4f> pruned_points;
+    std::vector<Eigen::Vector4f> merged_points;
+
+    std::vector<model_vertex_t> processed_points;
+    std::vector<match_data_t> match_vertices;
+
+
+    float model_scale_factor=30.0f;
+    float outlier_thresh=15.0f;
+    float merge_thresh=0.5f;
+
     FILE* dump_file;
 };
 
 static float
-dist_3d(Eigen::Vector3f a, Eigen::Vector3f b)
+dist_3d(Eigen::Vector4f a, Eigen::Vector4f b)
 {
     return sqrt((a[0] - b[0]) * (a[0] - b[0]) +
            (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
@@ -188,7 +214,7 @@ filter_predict(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
 		current_kf->transitionMatrix.at<float>(1, 4) = dt;
 		current_kf->transitionMatrix.at<float>(2, 5) = dt;
 
-		current_led->model_index = i;
+        current_led->vertex_index = i;
 		current_led->tag =
 		    (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
 		cv::Mat prediction = current_kf->predict();
@@ -210,7 +236,7 @@ filter_update(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
 		current_kf->transitionMatrix.at<float>(1, 4) = dt;
 		current_kf->transitionMatrix.at<float>(2, 5) = dt;
 
-		current_led->model_index = i;
+        current_led->vertex_index = i;
 		current_led->tag =
 		    (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
 		cv::Mat measurement = cv::Mat(3, 1, CV_32F);
@@ -231,35 +257,46 @@ static bool match_possible(match_model_t* match) {
 
 static void verts_to_measurement(std::vector<model_vertex_t>* meas_data, std::vector<match_data_t>* match_vertices)
 {
-
-    if (meas_data->size() < 3) {
-        return;
-    }
     match_vertices->clear();
+    if (meas_data->size() < 3) {
+        for (uint32_t i=0;i<meas_data->size();i++) {
+            match_data_t md;
+            md.vertex_index=-1;
+            md.position=meas_data->at(i).position;
+            match_vertices->push_back(md);
+        }
+
+        return;
+
+    }
 
     model_vertex_t ref_a = meas_data->at(0);
     model_vertex_t ref_b = meas_data->at(1);
-    Eigen::Vector3f ref_vec = ref_b.position-ref_a.position;
+    Eigen::Vector4f ref_vec = ref_b.position-ref_a.position;
     float ref_len = dist_3d(ref_a.position,ref_b.position);
 
     for (uint32_t i=0;i<meas_data->size();i++) {
         model_vertex_t vp = meas_data->at(i);
-        Eigen::Vector3f point_vec = vp.position-ref_a.position;
+        Eigen::Vector4f point_vec = vp.position-ref_a.position;
         match_data_t md;
         md.vertex_index = i;
         md.position = vp.position;
+        Eigen::Vector3f ref_vec3 = ref_vec.head<3>();
+        Eigen::Vector3f point_vec3 = point_vec.head<3>();
+        Eigen::Vector3f vp_pos3 = vp.position.head<3>();
+
         if (i != 0) {
-            Eigen::Vector3f plane_norm = ref_vec.cross(point_vec).normalized();
+            Eigen::Vector3f plane_norm = ref_vec3.cross(point_vec3).normalized();
             if (plane_norm.z() < 0) {
-                md.angle = -1 * acos(point_vec.normalized().dot(ref_vec.normalized()));
+                md.angle = -1 * acos(point_vec3.normalized().dot(ref_vec3.normalized()));
             } else {
-                md.angle = acos(point_vec.normalized().dot(ref_vec.normalized()));
+                md.angle = acos(point_vec3.normalized().dot(ref_vec3.normalized()));
             }
             //printf("WAT: %f %f\n",dist_3d(point_vec,ref_a.position),ref_len);
             md.distance = dist_3d(vp.position,ref_a.position)/ref_len;
 
             //z dir is inverted in camera coords
-            if (vp.position.dot(Eigen::Vector3f(0.0,0.0,-1.0f)) < 0 ) {
+            if (vp_pos3.dot(Eigen::Vector3f(0.0,0.0,-1.0f)) < 0 ) {
                         md.distance *= -1;
                     }
         }
@@ -299,81 +336,13 @@ last_diff(TrackerPSVR &t,
     return diff * 0.1f;
 }
 
-static bool disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_points,model_vertex_t* last_measurement,uint32_t frame_no) {
-    //global tracked_labels
-    //global bestModel
 
-
-    if (measured_points->size() < 3) {
-        printf("Need at least 3 points to disabiguate\n");
-        return false;
-    }
-
-
-
-    float lowestError=65535.0f;
-    int32_t bestModel = -1;
-    for (uint32_t i=0;i< t.matches.size();i++ ) {
-        match_model_t m = t.matches[i];
-
-        float squaredSum =0.0f;
-        float signDiff=0.0f;
-
-        // we have 2 measurements per vertex (distance and angle)
-        // and we are comparing only the 'non-basis vector' elements
-
-        //fill in our 'proposed' vertex indices from the model data (this will be overwritten once our best model is selected
-        for (uint32_t i=0;i<measured_points->size();i++) {
-            measured_points->at(i).vertex_index = m.data.at(i).vertex_index;
-        }
-
-        //reject any configuration that puts 'TL' or 'TR' above 'BL' or
-
-        float ld = last_diff(t,measured_points,&t.last_vertices);
-        //printf("last diff: model %d %f\n",i,ld);
-
-        for (uint32_t j =1; j < measured_points->size() ;j++) {
-                squaredSum += fabs(measured_points->at(j).distance - m.data.at(j).distance);// * (measured_points->at(j).distance - m.data.at(j).distance);
-                squaredSum += fabs(measured_points->at(j).angle - m.data.at(j).angle);// * (measured_points->at(j).angle - m.data.at(j).angle);
-                //printf("%d squaredSum: %f\n",j,squaredSum);
-        }
-            float rmsError = squaredSum;// + ld;//sqrt(squaredSum);
-            if (rmsError <= lowestError) {
-                lowestError = rmsError;
-                bestModel = i;
-            }
-
-    }
-    printf ("ERR: %f BEST: %d\n",lowestError,bestModel);
-
-    printf("model %d:\t",bestModel);
-    match_model_t m = t.matches[bestModel];
-
-    for (uint32_t i=0;i < m.data.size();i++) {
-        printf(" %d %f %f ",m.data[i].vertex_index,m.data[i].distance,m.data[i].angle);
-    }
-    printf("\n");
-
-    printf("meas  ?:\t");
-    for (uint32_t i=0;i<measured_points->size();i++) {
-        printf("? %f %f ",measured_points->at(i).distance,measured_points->at(i).angle);
-    }
-    printf("\n");
-
-
-
-    for (uint32_t i=0;i<measured_points->size();i++) {
-        measured_points->at(i).vertex_index = m.data.at(i).vertex_index;
-        printf("%d %f %f %f %d\n",i, measured_points->at(i).position.x(), measured_points->at(i).position.y(),measured_points->at(i).position.z(),measured_points->at(i).vertex_index);
-    }
-
-}
 
 
 
 static void
 remove_outliers(std::vector<cv::Point3f> *orig_points,
-                std::vector<Eigen::Vector3f> *pruned_points,
+                std::vector<Eigen::Vector4f> *pruned_points,
                 float outlier_thresh)
 {
 
@@ -382,12 +351,12 @@ remove_outliers(std::vector<cv::Point3f> *orig_points,
     }
     // immediately prune anything that is measured as
 	// 'behind' the camera
-	std::vector<Eigen::Vector3f> temp_points;
+    std::vector<Eigen::Vector4f> temp_points;
 
 	for (uint32_t i = 0; i < orig_points->size(); i++) {
 		cv::Point3f p = orig_points->at(i);
 		if (p.z < 0) {
-			temp_points.push_back(Eigen::Vector3f(p.x, p.y, p.z));
+            temp_points.push_back(Eigen::Vector4f(p.x, p.y, p.z,1.0f));
 		}
 	}
 
@@ -432,55 +401,291 @@ remove_outliers(std::vector<cv::Point3f> *orig_points,
 	}
 }
 
+struct close_pair {
+    int index_a;
+    int index_b;
+};
+
+static void merge_close_points( std::vector<Eigen::Vector4f> *orig_points,
+                                std::vector<Eigen::Vector4f> *merged_points,
+                                float merge_thresh) {
+    std::vector<struct close_pair> pairs;
+    for (uint32_t i=0;i<orig_points->size();i++) {
+        for (uint32_t j=0;j<orig_points->size();j++) {
+            if (i!= j) {
+                if (dist_3d(orig_points->at(i),orig_points->at(j)) < merge_thresh) {
+                    struct close_pair p;
+                    p.index_a =i;
+                    p.index_b=j;
+                    pairs.push_back(p);
+                }
+            }
+        }
+    }
+    std::vector<int> indices_to_remove;
+    for (uint32_t i=0;i<pairs.size();i++) {
+        if (pairs[i].index_a < pairs[i].index_b){
+            indices_to_remove.push_back(pairs[i].index_a);
+        } else {
+            indices_to_remove.push_back(pairs[i].index_b);
+        }
+    }
+
+
+    for (uint32_t i=0;i<orig_points->size();i++) {
+        bool remove_index = false;
+        for (uint32_t j=0;j<indices_to_remove.size();j++) {
+            if (i == indices_to_remove[j]) {
+                remove_index=true;
+            }
+        }
+        if (! remove_index) {
+            merged_points->push_back(orig_points->at(i));
+        }
+    }
+
+};
+
 static void
 match_triangles(Eigen::Matrix4f *t1_mat,
                 Eigen::Matrix4f *t1_to_t2_mat,
-                Eigen::Vector3f t1_a,
-                Eigen::Vector3f t1_b,
-                Eigen::Vector3f t1_c,
-                Eigen::Vector3f t2_a,
-                Eigen::Vector3f t2_b,
-                Eigen::Vector3f t2_c)
+                Eigen::Vector4f t1_a,
+                Eigen::Vector4f t1_b,
+                Eigen::Vector4f t1_c,
+                Eigen::Vector4f t2_a,
+                Eigen::Vector4f t2_b,
+                Eigen::Vector4f t2_c)
 {
-	*t1_mat = Eigen::Matrix4f().Identity();
-	Eigen::Matrix4f t2_mat = Eigen::Matrix4f().Identity();
+    *t1_mat = Eigen::Matrix4f().Identity();
+    Eigen::Matrix4f t2_mat = Eigen::Matrix4f().Identity();
 
-    Eigen::Vector3f t1_x_vec = (t1_b - t1_a).normalized();
-    Eigen::Vector3f t1_z_vec = (t1_c - t1_a).cross(t1_b - t1_a).normalized();
-	Eigen::Vector3f t1_y_vec = t1_x_vec.cross(t1_z_vec).normalized();
+    Eigen::Vector3f t1_x_vec = (t1_b - t1_a).head<3>().normalized();
+    Eigen::Vector3f t1_z_vec = (t1_c - t1_a).head<3>().cross((t1_b - t1_a).head<3>()).normalized();
+    Eigen::Vector3f t1_y_vec = t1_x_vec.head<3>().cross(t1_z_vec.head<3>()).normalized();
 
-	Eigen::Vector3f t2_x_vec = (t2_b - t2_a).normalized();
-    Eigen::Vector3f t2_z_vec = (t2_c - t2_a).cross(t2_b - t2_a).normalized();
-	Eigen::Vector3f t2_y_vec = t2_x_vec.cross(t2_z_vec).normalized();
+    Eigen::Vector3f t2_x_vec = (t2_b - t2_a).head<3>().normalized();
+    Eigen::Vector3f t2_z_vec = (t2_c - t2_a).head<3>().cross((t2_b - t2_a).head<3>()).normalized();
+    Eigen::Vector3f t2_y_vec = t2_x_vec.head<3>().cross(t2_z_vec.head<3>()).normalized();
 
-	t1_mat->col(0) << t1_x_vec[0], t1_x_vec[1], t1_x_vec[2], 0.0f;
-	t1_mat->col(1) << t1_y_vec[0], t1_y_vec[1], t1_y_vec[2], 0.0f;
-	t1_mat->col(2) << t1_z_vec[0], t1_z_vec[1], t1_z_vec[2], 0.0f;
+    t1_mat->col(0) << t1_x_vec[0], t1_x_vec[1], t1_x_vec[2], 0.0f;
+    t1_mat->col(1) << t1_y_vec[0], t1_y_vec[1], t1_y_vec[2], 0.0f;
+    t1_mat->col(2) << t1_z_vec[0], t1_z_vec[1], t1_z_vec[2], 0.0f;
     t1_mat->col(3) << t1_a[0], t1_a[1], t1_a[2], 1.0f;
 
-	t2_mat.col(0) << t2_x_vec[0], t2_x_vec[1], t2_x_vec[2], 0.0f;
-	t2_mat.col(1) << t2_y_vec[0], t2_y_vec[1], t2_y_vec[2], 0.0f;
-	t2_mat.col(2) << t2_z_vec[0], t2_z_vec[1], t2_z_vec[2], 0.0f;
+    t2_mat.col(0) << t2_x_vec[0], t2_x_vec[1], t2_x_vec[2], 0.0f;
+    t2_mat.col(1) << t2_y_vec[0], t2_y_vec[1], t2_y_vec[2], 0.0f;
+    t2_mat.col(2) << t2_z_vec[0], t2_z_vec[1], t2_z_vec[2], 0.0f;
     t2_mat.col(3) << t2_a[0], t2_a[1], t2_a[2], 1.0f;
 
     *t1_to_t2_mat = t1_mat->inverse() * t2_mat;
 
 }
 
+static Eigen::Matrix4f solve_for_measurement(TrackerPSVR* t,std::vector<match_data_t>* measurement,std::vector<match_data_t>* solved) {
+
+    Eigen::Vector4f meas_ref_a = measurement->at(0).position;
+    Eigen::Vector4f meas_ref_b = measurement->at(1).position;
+    int meas_index_a = measurement->at(0).vertex_index;
+    int meas_index_b = measurement->at(1).vertex_index;
+
+    Eigen::Vector4f model_ref_a = t->model_vertices[meas_index_a].position;
+    Eigen::Vector4f model_ref_b = t->model_vertices[meas_index_b].position;
+
+    float highest_length = 0.0f;
+    int best_model_index = 0;
+    int most_distant_index = 0;
+
+    for (uint32_t i=0;i < measurement->size();i++){
+        int model_tag_index = measurement->at(i).vertex_index;
+        Eigen::Vector4f model_vert = t->model_vertices[model_tag_index].position;
+        if (most_distant_index > 1 && dist_3d(model_vert,model_ref_a) > highest_length) {
+            best_model_index = most_distant_index;
+        }
+        most_distant_index++;
+    }
+
+    Eigen::Vector4f meas_ref_c = measurement->at(best_model_index).position;
+    int meas_index_c = measurement->at(best_model_index).vertex_index;
+
+    Eigen::Vector4f model_ref_c =  t->model_vertices[ meas_index_c ].position;
+    Eigen::Vector4f model_center_offset = model_ref_a - t->model_vertices[PSVR_MODEL_CENTER_INDEX].position;
+
+
+    Eigen::Matrix4f tri_basis;
+    Eigen::Matrix4f model_to_measurement;
+
+    match_triangles(&tri_basis,&model_to_measurement,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
+    solved->clear();
+    for (uint32_t i=0;i<PSVR_NUM_LEDS;i++) {
+        match_data_t md;
+        md.vertex_index = i;
+        md.position =  model_to_measurement * t->model_vertices[i].position;
+        solved->push_back(md);
+    }
+    Eigen::Matrix4f pose = tri_basis * model_to_measurement * tri_basis.inverse();
+
+    return pose;
+
+}
+
+typedef struct proximity_data {
+    Eigen::Vector4f position;
+    float lowest_distance;
+    int vertex_index;
+} proximity_data_t;
+
+static Eigen::Matrix4f solve_with_imu(TrackerPSVR& t,std::vector<match_data_t>* measurements,std::vector<match_data_t>* match_measurements,std::vector<match_data_t>* solved,float search_radius) {
+    std::vector<proximity_data_t> proximity_data;
+    for (uint32_t i=0; i< measurements->size();i++){
+        float lowest_distance = 65535.0;
+        int closest_index=0;
+        proximity_data_t p;
+        match_data_t measurement = measurements->at(i);
+        if (measurement.vertex_index == -1) { //we are closest-matching this vertes
+            for (uint32_t j=0; j< match_measurements->size();j++){
+                match_data_t match_measurement = match_measurements->at(j);
+                float distance = dist_3d(measurement.position,match_measurement.position);
+                if (distance < lowest_distance) {
+                    lowest_distance = distance;
+                    closest_index=match_measurement.vertex_index;
+                }
+            }
+            if (lowest_distance < search_radius) {
+                p.position = measurement.position;
+                p.vertex_index = closest_index;
+                p.lowest_distance = lowest_distance;
+                proximity_data.push_back(p);
+            }
+        } else {
+            p.position = measurement.position;
+            p.vertex_index = measurement.vertex_index;
+            p.lowest_distance = 0.0f;
+            proximity_data.push_back(p);
+        }
+    }
+
+    if (proximity_data.size() > 0) {
+
+        std::vector<match_model_t> temp_measurement_list;
+        for (uint32_t i=0;i<proximity_data.size();i++) {
+            proximity_data_t p = proximity_data[i];
+            Eigen::Vector4f model_vertex = t.model_vertices[p.vertex_index].position;
+            Eigen::Vector4f model_center = t.model_vertices[PSVR_MODEL_CENTER_INDEX].position;
+            Eigen::Vector4f measurement_vertex = p.position;
+            Eigen::Vector4f measurement_offset = t.corrected_imu_rotation * model_vertex;
+            Eigen::Affine3f translation(Eigen::Translation3f((measurement_vertex-measurement_offset).head<3>()));
+            Eigen::Matrix4f model_to_measurement  = translation.matrix() * t.corrected_imu_rotation;
+            match_model_t temp_measurement;
+            for (uint32_t j=0;j<PSVR_NUM_LEDS;j++){
+                match_data_t md;
+                md.position = model_to_measurement * t.model_vertices[j].position;
+                md.vertex_index = j;
+                temp_measurement.measurements.push_back(md);
+            }
+            temp_measurement_list.push_back(temp_measurement);
+        }
+        for (uint32_t i=0; i< PSVR_NUM_LEDS;i++) {
+            match_data_t avg_data;
+            avg_data.position = Eigen::Vector4f(0.0f,0.0f,0.0f,1.0f);
+            for (uint32_t j=0;j<temp_measurement_list.size();j++) {
+                avg_data.position += temp_measurement_list[j].measurements[i].position;
+            }
+            avg_data.position /= float(temp_measurement_list.size());
+            avg_data.vertex_index = i;
+            solved->push_back(avg_data);
+        }
+        Eigen::Vector3f center_pos = (solved->at(PSVR_MODEL_CENTER_INDEX).position).head<3>();
+        Eigen::Translation3f center_trans(center_pos);
+        Eigen::Affine3f translation(center_trans);
+        return  translation.matrix() * t.corrected_imu_rotation;
+    }
+
+   return Eigen::Matrix4f().Identity();
+
+}
+
+
+static Eigen::Matrix4f disambiguate(TrackerPSVR &t,std::vector<match_data_t>* measured_points,std::vector<match_data_t>* last_measurement,std::vector<match_data_t>* solved,uint32_t frame_no) {
+
+    if (measured_points->size() < PSVR_OPTICAL_SOLVE_THRESH) {
+        printf("SOLVING WITH IMU\n");
+        return solve_with_imu(t,measured_points,last_measurement,solved,5.0f);
+    }
+
+    float lowestError=65535.0f;
+    int32_t bestModel = -1;
+    for (uint32_t i=0;i< t.matches.size();i++ ) {
+        match_model_t m = t.matches[i];
+
+        float squaredSum =0.0f;
+        float signDiff=0.0f;
+
+        // we have 2 measurements per vertex (distance and angle)
+        // and we are comparing only the 'non-basis vector' elements
+
+        //fill in our 'proposed' vertex indices from the model data (this will be overwritten once our best model is selected
+        for (uint32_t i=0;i<measured_points->size();i++) {
+            measured_points->at(i).vertex_index = m.measurements.at(i).vertex_index;
+        }
+
+        //reject any configuration that puts 'TL' or 'TR' above 'BL' or
+
+        float ld = last_diff(t,measured_points,&t.last_vertices);
+        //printf("last diff: model %d %f\n",i,ld);
+
+        for (uint32_t j =1; j < measured_points->size() ;j++) {
+                squaredSum += fabs(measured_points->at(j).distance - m.measurements.at(j).distance);// * (measured_points->at(j).distance - m.data.at(j).distance);
+                squaredSum += fabs(measured_points->at(j).angle - m.measurements.at(j).angle);// * (measured_points->at(j).angle - m.data.at(j).angle);
+                //printf("%d squaredSum: %f\n",j,squaredSum);
+        }
+            float rmsError = squaredSum;// + ld;//sqrt(squaredSum);
+            if (rmsError <= lowestError) {
+                lowestError = rmsError;
+                bestModel = i;
+            }
+
+    }
+    printf ("ERR: %f BEST: %d\n",lowestError,bestModel);
+
+    printf("model %d:\t",bestModel);
+    match_model_t m = t.matches[bestModel];
+
+    for (uint32_t i=0;i < m.measurements.size();i++) {
+        printf(" %d %f %f ",m.measurements[i].vertex_index,m.measurements[i].distance,m.measurements[i].angle);
+    }
+    printf("\n");
+
+    printf("meas  ?:\t");
+    for (uint32_t i=0;i<measured_points->size();i++) {
+        printf("? %f %f ",measured_points->at(i).distance,measured_points->at(i).angle);
+    }
+    printf("\n");
+
+
+
+    for (uint32_t i=0;i<measured_points->size();i++) {
+        measured_points->at(i).vertex_index = m.measurements.at(i).vertex_index;
+        printf("%d %f %f %f %d\n",i, measured_points->at(i).position.x(), measured_points->at(i).position.y(),measured_points->at(i).position.z(),measured_points->at(i).vertex_index);
+    }
+
+    return solve_for_measurement(&t,measured_points,solved);
+
+}
+
 static void
 create_model(TrackerPSVR &t)
 {
-	t.model_vertices[0] = {0, Eigen::Vector3f(-2.51408f, 3.77113f, 0.0f),
+    t.model_vertices[0] = {0, Eigen::Vector4f(-2.51408f, 3.77113f, 0.0f,1.0f),
                            TAG_TL,true};
-    t.model_vertices[1] = {1, Eigen::Vector3f(-2.51408f, -3.77113f, 0.0f),
+    t.model_vertices[1] = {1, Eigen::Vector4f(-2.51408f, -3.77113f, 0.0f,1.0f),
                            TAG_TR,true};
-    t.model_vertices[2] = {2, Eigen::Vector3f(0.0f, 0.0f, 1.07253f), TAG_C,true};
-    t.model_vertices[3] = {3, Eigen::Vector3f(2.51408f, 3.77113f, 0.0f),TAG_BL,true};
-    t.model_vertices[4] = {4, Eigen::Vector3f(2.51408f, -3.77113f, 0.0f),
+    t.model_vertices[2] = {2, Eigen::Vector4f(0.0f, 0.0f, 1.07253f,1.0f), TAG_C,true};
+    t.model_vertices[3] = {3, Eigen::Vector4f(2.51408f, 3.77113f, 0.0f,1.0f),TAG_BL,true};
+    t.model_vertices[4] = {4, Eigen::Vector4f(2.51408f, -3.77113f, 0.0f,1.0f),
                            TAG_BR,true};
-    t.model_vertices[5] = {5, Eigen::Vector3f(0.0f, 4.52535f, -3.36583f),
+    t.model_vertices[5] = {5, Eigen::Vector4f(0.0f, 4.52535f, -3.36583f,1.0f),
                            TAG_SL,true};
-    t.model_vertices[6] = {6, Eigen::Vector3f(0.0f, -4.52535f, -3.36584f),
+    t.model_vertices[6] = {6, Eigen::Vector4f(0.0f, -4.52535f, -3.36584f,1.0f),
                            TAG_SR,true};
 }
 
@@ -495,32 +700,31 @@ create_match_list(TrackerPSVR &t)
 
 		model_vertex_t ref_pt_a = vec[0];
 		model_vertex_t ref_pt_b = vec[1];
-		Eigen::Vector3f ref_vec = ref_pt_b.position - ref_pt_a.position;
+        Eigen::Vector3f ref_vec3 = (ref_pt_b.position - ref_pt_a.position).head<3>();
+
 		float normScale = dist_3d(ref_pt_a.position, ref_pt_b.position);
 
         match_data_t md;
         for (auto &&i : vec) {
-            Eigen::Vector3f point_vec = i.position-ref_pt_a.position;
-            md.vertex_index = i.model_index;
+            Eigen::Vector3f point_vec3 = (i.position-ref_pt_a.position).head<3>();
+            md.vertex_index = i.vertex_index;
             md.distance =
 			    dist_3d(i.position, ref_pt_a.position) / normScale;
-            if (i.position.dot(Eigen::Vector3f(0.0,0.0,1.0f)) < 0 ) {
+            if (i.position.head<3>().dot(Eigen::Vector3f(0.0,0.0,1.0f)) < 0 ) {
                         md.distance *= -1;
                     }
 
-			Eigen::Vector3f plane_norm =
-                ref_vec.cross(point_vec).normalized();
+            Eigen::Vector3f plane_norm =
+                ref_vec3.cross(point_vec3).normalized();
             if (ref_pt_a.position != i.position) {
 
 				if (plane_norm.normalized().z() < 0) {
                     md.angle =
 					    -1 *
-                        acos(point_vec.normalized().dot(
-					        ref_vec.normalized()));
+                        acos((point_vec3).normalized().dot(ref_vec3.normalized()));
 				} else {
                     md.angle =
-                        acos(point_vec.normalized().dot(
-					        ref_vec.normalized()));
+                        acos(point_vec3.normalized().dot(ref_vec3.normalized()));
 				}
 			} else {
                 md.angle = 0.0f;
@@ -529,7 +733,7 @@ create_match_list(TrackerPSVR &t)
             if (md.angle != md.angle) {md.angle = 0.0f;}
             if (md.distance != md.distance) {md.distance = 0.0f;}
 
-            m.data.push_back(md);
+            m.measurements.push_back(md);
 		}
         if (match_possible(&m)){
             t.matches.push_back(m);
@@ -540,35 +744,28 @@ create_match_list(TrackerPSVR &t)
 static void
 do_view(TrackerPSVR &t, View &view, cv::Mat &grey)
 {
-	// Undistort the whole image.
-	cv::remap(grey,                 // src
-	          view.frame_undist,    // dst
-	          view.undistort_map_x, // map1
-	          view.undistort_map_y, // map2
-	          cv::INTER_LINEAR,     // interpolation
-	          cv::BORDER_CONSTANT,  // borderMode
-	          cv::Scalar(0, 0, 0)); // borderValue
+    // Undistort and rectify the whole image.
+    cv::remap(grey,                         // src
+              view.frame_undist_rectified,  // dst
+              view.undistort_rectify_map_x, // map1
+              view.undistort_rectify_map_y, // map2
+              cv::INTER_LINEAR,             // interpolation
+              cv::BORDER_CONSTANT,          // borderMode
+              cv::Scalar(0, 0, 0));         // borderValue
 
-	// Rectify the whole image.
-	cv::remap(view.frame_undist,    // src
-	          view.frame_rectified, // dst
-	          view.rectify_map_x,   // map1
-	          view.rectify_map_y,   // map2
-	          cv::INTER_LINEAR,     // interpolation
-	          cv::BORDER_CONSTANT,  // borderMode
-	          cv::Scalar(0, 0, 0)); // borderValue
+    cv::threshold(view.frame_undist_rectified, // src
+                  view.frame_undist_rectified, // dst
+                  32.0,                        // thresh
+                  255.0,                       // maxval
+                  0);
 
-	cv::threshold(view.frame_rectified, // src
-	              view.frame_rectified, // dst
-	              32.0,                 // thresh
-	              255.0,                // maxval
-	              0);                   // type
+                   // type
 
 	// tracker_measurement_t m = {};
 
 	// Do blob detection with our masks.
 	//! @todo Re-enable masks.
-	t.sbd->detect(view.frame_rectified, // image
+    t.sbd->detect(view.frame_undist_rectified, // image
 	              view.keypoints,       // keypoints
                   cv::noArray());       // mask
 }
@@ -580,37 +777,16 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
     if (xf == NULL) {
 		return;
 	}
-	float dt = 1.0f;
+
+    t.corrected_imu_rotation.setIdentity();
+    t.corrected_imu_rotation.block<3,3>(0,0) = (Eigen::Quaternionf(t.fusion.rot.w,t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z) * t.optical_rotation_correction).toRotationMatrix();
+    float dt = 1.0f;
 	// get our predicted filtered led positions, if any
 	model_vertex_t predicted_pose[PSVR_NUM_LEDS];
 	filter_predict(predicted_pose, t.track_filters, dt);
 
 	model_vertex_t measured_pose[PSVR_NUM_LEDS];
 
-    if (!t.calibrated) {
-        bool ok = calibration_get_stereo(
-            "PS4_EYE",                  // name
-            xf->width,                  // width
-            xf->height,                 // height
-            false,                      // use_fisheye
-            &t.view[0].undistort_map_x, // l_undistort_map_x
-            &t.view[0].undistort_map_y, // l_undistort_map_y
-            &t.view[0].rectify_map_x,   // l_rectify_map_x
-            &t.view[0].rectify_map_y,   // l_rectify_map_y
-            &t.view[1].undistort_map_x, // r_undistort_map_x
-            &t.view[1].undistort_map_y, // r_undistort_map_y
-            &t.view[1].rectify_map_x,   // r_rectify_map_x
-            &t.view[1].rectify_map_y,   // r_rectify_map_y
-            &t.disparity_to_depth);     // disparity_to_depth
-
-        if (ok) {
-            printf("loaded calibration for camera!\n");
-            t.calibrated = true;
-        } else {
-            xrt_frame_reference(&xf, NULL);
-            return;
-        }
-    }
 
     // get our raw measurements
 
@@ -618,7 +794,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	t.view[1].keypoints.clear();
 	t.l_blobs.clear();
 	t.r_blobs.clear();
-
+    t.world_points.clear();
 
 	int cols = xf->width / 2;
 	int rows = xf->height;
@@ -658,8 +834,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	}
 
 	// Convert our 2d point + disparities into 3d points.
-	std::vector<cv::Point3f> world_points;
-	if (t.l_blobs.size() > 0) {
+    if (t.l_blobs.size() > 0) {
 		for (uint32_t i = 0; i < t.l_blobs.size(); i++) {
 			float disp = t.r_blobs[i].pt.x - t.l_blobs[i].pt.x;
 			cv::Vec4d xydw(t.l_blobs[i].pt.x, t.l_blobs[i].pt.y,
@@ -669,111 +844,84 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 			    (cv::Matx44d)t.disparity_to_depth * xydw;
 
 			// Divide by scale to get 3D vector from homogeneous
-			// coordinate. invert x while we are here.
-			world_points.push_back(cv::Point3f(
-			    -h_world[0] / h_world[3], h_world[1] / h_world[3],
-			    h_world[2] / h_world[3]));
+            // coordinate.
+            t.world_points.push_back(cv::Point3f(
+                h_world[0] / h_world[3], h_world[1] / h_world[3],
+                h_world[2] / h_world[3]) * t.model_scale_factor);
 		}
 	}
 
+    //raw debug output for Blender algo development
+    //for (int i=0;i<t.world_points.size();i++) {
+    //    fprintf(t.dump_file,"P,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,t.world_points[i].x,t.world_points[i].y,t.world_points[i].z);
+    //}
 
-	// remove outliers from our measurement list
-	std::vector<Eigen::Vector3f> pruned_points;
-	remove_outliers(&world_points, &pruned_points, 10);
+    t.pruned_points.clear();
+    t.merged_points.clear();
+    t.processed_points.clear();
+
+    // remove outliers from our measurement list
+    printf("WORLD POINTS %d\n",t.world_points.size());
+    remove_outliers(&t.world_points, &t.pruned_points, t.outlier_thresh);
+    printf("PRUNED POINTS %d\n",t.pruned_points.size());
+
+    merge_close_points(&t.pruned_points, &t.merged_points,t.merge_thresh);
+    printf("MERGED POINTS %d\n",t.merged_points.size());
 
 	// try matching our leds against the predictions
 	// if error low, fit model using raw and filtered positions
-    if (pruned_points.size() < 7) {
-    std::vector<model_vertex_t> world_pruned;
-    for (uint32_t i=0;i< pruned_points.size();i++) {
+    if (t.merged_points.size() < PSVR_NUM_LEDS) {
+      for (uint32_t i=0;i< t.merged_points.size();i++) {
         model_vertex_t mv;
-        mv.position = pruned_points[i];
-        world_pruned.push_back(mv);
-        fprintf(t.dump_file,"%f,%f,%f\n",mv.position.x(),mv.position.y(),mv.position.z());
+        mv.position = t.merged_points[i];
+        t.processed_points.push_back(mv);
     }
-    fprintf(t.dump_file,"\n");
-
-    if (world_pruned.size() > 2)
-    {
-        std::vector<match_data_t> match_verts;
-        verts_to_measurement(&world_pruned,&match_verts);
-
-        disambiguate(t,&match_verts,NULL,0);
-
-        //take our first two tracked verts, and compute the positions of all the other verts relative to that.
-        Eigen::Vector3f meas_ref_a = world_pruned[0].position;
-        Eigen::Vector3f meas_ref_b = world_pruned[1].position;
-
-
-        Eigen::Vector3f model_ref_a = t.model_vertices[match_verts.at(0).vertex_index].position;
-        Eigen::Vector3f model_ref_b = t.model_vertices[match_verts.at(1).vertex_index].position;
-
-        //as a limited enhancement - use the largest triangle
-
-        float highestLength = 0.0f;
-        uint32_t best_model_vert = 0;
-        uint32_t c=0;
-        for (uint32_t i=2;i < match_verts.size();i++) {
-            Eigen::Vector3f model_vert = t.model_vertices[match_verts.at(i).vertex_index].position;
-            float l = dist_3d(model_vert,model_ref_a);
-            if ( i  > 1 && ( l > highestLength) ) {
-                 best_model_vert  = i;
-                 highestLength = l;
-            }
-        }
-        Eigen::Vector3f meas_ref_c = world_pruned[best_model_vert].position;
-
-        float model_scale  = dist_3d(meas_ref_a,meas_ref_b) / dist_3d(model_ref_a,model_ref_b);
-        model_ref_a = model_scale * model_ref_a;
-        model_ref_b = model_scale *  model_ref_b;
-        Eigen::Vector3f model_ref_c =  model_scale * t.model_vertices[match_verts[best_model_vert].vertex_index].position;
-
-        //get the center vertex position of of model - we will transform
-        //this into measurement space
-        Eigen::Vector3f model_center_offset = model_ref_a - (model_scale * t.model_vertices[2].position); //2 is TAG_C
-        Eigen::Matrix4f tri1_a_basis;
-        Eigen::Matrix4f tri1_b_basis;
-        Eigen::Matrix4f tri1_c_basis;
-        Eigen::Matrix4f a_model_to_meas;
-        Eigen::Matrix4f b_model_to_meas;
-        Eigen::Matrix4f c_model_to_meas;
-
-        match_triangles(&tri1_a_basis,&a_model_to_meas,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
-        //match_triangles(&tri1_b_basis,&b_model_to_meas,model_ref_b,model_ref_c,model_ref_a,meas_ref_b,meas_ref_c,meas_ref_a);
-        //match_triangles(&tri1_c_basis,&c_model_to_meas,model_ref_c,model_ref_a,model_ref_b,meas_ref_c,meas_ref_a,meas_ref_b);
-
-     //   Eigen::Matrix4f meas_a_basis = tri1_a_basis * a_model_to_meas;
-     //   Eigen::Matrix4f meas_b_basis = tri1_b_basis * b_model_to_meas;
-     //   Eigen::Matrix4f meas_c_basis = tri1_c_basis * c_model_to_meas;
-
-        Eigen::Matrix4f model_center_transform = tri1_a_basis * a_model_to_meas * tri1_a_basis.inverse();
-
-
-        t.optical.pos.x = model_center_transform(0,3); //row-first
-        t.optical.pos.y = model_center_transform(1,3);
-        t.optical.pos.z = model_center_transform(2,3);
-        printf("POS: %f %f %f\n",t.optical.pos.x,t.optical.pos.y,t.optical.pos.z);
-        Eigen::Matrix3f r = model_center_transform.block(0,0,3,3);
-        Eigen::Quaternionf rot(r);
-        t.optical.rot.x = rot.x();
-        t.optical.rot.y = rot.y();
-        t.optical.rot.z = rot.z();
-        t.optical.rot.w = rot.w();
-        printf("ROT: %f %f %f %f\n",t.optical.rot.x,t.optical.rot.y,t.optical.rot.z,t.optical.rot.w);
-
-        //t.optical.rot.w = 1.0f;
-        // update filter
-
-        filter_update(measured_pose, t.track_filters, dt);
-        t.last_vertices.clear();
-        for (uint32_t i=0;i<match_verts.size();i++) {
-            t.last_vertices.push_back(match_verts[i]);
-        }
-    }
-
     } else {
-        printf("Too many blobs to be a PSVR! %d\n",pruned_points.size());
+        printf("Too many blobs to be a PSVR! %ld\n",t.processed_points.size());
     }
+    //fprintf(t.dump_file,"\n");
+
+    // convert our points to match data, and disambiguate it, this tags our match_vertices with
+    // everything we need to solve the pose.
+    verts_to_measurement(&t.processed_points,&t.match_vertices);
+
+    std::vector<match_data_t> solved;
+    Eigen::Matrix4f model_center_transform = disambiguate(t, &t.match_vertices,&t.last_vertices,&solved,0);
+
+    Eigen::Matrix3f r = model_center_transform.block(0,0,3,3);
+    Eigen::Quaternionf rot(r);
+
+    if (t.processed_points.size() ==5) {
+        t.optical_rotation_correction =  Eigen::Quaternionf(t.fusion.rot.w,t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z).inverse() * rot;
+    }
+    t.optical.rot.x = rot.x();
+    t.optical.rot.y = rot.y();
+    t.optical.rot.z = rot.z();
+    t.optical.rot.w = rot.w();
+
+    //if our optical confidence is high, update our imu correction
+//    if (optical_confidence > 0.9) {
+//        Eigen::Quaternionf fusion_rot(t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z,t.fusion.rot.w);
+//        t.optical_rotation_correction =  fusion_rot.inverse() * rot;
+//    }
+
+    t.optical.pos.x = model_center_transform(0,3); //row-first
+    t.optical.pos.y = model_center_transform(1,3);
+    t.optical.pos.z = model_center_transform(2,3);
+    printf("POS: %f %f %f\n",t.optical.pos.x,t.optical.pos.y,t.optical.pos.z);
+    printf("OPTICAL ROT: %f %f %f %f\n",t.optical.rot.x,t.optical.rot.y,t.optical.rot.z,t.optical.rot.w);
+
+
+    //t.optical.rot.w = 1.0f;
+    // update filter
+
+    filter_update(measured_pose, t.track_filters, dt);
+    t.last_vertices.clear();
+    for (uint32_t i=0;i<t.match_vertices.size();i++) {
+        t.last_vertices.push_back(t.match_vertices[i]);
+    }
+
+
 
 
 	// predict again, using camera-frame -> screen latency as dt.
@@ -868,6 +1016,8 @@ imu_data(TrackerPSVR &t,
 		math_quat_integrate_velocity(
 		    &t.fusion.rot, &sample->gyro_rad_secs, dt, &t.fusion.rot);
 	}
+    fprintf(t.dump_file,"I,%" PRIu64 ", %f,%f,%f,%f\n\n",timestamp_ns,t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z,t.fusion.rot.w);
+
 	t.last_imu = timestamp_ns;
 
 	os_thread_helper_unlock(&t.oth);
@@ -1001,6 +1151,13 @@ t_psvr_create(struct xrt_frame_context *xfctx,
         init_filter(t.track_filters[i],0.1f,0.1f,1.0f);
     }
 
+    StereoCameraCalibrationWrapper wrapped(*data);
+    StereoRectificationMaps rectify(*data);
+    t.view[0].populate_from_calib(data->view[0], rectify.view[0].rectify);
+    t.view[1].populate_from_calib(data->view[1], rectify.view[1].rectify);
+    t.disparity_to_depth = rectify.disparity_to_depth_mat;
+    t.calibrated = true;
+
     // clang-format off
     cv::SimpleBlobDetector::Params blob_params;
     blob_params.filterByArea = false;
@@ -1018,6 +1175,8 @@ t_psvr_create(struct xrt_frame_context *xfctx,
     // clang-format on
 
     t.sbd = cv::SimpleBlobDetector::create(blob_params);
+
+    t.corrected_imu_rotation = Eigen::Matrix4f().Identity();
 
     create_model(t);
     create_match_list(t);
