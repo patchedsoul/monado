@@ -17,6 +17,8 @@ and aims to support other operating systems in the near future.
 
 # About the libsurvive Branch
 
+The libsurvive branch can ONLY be built with cmake.
+
 This branch contains libsurvive as a submodule in src/xrt/external/libsurvive.
 Libsurvive is compiled as a shared library and the runtime links to libsurvive.
 A device prober using the libsurvive simple api is implemented in src/xrt/drivers/survive.
@@ -28,7 +30,7 @@ Make sure the HMD can see both basestations and is not moved during calibration.
 
 To remove libsurvive's calibration data delete the following files/directories:
 
-    rm -r config.json HMD_config.json calinfo
+    rm -r *config.json calinfo
 
 Though working and usable, support for the libsurvive driver is **experimental**.
 

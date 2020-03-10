@@ -134,15 +134,6 @@ if(BUILD_DRIVER_V4L2)
 	list(APPEND ENABLED_DRIVERS v4l2)
 endif()
 
-if(ENABLED_HEADSET_DRIVERS)
-	set(ENABLED_DRIVERS ${ENABLED_HEADSET_DRIVERS} ${ENABLED_DRIVERS})
-	list(SORT ENABLED_DRIVERS)
-	string(REPLACE ";" " " ENABLED_DRIVERS "${ENABLED_DRIVERS}")
-	message(STATUS "Enabled drivers: ${ENABLED_DRIVERS}")
-else()
-	message(FATAL_ERROR "You must enable at least one headset driver to build Monado.")
-endif()
-
 if (BUILD_WITH_LIBSURVIVE)
 	set(SURVIVE_SOURCE_FILES
 		survive/survive_driver.c
@@ -151,8 +142,8 @@ if (BUILD_WITH_LIBSURVIVE)
 		survive/survive_wrap.h
 		)
 
-	# Use OBJECT to not create a archive, since it just gets in the way.
-	add_library(drv_survive OBJECT ${SURVIVE_SOURCE_FILES})
+	add_library(drv_survive STATIC ${SURVIVE_SOURCE_FILES})
+	target_link_libraries(drv_survive PRIVATE survive xrt-interfaces aux_os aux_util aux_math)
 	set_property(TARGET drv_survive PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 	target_include_directories(drv_survive SYSTEM
@@ -161,5 +152,15 @@ if (BUILD_WITH_LIBSURVIVE)
 		${PROJECT_SOURCE_DIR}/src/external/libsurvive/include/libsurvive
 		${PROJECT_SOURCE_DIR}/src/external/libsurvive/redist
 		SYSTEM PRIVATE ../../external
-		)
+	)
+	list(APPEND ENABLED_HEADSET_DRIVERS survive)
+endif()
+
+if(ENABLED_HEADSET_DRIVERS)
+	set(ENABLED_DRIVERS ${ENABLED_HEADSET_DRIVERS} ${ENABLED_DRIVERS})
+	list(SORT ENABLED_DRIVERS)
+	string(REPLACE ";" " " ENABLED_DRIVERS "${ENABLED_DRIVERS}")
+	message(STATUS "Enabled drivers: ${ENABLED_DRIVERS}")
+else()
+	message(FATAL_ERROR "You must enable at least one headset driver to build Monado.")
 endif()
