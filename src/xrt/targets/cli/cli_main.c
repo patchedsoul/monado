@@ -1,4 +1,4 @@
-// Copyright 2019, Collabora, Ltd.
+// Copyright 2019-2020, Collabora, Ltd.
 // SPDX-License-Identifier: BSL-1.0
 /*!
  * @file
@@ -29,9 +29,12 @@ cli_print_help(int argc, const char **argv)
 	P("  probe      - Just probe and then exit.\n");
 	P("  calibrate  - Calibrate a camera and save config (not implemented "
 	  "yet).\n");
+	P("  fov        - TESTING fov printing stuffs.\n");
 
 	return 1;
 }
+
+
 
 int
 main(int argc, const char **argv)
@@ -40,6 +43,9 @@ main(int argc, const char **argv)
 		return cli_print_help(argc, argv);
 	}
 
+	if (strcmp(argv[1], "fov") == 0) {
+		return cli_cmd_fov(argc, argv);
+	}
 	if (strcmp(argv[1], "test") == 0) {
 		return cli_cmd_test(argc, argv);
 	}

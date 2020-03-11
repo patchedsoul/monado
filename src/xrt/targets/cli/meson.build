@@ -1,10 +1,11 @@
-# Copyright 2019, Collabora, Ltd.
+# Copyright 2019-2020, Collabora, Ltd.
 # SPDX-License-Identifier: BSL-1.0
 
 cli = executable(
 	'monado-cli',
 	files(
 		'cli_cmd_calibrate.c',
+		'cli_cmd_fov.c',
 		'cli_cmd_probe.c',
 		'cli_cmd_test.c',
 		'cli_common.h',
