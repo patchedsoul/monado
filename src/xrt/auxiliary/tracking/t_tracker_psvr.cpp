@@ -729,13 +729,13 @@ static Eigen::Matrix4f disambiguate(TrackerPSVR &t,std::vector<match_data_t>* me
 static void
 create_model(TrackerPSVR &t)
 {
-    t.model_vertices[0] = {0, Eigen::Vector4f(2.51408f, 3.77113f, 0.0f,1.0f),TAG_BL,true};
-    t.model_vertices[1] = {1, Eigen::Vector4f(2.51408f, -3.77113f, 0.0f,1.0f),TAG_TL,true};
-    t.model_vertices[2] = {2, Eigen::Vector4f(0.0f, 0.0f, 1.54926f,1.0f), TAG_C,true};
-    t.model_vertices[3] = {3, Eigen::Vector4f(-2.51408f, 3.77113f, 0.0f,1.0f),TAG_BR,true};
-    t.model_vertices[4] = {4, Eigen::Vector4f(-2.51408f, -3.77113f, 0.0f,1.0f),TAG_TR,true};
-    t.model_vertices[5] = {5, Eigen::Vector4f(0.0f, 4.52535f, -2.62887f,1.0f),TAG_SL,true};
-    t.model_vertices[6] = {6, Eigen::Vector4f(0.0f, -4.52535f, -2.62887f,1.0f),TAG_SR,true};
+    t.model_vertices[0] = {0, Eigen::Vector4f( 3.77113f,2.51408f, 0.0f,1.0f),TAG_BL,true};
+    t.model_vertices[1] = {1, Eigen::Vector4f(-3.77113f,2.51408f, 0.0f,1.0f),TAG_TL,true};
+    t.model_vertices[2] = {2, Eigen::Vector4f( 0.0f, 0.0f, 1.54926f,1.0f), TAG_C,true};
+    t.model_vertices[3] = {3, Eigen::Vector4f( 3.77113f,-2.51408f,0.0f,1.0f),TAG_BR,true};
+    t.model_vertices[4] = {4, Eigen::Vector4f(-3.77113f,-2.51408f, 0.0f,1.0f),TAG_TR,true};
+    t.model_vertices[5] = {5, Eigen::Vector4f( 4.52535f,0.0, -2.62887f,1.0f),TAG_SL,true};
+    t.model_vertices[6] = {6, Eigen::Vector4f(-4.52535f,0.0, -2.62887f,1.0f),TAG_SR,true};
 }
 
 
