@@ -473,6 +473,9 @@ match_triangles(Eigen::Matrix4f *t1_mat,
 
 static Eigen::Matrix4f solve_for_measurement(TrackerPSVR* t,std::vector<match_data_t>* measurement,std::vector<match_data_t>* solved) {
 
+    Eigen::Matrix4f tri_basis;
+    Eigen::Matrix4f model_to_measurement;
+
     Eigen::Vector4f meas_ref_a = measurement->at(0).position;
     Eigen::Vector4f meas_ref_b = measurement->at(1).position;
     int meas_index_a = measurement->at(0).vertex_index;
@@ -499,31 +502,63 @@ static Eigen::Matrix4f solve_for_measurement(TrackerPSVR* t,std::vector<match_da
 
     Eigen::Vector4f model_ref_c =  t->model_vertices[ meas_index_c ].position;
 
+    match_triangles(&tri_basis,&model_to_measurement,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
+    Eigen::Matrix4f model_center_transform_f = tri_basis * model_to_measurement * tri_basis.inverse();
 
-    Eigen::Matrix4f tri_basis;
-    Eigen::Matrix4f model_to_measurement;
+    //now reverse the order of our verts to get a more accurate estimate.
 
+    meas_ref_a = measurement->at(measurement->size()-1).position;
+    meas_ref_b = measurement->at(measurement->size()-2).position;
+    meas_index_a = measurement->at(measurement->size()-1).vertex_index;
+    meas_index_b = measurement->at(measurement->size()-2).vertex_index;
 
-    //std::cout << "MODEL_REF_A: \n" << model_ref_a << "\n";
-    //std::cout << "MODEL_REF_B: \n" << model_ref_b << "\n";
-    //std::cout << "MODEL_REF_C: \n" << model_ref_c << "\n";
-    //std::cout << "MEAS_REF_A: \n" << meas_ref_a << "\n";
-    //std::cout << "MEAS_REF_B: \n" << meas_ref_b << "\n";
-    //std::cout << "MEAS_REF_C: \n" << meas_ref_c << "\n";
+    model_ref_a = t->model_vertices[meas_index_a].position;
+    model_ref_b = t->model_vertices[meas_index_b].position;
+
+    highest_length = 0.0f;
+    best_model_index = 0;
+    most_distant_index = 0;
+
+    for (uint32_t i=0;i < measurement->size();i++){
+        int model_tag_index = measurement->at(i).vertex_index;
+        Eigen::Vector4f model_vert = t->model_vertices[model_tag_index].position;
+        if (most_distant_index < measurement->size()-2 && dist_3d(model_vert,model_ref_a) > highest_length) {
+            best_model_index = most_distant_index;
+        }
+        most_distant_index++;
+    }
+
+    meas_ref_c = measurement->at(best_model_index).position;
+    meas_index_c = measurement->at(best_model_index).vertex_index;
+
+    model_ref_c =  t->model_vertices[ meas_index_c ].position;
 
     match_triangles(&tri_basis,&model_to_measurement,model_ref_a,model_ref_b,model_ref_c,meas_ref_a,meas_ref_b,meas_ref_c);
+    Eigen::Matrix4f model_center_transform_r = tri_basis * model_to_measurement * tri_basis.inverse();
 
-    Eigen::Matrix4f model_center_transform = tri_basis * model_to_measurement * tri_basis.inverse();
+    //decompose our transforms and slerp
+    Eigen::Matrix3f r = model_center_transform_f.block(0,0,3,3);
+    Eigen::Quaternionf f_rot_part = Eigen::Quaternionf(r);
+    r = model_center_transform_r.block(0,0,3,3);
+    Eigen::Quaternionf r_rot_part = Eigen::Quaternionf(r);
+    Eigen::Vector4f f_trans_part_f = model_center_transform_f.col(3);
+    Eigen::Vector4f f_trans_part_r = model_center_transform_r.col(3);
+
+    Eigen::Matrix4f trans = Eigen::Matrix4f().Identity();
+    trans.block(0,0,3,3) = f_rot_part.slerp(0.5,r_rot_part).toRotationMatrix();
+    trans.col(3) = (f_trans_part_f + f_trans_part_r) /2.0f;
+
+
 
     solved->clear();
     for (uint32_t i=0;i<PSVR_NUM_LEDS;i++) {
         match_data_t md;
         md.vertex_index = i;
-        md.position =  model_center_transform * t->model_vertices[i].position;
+        md.position =  trans * t->model_vertices[i].position;
         solved->push_back(md);
         //printf("MEAS SOLVED VERT: %d %f %f %f \n",i,md.position.x(),md.position.y(),md.position.z());
     }
-    Eigen::Matrix4f pose =  model_center_transform;
+    Eigen::Matrix4f pose =  trans;
     //std::cout << "MEAS POSE:\n" << pose << "\n";
 
     return pose;
@@ -700,6 +735,9 @@ static Eigen::Matrix4f disambiguate(TrackerPSVR &t,std::vector<match_data_t>* me
 
     }
     printf ("ERR: %f BEST: %d\n",lowestError,bestModel);
+    if (bestModel == -1){
+        return Eigen::Matrix4f().Identity();
+    }
 
     //printf("model %d:\t",bestModel);
     match_model_t m = t.matches[bestModel];
@@ -730,9 +768,9 @@ static void
 create_model(TrackerPSVR &t)
 {
     t.model_vertices[0] = {0, Eigen::Vector4f( 3.77113f,2.51408f, 0.0f,1.0f),TAG_BL,true};
-    t.model_vertices[1] = {1, Eigen::Vector4f(-3.77113f,2.51408f, 0.0f,1.0f),TAG_TL,true};
+    t.model_vertices[1] = {1, Eigen::Vector4f(-3.77113f,2.51408f, 0.0f,1.0f),TAG_BR,true};
     t.model_vertices[2] = {2, Eigen::Vector4f( 0.0f, 0.0f, 1.54926f,1.0f), TAG_C,true};
-    t.model_vertices[3] = {3, Eigen::Vector4f( 3.77113f,-2.51408f,0.0f,1.0f),TAG_BR,true};
+    t.model_vertices[3] = {3, Eigen::Vector4f( 3.77113f,-2.51408f,0.0f,1.0f),TAG_TL,true};
     t.model_vertices[4] = {4, Eigen::Vector4f(-3.77113f,-2.51408f, 0.0f,1.0f),TAG_TR,true};
     t.model_vertices[5] = {5, Eigen::Vector4f( 4.52535f,0.0, -2.62887f,1.0f),TAG_SL,true};
     t.model_vertices[6] = {6, Eigen::Vector4f(-4.52535f,0.0, -2.62887f,1.0f),TAG_SR,true};
