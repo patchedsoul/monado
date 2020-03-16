@@ -142,6 +142,7 @@ public:
 
     Eigen::Quaternionf optical_rotation_correction;
     Eigen::Matrix4f corrected_imu_rotation;
+    Eigen::Quaternionf axis_alignment_rotation;
 
 	model_vertex_t model_vertices[PSVR_NUM_LEDS];
     std::vector<match_data_t> last_vertices;
@@ -199,31 +200,32 @@ init_filter(cv::KalmanFilter &kf, float process_cov, float meas_cov, float dt)
 }
 
 static void
-filter_predict(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
+filter_predict(std::vector<match_data_t>* pose, cv::KalmanFilter *filters, float dt)
 {
 	for (uint32_t i = 0; i < PSVR_NUM_LEDS; i++) {
-		model_vertex_t *current_led = pose + i;
+        match_data_t current_led;
 		cv::KalmanFilter *current_kf = filters + i;
 
 		// set our dt components in the transition matrix
-		current_kf->transitionMatrix.at<float>(0, 3) = dt;
+        current_kf->transitionMatrix.at<float>(0, 3) = dt;
 		current_kf->transitionMatrix.at<float>(1, 4) = dt;
 		current_kf->transitionMatrix.at<float>(2, 5) = dt;
 
-        current_led->vertex_index = i;
-        current_led->tag = (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
+        current_led.vertex_index = i;
+        //current_led->tag = (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
 		cv::Mat prediction = current_kf->predict();
-		current_led->position[0] = prediction.at<float>(0, 0);
-		current_led->position[1] = prediction.at<float>(1, 0);
-		current_led->position[2] = prediction.at<float>(2, 0);
+        current_led.position[0] = prediction.at<float>(0, 0);
+        current_led.position[1] = prediction.at<float>(1, 0);
+        current_led.position[2] = prediction.at<float>(2, 0);
+        pose->push_back(current_led);
 	}
 }
 
 static void
-filter_update(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
+filter_update(std::vector<match_data_t>* pose, cv::KalmanFilter *filters, float dt)
 {
 	for (uint32_t i = 0; i < PSVR_NUM_LEDS; i++) {
-		model_vertex_t *current_led = pose + i;
+        match_data_t* current_led = &pose->at(i);
 		cv::KalmanFilter *current_kf = filters + i;
 
 		// set our dt components in the transition matrix
@@ -232,8 +234,8 @@ filter_update(model_vertex_t *pose, cv::KalmanFilter *filters, float dt)
 		current_kf->transitionMatrix.at<float>(2, 5) = dt;
 
         current_led->vertex_index = i;
-		current_led->tag =
-		    (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
+        //current_led->tag =
+        //    (led_tag_t)(i + 1); // increment, as 0 is TAG_NONE
 		cv::Mat measurement = cv::Mat(3, 1, CV_32F);
 		measurement.at<float>(0, 0) = current_led->position[0];
 		measurement.at<float>(1, 0) = current_led->position[1];
@@ -865,8 +867,9 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
 	}
 	float dt = 1.0f;
 	// get our predicted filtered led positions, if any
-	model_vertex_t predicted_pose[PSVR_NUM_LEDS];
-	filter_predict(predicted_pose, t.track_filters, dt);
+    std::vector<match_data_t> predicted_pose;
+    filter_predict(&predicted_pose, t.track_filters, dt);
+
 
 	model_vertex_t measured_pose[PSVR_NUM_LEDS];
 
@@ -970,7 +973,7 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
     verts_to_measurement(&t.processed_points,&t.match_vertices);
 
     std::vector<match_data_t> solved;
-    Eigen::Matrix4f model_center_transform = disambiguate(t, &t.match_vertices,&t.last_vertices,&solved,0);
+    Eigen::Matrix4f model_center_transform = disambiguate(t, &t.match_vertices,&predicted_pose,&solved,0);
 
     Eigen::Matrix3f r = model_center_transform.block(0,0,3,3);
     Eigen::Quaternionf rot(r);
@@ -978,33 +981,49 @@ process(TrackerPSVR &t, struct xrt_frame *xf)
     if (t.processed_points.size() ==5) {
         t.optical_rotation_correction = Eigen::Quaternionf(t.fusion.rot.w,t.fusion.rot.x,t.fusion.rot.y,t.fusion.rot.z).inverse() * rot;
     }
+
+    //t.optical.rot.w = 1.0f;
+    // update filter
+
+    t.last_vertices.clear();
+    for (uint32_t i=0;i<solved.size();i++) {
+        t.last_vertices.push_back(solved[i]);
+        //fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,solved[i].position.x(),solved[i].position.y(),solved[i].position.z());
+        //fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,predicted_pose[i].position.x(),predicted_pose[i].position.y(),predicted_pose[i].position.z());
+    }
+    fprintf(t.dump_file,"\n");
+
+    if (t.last_vertices.size() > 0) {
+        filter_update(&t.last_vertices, t.track_filters, dt);
+    }
+
+
+    std::vector<match_data_t> f_solved;
+    Eigen::Matrix4f f_pose = solve_with_imu(t,&predicted_pose,&solved,&f_solved,0.5f);
+
+    for (uint32_t i=0;i<PSVR_NUM_LEDS;i++) {
+        fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,f_solved[i].position.x(),f_solved[i].position.y(),f_solved[i].position.z());
+        //fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,predicted_pose[i].position.x(),predicted_pose[i].position.y(),predicted_pose[i].position.z());
+    }
+    fprintf(t.dump_file,"\n");
+
+    rot *= t.axis_alignment_rotation;
+
     t.optical.rot.x = rot.x();
     t.optical.rot.y = rot.y();
     t.optical.rot.z = rot.z();
     t.optical.rot.w = rot.w();
 
-    t.optical.pos.x = model_center_transform(0,3); //row-first
-    t.optical.pos.y = model_center_transform(1,3);
-    t.optical.pos.z = model_center_transform(2,3);
+
+    float inv_model_scale_factor = 1.0f/t.model_scale_factor;
+
+    t.optical.pos.x = model_center_transform(0,3) * inv_model_scale_factor; //row-first
+    t.optical.pos.y = model_center_transform(1,3) * inv_model_scale_factor;
+    t.optical.pos.z = model_center_transform(2,3) * inv_model_scale_factor;
+
     printf("POS: %f %f %f\n",t.optical.pos.x,t.optical.pos.y,t.optical.pos.z);
     printf("OPTICAL ROT: %f %f %f %f\n",t.optical.rot.x,t.optical.rot.y,t.optical.rot.z,t.optical.rot.w);
 
-
-    //t.optical.rot.w = 1.0f;
-    // update filter
-
-    model_vertex_t f_update[PSVR_NUM_LEDS];
-    t.last_vertices.clear();
-    for (uint32_t i=0;i<solved.size();i++) {
-        t.last_vertices.push_back(solved[i]);
-        f_update[i].position = solved[i].position;
-        fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,solved[i].position.x(),solved[i].position.y(),solved[i].position.z());
-        //fprintf(t.dump_file,"S,%" PRIu64 ", %f,%f,%f\n",xf->source_sequence,predicted_pose[i].position.x(),predicted_pose[i].position.y(),predicted_pose[i].position.z());
-
-    }
-    fprintf(t.dump_file,"\n");
-
-    filter_update(f_update, t.track_filters, dt);
 
     printf("FRAME: %ld\n",xf->source_sequence);
 	xrt_frame_reference(&xf, NULL);
@@ -1227,7 +1246,7 @@ t_psvr_create(struct xrt_frame_context *xfctx,
 	int ret;
 
     for (uint32_t i=0;i<PSVR_NUM_LEDS;i++){
-        init_filter(t.track_filters[i],0.1f,0.1f,1.0f);
+        init_filter(t.track_filters[i],0.1f,4.0f,1.0f);
     }
 
     StereoCameraCalibrationWrapper wrapped(*data);
@@ -1256,6 +1275,7 @@ t_psvr_create(struct xrt_frame_context *xfctx,
     t.sbd = cv::SimpleBlobDetector::create(blob_params);
 
     t.corrected_imu_rotation = Eigen::Matrix4f().Identity();
+    t.axis_alignment_rotation = Eigen::AngleAxis<float>(-1.5708, Eigen::Vector3f(0.0f,0.0f,1.0f));
 
     create_model(t);
     create_match_list(t);
